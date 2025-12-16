@@ -10,15 +10,13 @@ Aktuelles Ziel
 - Full-Import robust und vollstaendig.
 
 Naechste Schritte (Claude Code, max 3)
-1) DB-Migration testen (neue provider_id Spalte)
-2) Import-Fortschritt in Job-Liste anzeigen (items_imported)
-3) Job-Liste: abgeschlossene Jobs aus DB laden (nicht nur Memory)
+1) Import-Fortschritt in Job-Liste anzeigen (items_imported)
+2) Job-Liste: abgeschlossene Jobs aus DB laden (nicht nur Memory)
+3) (offen)
 
 Offene Fragen (max 3)
 - (keine aktuell)
 
 Handoff
-- Job-Detailansicht: app/main.py:283-290
-- Template: app/templates/job_detail.html
-- Job-Tabelle klickbar: app/templates/readwise_import.html:113-114
+- DB-Migration fuer provider_id getestet und funktioniert (app/core/storage.py:104-118)
 - preflight-fast gruen
