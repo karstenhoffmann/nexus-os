@@ -16,6 +16,7 @@ PRAGMA journal_mode=WAL;
 CREATE TABLE IF NOT EXISTS documents (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   source TEXT NOT NULL,
+  provider_id TEXT,
   url_original TEXT,
   url_canonical TEXT,
   title TEXT,
@@ -26,7 +27,8 @@ CREATE TABLE IF NOT EXISTS documents (
   summary TEXT,
   raw_json TEXT,
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(source, provider_id)
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
@@ -189,56 +191,30 @@ class DB:
 
         Returns the document id (existing or new).
         """
-        # Check if article already exists by source+provider_id
-        # We store provider_id in the id field as "source:provider_id" format
-        # But we need a separate lookup mechanism - use raw_json or url_original
-
-        # First, try to find existing by source URL (normalized)
-        existing_id = None
-        if url_original:
-            cur = self.conn.execute(
-                "SELECT id FROM documents WHERE url_original = ? AND source = ?",
-                (url_original, source),
-            )
-            row = cur.fetchone()
-            if row:
-                existing_id = row[0]
-
-        if existing_id:
-            # Update existing record
-            self.conn.execute(
-                """
-                UPDATE documents SET
-                    title = COALESCE(?, title),
-                    author = COALESCE(?, author),
-                    published_at = COALESCE(?, published_at),
-                    saved_at = COALESCE(?, saved_at),
-                    fulltext = COALESCE(?, fulltext),
-                    summary = COALESCE(?, summary),
-                    raw_json = COALESCE(?, raw_json),
-                    updated_at = datetime('now')
-                WHERE id = ?
-                """,
-                (title, author, published_at, saved_at, fulltext, summary, raw_json, existing_id),
-            )
-            self.conn.commit()
-            # Update FTS index
-            self._update_fts(existing_id)
-            return existing_id
-        else:
-            # Insert new record
-            cur = self.conn.execute(
-                """
-                INSERT INTO documents (source, url_original, title, author, published_at, saved_at, fulltext, summary, raw_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (source, url_original, title, author, published_at, saved_at, fulltext, summary, raw_json),
-            )
-            self.conn.commit()
-            doc_id = cur.lastrowid
-            # Update FTS index
-            self._update_fts(doc_id)
-            return doc_id
+        cur = self.conn.execute(
+            """
+            INSERT INTO documents (source, provider_id, url_original, title, author, published_at, saved_at, fulltext, summary, raw_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(source, provider_id) DO UPDATE SET
+                url_original = COALESCE(excluded.url_original, url_original),
+                title = COALESCE(excluded.title, title),
+                author = COALESCE(excluded.author, author),
+                published_at = COALESCE(excluded.published_at, published_at),
+                saved_at = COALESCE(excluded.saved_at, saved_at),
+                fulltext = COALESCE(excluded.fulltext, fulltext),
+                summary = COALESCE(excluded.summary, summary),
+                raw_json = COALESCE(excluded.raw_json, raw_json),
+                updated_at = datetime('now')
+            RETURNING id
+            """,
+            (source, provider_id, url_original, title, author, published_at, saved_at, fulltext, summary, raw_json),
+        )
+        row = cur.fetchone()
+        self.conn.commit()
+        doc_id = row[0] if row else 0
+        # Update FTS index
+        self._update_fts(doc_id)
+        return doc_id
 
     def _update_fts(self, doc_id: int) -> None:
         """Update FTS index for a document."""

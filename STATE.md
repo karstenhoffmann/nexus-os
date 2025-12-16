@@ -5,22 +5,21 @@ Stand (kurz)
 - Import-Jobs werden in DB persistiert (Tabelle import_jobs).
 - Resume nach Fehler/Neustart funktioniert: UI zeigt jetzt Resume-Banner.
 - Highlights werden jetzt in DB gespeichert (Tabelle highlights).
+- Dedupe bei Re-Import jetzt via provider_id (nicht mehr via URL).
 
 Aktuelles Ziel
 - Full-Import robust und vollstaendig.
 
 Naechste Schritte (Claude Code, max 3)
-1) Dedupe bei Re-Import verbessern
-2) Status-Anzeige in Job-Tabelle klickbar machen
-3) Highlights in Artikel-Detailansicht anzeigen
+1) Status-Anzeige in Job-Tabelle klickbar machen
+2) Highlights in Artikel-Detailansicht anzeigen
+3) DB-Migration testen (neue provider_id Spalte)
 
 Offene Fragen (max 3)
 - (keine aktuell)
 
 Handoff
-- highlights Tabelle: app/core/storage.py:87-99 (Schema)
-- save_highlight Methode: app/core/storage.py:255-288
-- get_highlights_for_document: app/core/storage.py:290-310
-- Highlights im SSE-Event: app/providers/readwise.py:649-659
-- Highlights speichern im Import: app/main.py:232-243
+- documents Schema mit provider_id: app/core/storage.py:16-32
+- save_article mit UPSERT: app/core/storage.py:173-217
+- UNIQUE constraint auf (source, provider_id) fuer zuverlaessiges Dedupe
 - preflight-fast gruen
