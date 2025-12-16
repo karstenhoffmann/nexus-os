@@ -10,7 +10,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from app.core.settings import Settings
 from app.core.storage import get_db, init_db
 from app.core.import_job import ImportStatus, get_import_store
-from app.providers.readwise import ReadwiseAuthError, ReadwiseClient
+from app.providers.readwise import ImportEventType, ReadwiseAuthError, ReadwiseClient
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -205,11 +205,28 @@ def readwise_import_stream(job_id: str, token: str | None = None):
 
     def event_generator():
         """Generate SSE events from import stream."""
+        db = get_db()
         try:
             with ReadwiseClient(effective_token) as client:
                 url_index: dict[str, str] = {}
                 for event in client.stream_import(job, url_index=url_index):
                     store.update(job)
+
+                    # Persist article to DB on ITEM events
+                    if event.type == ImportEventType.ITEM:
+                        article_data = event.data.get("article", {})
+                        if article_data.get("provider_id"):
+                            db.save_article(
+                                source=article_data.get("provider", "unknown"),
+                                provider_id=article_data.get("provider_id", ""),
+                                url_original=article_data.get("source_url"),
+                                title=article_data.get("title"),
+                                author=article_data.get("author"),
+                                published_at=article_data.get("published_date"),
+                                fulltext=article_data.get("html_content"),
+                                summary=article_data.get("summary"),
+                            )
+
                     yield event.to_sse()
         except ReadwiseAuthError as e:
             yield f"event: error\ndata: {{\"error\": \"{e}\"}}\n\n"

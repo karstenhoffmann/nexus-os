@@ -36,6 +36,8 @@ Kurzregeln fuer Claude Code (unverhandelbar)
 6. Besonderheiten der Entwicklungsumgebung
 
 - HEREDOC funktioniert nicht im Terminal des Nutzers
+- API Dokumentation und Analysen sind via Context7 MCP verfügbar
+-
 
 7. Session Hygiene
 

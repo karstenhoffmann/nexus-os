@@ -138,6 +138,92 @@ class DB:
         cur = self.conn.execute("select id, status, kind, title, updated_at from drafts order by id desc")
         return [{"id": r[0], "status": r[1], "kind": r[2], "title": r[3], "updated_at": r[4]} for r in cur.fetchall()]
 
+    def save_article(
+        self,
+        *,
+        source: str,
+        provider_id: str,
+        url_original: str | None,
+        title: str | None,
+        author: str | None = None,
+        published_at: str | None = None,
+        saved_at: str | None = None,
+        fulltext: str | None = None,
+        summary: str | None = None,
+        raw_json: str | None = None,
+    ) -> int:
+        """Save or update an article in the documents table.
+
+        Uses UPSERT logic: if an article with the same source+provider_id exists,
+        it updates the existing record. Otherwise, inserts a new one.
+
+        Returns the document id (existing or new).
+        """
+        # Check if article already exists by source+provider_id
+        # We store provider_id in the id field as "source:provider_id" format
+        # But we need a separate lookup mechanism - use raw_json or url_original
+
+        # First, try to find existing by source URL (normalized)
+        existing_id = None
+        if url_original:
+            cur = self.conn.execute(
+                "SELECT id FROM documents WHERE url_original = ? AND source = ?",
+                (url_original, source),
+            )
+            row = cur.fetchone()
+            if row:
+                existing_id = row[0]
+
+        if existing_id:
+            # Update existing record
+            self.conn.execute(
+                """
+                UPDATE documents SET
+                    title = COALESCE(?, title),
+                    author = COALESCE(?, author),
+                    published_at = COALESCE(?, published_at),
+                    saved_at = COALESCE(?, saved_at),
+                    fulltext = COALESCE(?, fulltext),
+                    summary = COALESCE(?, summary),
+                    raw_json = COALESCE(?, raw_json),
+                    updated_at = datetime('now')
+                WHERE id = ?
+                """,
+                (title, author, published_at, saved_at, fulltext, summary, raw_json, existing_id),
+            )
+            self.conn.commit()
+            # Update FTS index
+            self._update_fts(existing_id)
+            return existing_id
+        else:
+            # Insert new record
+            cur = self.conn.execute(
+                """
+                INSERT INTO documents (source, url_original, title, author, published_at, saved_at, fulltext, summary, raw_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (source, url_original, title, author, published_at, saved_at, fulltext, summary, raw_json),
+            )
+            self.conn.commit()
+            doc_id = cur.lastrowid
+            # Update FTS index
+            self._update_fts(doc_id)
+            return doc_id
+
+    def _update_fts(self, doc_id: int) -> None:
+        """Update FTS index for a document."""
+        # Delete old FTS entry if exists
+        self.conn.execute("DELETE FROM documents_fts WHERE rowid = ?", (doc_id,))
+        # Insert new FTS entry
+        self.conn.execute(
+            """
+            INSERT INTO documents_fts (rowid, title, author, fulltext, summary)
+            SELECT id, title, author, fulltext, summary FROM documents WHERE id = ?
+            """,
+            (doc_id,),
+        )
+        self.conn.commit()
+
 
 _db: DB | None = None
 
