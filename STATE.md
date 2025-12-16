@@ -9,13 +9,13 @@ Aktuelles Ziel
 - Machbarkeits-Slice: Readwise read-only Preview (Artikel + Highlights) in der UI anzeigen.
 
 Naechste Schritte (Claude Code, max 3)
-1) UI Smoke Test: Home/Library/Digests/Drafts/Admin laden, Fehler sammeln und fixen.
-2) Readwise: API Machbarkeit klaeren (Endpoints), minimalen Article/Highlight DTO definieren (provider-agnostisch).
-3) Readwise Preview implementieren: read-only fetch + Anzeige, noch kein Persistieren.
+1) Readwise: API Machbarkeit klaeren (Endpoints), minimalen Article/Highlight DTO definieren (provider-agnostisch).
+2) Readwise Preview implementieren: read-only fetch + Anzeige, noch kein Persistieren.
+3) Optional: favicon.ico hinzufuegen (kosmetisch).
 
 Offene Fragen (max 3)
 - Welche Readwise Endpoints liefern Volltext-Artikel vs Highlights (Readwise API vs Reader API)?
 - Welche Felder sind minimal fuer Article/Highlight inkl. Original-URL (nicht Reader URL)?
 
 Handoff
-- Nach jedem Mini-Feature: Handoff aktualisieren, dann commit+push.
+- UI Smoke Test abgeschlossen: alle 5 Seiten laden (200 OK), keine JS-Fehler, nur favicon fehlt (kosmetisch).
