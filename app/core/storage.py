@@ -158,6 +158,33 @@ class DB:
             )
         return rows
 
+    def get_document(self, doc_id: int) -> dict[str, Any] | None:
+        """Get a single document by ID."""
+        cur = self.conn.execute(
+            """
+            SELECT id, source, provider_id, url_original, title, author,
+                   published_at, saved_at, fulltext, summary, created_at
+            FROM documents WHERE id = ?
+            """,
+            (doc_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "source": row[1],
+            "provider_id": row[2],
+            "url_original": row[3],
+            "title": row[4],
+            "author": row[5],
+            "published_at": row[6],
+            "saved_at": row[7],
+            "fulltext": row[8],
+            "summary": row[9],
+            "created_at": row[10],
+        }
+
     def list_digests(self) -> list[dict[str, Any]]:
         cur = self.conn.execute("select id, name, query, created_at from digests order by id desc")
         return [{"id": r[0], "name": r[1], "query": r[2], "created_at": r[3]} for r in cur.fetchall()]

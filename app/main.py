@@ -48,6 +48,17 @@ def library(request: Request, q: str = ""):
     return render("library.html", request=request, q=q, rows=rows)
 
 
+@app.get("/documents/{doc_id}", response_class=HTMLResponse)
+def document_detail(request: Request, doc_id: int):
+    """Show a single document with its highlights from the DB."""
+    db = get_db()
+    doc = db.get_document(doc_id)
+    if not doc:
+        return render("document_detail.html", request=request, doc=None, highlights=[], error="Dokument nicht gefunden")
+    highlights = db.get_highlights_for_document(doc_id)
+    return render("document_detail.html", request=request, doc=doc, highlights=highlights, error=None)
+
+
 @app.get("/digests", response_class=HTMLResponse)
 def digests(request: Request):
     db = get_db()

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="breadcrumb">
+  <a href="/library">&larr; Zurueck zur Bibliothek</a>
+</div>
+
+{% if error %}
+<div class="card error">{{ error }}</div>
+{% endif %}
+
+{% if doc %}
+<article class="article-detail">
+  <header class="article-header">
+    <h1>{{ doc.title or "Ohne Titel" }}</h1>
+    {% if doc.author %}
+    <p class="meta">Von {{ doc.author }}</p>
+    {% endif %}
+    {% if doc.published_at %}
+    <p class="meta">{{ doc.published_at }}</p>
+    {% endif %}
+    {% if doc.url_original %}
+    <p class="meta"><a href="{{ doc.url_original }}" target="_blank">Originalquelle</a></p>
+    {% endif %}
+    <p class="meta">Quelle: {{ doc.source }}{% if doc.saved_at %} | Gespeichert: {{ doc.saved_at }}{% endif %}</p>
+  </header>
+
+  {% if highlights %}
+  <section class="highlights-section">
+    <h2>Highlights ({{ highlights|length }})</h2>
+    <ul class="highlights-list">
+      {% for h in highlights %}
+      <li class="highlight-item">
+        <blockquote>{{ h.text }}</blockquote>
+        {% if h.note %}
+        <p class="highlight-note">Notiz: {{ h.note }}</p>
+        {% endif %}
+        {% if h.highlighted_at %}
+        <p class="highlight-meta">{{ h.highlighted_at }}</p>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if doc.summary %}
+  <section class="summary-section">
+    <h2>Zusammenfassung</h2>
+    <p>{{ doc.summary }}</p>
+  </section>
+  {% endif %}
+
+  {% if doc.fulltext %}
+  <section class="content-section">
+    <h2>Inhalt</h2>
+    <div class="article-content">
+      {{ doc.fulltext|safe }}
+    </div>
+  </section>
+  {% endif %}
+
+</article>
+{% endif %}
+
+{% endblock %}
