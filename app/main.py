@@ -3,12 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from app.core.settings import Settings
 from app.core.storage import get_db, init_db
+from app.core.import_job import ImportStatus, get_import_store
 from app.providers.readwise import ReadwiseAuthError, ReadwiseClient
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -132,3 +133,105 @@ def readwise_article(request: Request, article_id: str, token: str | None = None
         return render("readwise_article.html", request=request, article=None, highlights=[], error=f"Fehler: {e}", token_param="")
 
     return render("readwise_article.html", request=request, article=article, highlights=highlights, error=None, token_param=effective_token)
+
+
+# --- Readwise Import Routes ---
+
+
+@app.get("/readwise/import", response_class=HTMLResponse)
+def readwise_import_page(request: Request):
+    """Show import page with current/recent jobs."""
+    s = Settings.from_env()
+    store = get_import_store()
+    jobs = store.list_all()
+    return render(
+        "readwise_import.html",
+        request=request,
+        token=s.readwise_api_token,
+        jobs=jobs,
+    )
+
+
+@app.post("/readwise/import/start")
+def readwise_import_start(token: str = Form(...)):
+    """Start a new import job. Returns job ID for SSE stream."""
+    store = get_import_store()
+    job = store.create()
+    # Store token temporarily in job for the stream to use
+    # (In production, you'd want a more secure approach)
+    job._token = token  # type: ignore[attr-defined]
+    store.update(job)
+    return {"job_id": job.id}
+
+
+@app.post("/readwise/import/{job_id}/pause")
+def readwise_import_pause(job_id: str):
+    """Pause a running import job."""
+    store = get_import_store()
+    job = store.get(job_id)
+    if not job:
+        return {"error": "Job not found"}, 404
+    if job.status == ImportStatus.RUNNING:
+        job.status = ImportStatus.PAUSED
+        store.update(job)
+    return {"status": job.status.value}
+
+
+@app.post("/readwise/import/{job_id}/resume")
+def readwise_import_resume(job_id: str):
+    """Resume a paused import job. Client should reconnect to SSE stream."""
+    store = get_import_store()
+    job = store.get(job_id)
+    if not job:
+        return {"error": "Job not found"}, 404
+    if job.status == ImportStatus.PAUSED:
+        job.status = ImportStatus.PENDING  # Will be set to RUNNING when stream starts
+        store.update(job)
+    return {"status": job.status.value}
+
+
+@app.get("/readwise/import/{job_id}/stream")
+def readwise_import_stream(job_id: str, token: str | None = None):
+    """SSE stream for import progress. Connect after starting or resuming."""
+    store = get_import_store()
+    job = store.get(job_id)
+    if not job:
+        return {"error": "Job not found"}, 404
+
+    s = Settings.from_env()
+    effective_token = token or getattr(job, "_token", None) or s.readwise_api_token
+    if not effective_token:
+        return {"error": "No token available"}, 400
+
+    def event_generator():
+        """Generate SSE events from import stream."""
+        try:
+            with ReadwiseClient(effective_token) as client:
+                url_index: dict[str, str] = {}
+                for event in client.stream_import(job, url_index=url_index):
+                    store.update(job)
+                    yield event.to_sse()
+        except ReadwiseAuthError as e:
+            yield f"event: error\ndata: {{\"error\": \"{e}\"}}\n\n"
+        except Exception as e:
+            yield f"event: error\ndata: {{\"error\": \"{e}\"}}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.get("/readwise/import/{job_id}/status")
+def readwise_import_status(job_id: str):
+    """Get current status of an import job."""
+    store = get_import_store()
+    job = store.get(job_id)
+    if not job:
+        return {"error": "Job not found"}, 404
+    return job.to_dict()

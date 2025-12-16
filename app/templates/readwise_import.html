@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Readwise Import</h1>
+
+<div x-data="importApp()" x-init="init()">
+
+  <!-- Token Input (wenn kein Token) -->
+  {% if not token %}
+  <div class="card">
+    <h2>Token eingeben</h2>
+    <p>Readwise Reader API Token (findest du unter <a href="https://readwise.io/access_token" target="_blank">readwise.io/access_token</a>)</p>
+    <input type="password" x-model="tokenInput" placeholder="Token hier einfuegen" style="width: 100%; margin-bottom: 1rem;">
+    <button @click="startImport()" :disabled="!tokenInput || status === 'running'">Import starten</button>
+  </div>
+  {% else %}
+  <input type="hidden" x-ref="tokenField" value="{{ token }}">
+  {% endif %}
+
+  <!-- Status Card -->
+  <div class="card">
+    <h2>Status</h2>
+    <div class="row" style="gap: 2rem; flex-wrap: wrap;">
+      <div>
+        <strong>Status:</strong>
+        <span x-text="status" :class="{'text-success': status === 'completed', 'text-error': status === 'error'}"></span>
+      </div>
+      <div>
+        <strong>Importiert:</strong> <span x-text="itemsImported"></span>
+      </div>
+      <div>
+        <strong>Gemerged:</strong> <span x-text="itemsMerged"></span>
+      </div>
+      <div>
+        <strong>Phase:</strong> <span x-text="phase"></span>
+      </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-bar" style="margin-top: 1rem;">
+      <div class="progress-fill" :style="'width: ' + (status === 'completed' ? 100 : Math.min(itemsImported, 100)) + '%'"></div>
+    </div>
+
+    <!-- Controls -->
+    <div style="margin-top: 1rem;">
+      {% if token %}
+      <button @click="startImport()" :disabled="status === 'running'" x-show="status === 'idle' || status === 'completed' || status === 'error'">
+        Import starten
+      </button>
+      {% endif %}
+      <button @click="pauseImport()" :disabled="status !== 'running'" x-show="status === 'running'">
+        Pausieren
+      </button>
+      <button @click="resumeImport()" x-show="status === 'paused'">
+        Fortsetzen
+      </button>
+    </div>
+  </div>
+
+  <!-- Error Display -->
+  <div class="card error" x-show="errorMsg" x-text="errorMsg"></div>
+
+  <!-- Live Log -->
+  <div class="card">
+    <h2>Import Log</h2>
+    <div class="log-container" x-ref="logContainer" style="max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 0.85rem;">
+      <template x-for="(entry, index) in log" :key="index">
+        <div class="log-entry" :class="'log-' + entry.type">
+          <span class="log-time" x-text="entry.time"></span>
+          <span x-text="entry.msg"></span>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- Recent Jobs -->
+  {% if jobs %}
+  <div class="card">
+    <h2>Vorherige Jobs</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Status</th>
+          <th>Items</th>
+          <th>Gestartet</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for job in jobs %}
+        <tr>
+          <td><code>{{ job.id[:8] }}</code></td>
+          <td>{{ job.status.value }}</td>
+          <td>{{ job.items_imported }} ({{ job.items_merged }} merged)</td>
+          <td>{{ job.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+</div>
+
+<style>
+.progress-bar {
+  background: var(--bg-muted, #e0e0e0);
+  border-radius: 4px;
+  height: 8px;
+  overflow: hidden;
+}
+.progress-fill {
+  background: var(--accent, #4a90d9);
+  height: 100%;
+  transition: width 0.3s ease;
+}
+.log-container {
+  background: var(--bg-code, #f5f5f5);
+  padding: 0.5rem;
+  border-radius: 4px;
+}
+.log-entry {
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--border, #ddd);
+}
+.log-time {
+  color: var(--text-muted, #888);
+  margin-right: 0.5rem;
+}
+.log-item { color: var(--text, #333); }
+.log-progress { color: var(--accent, #4a90d9); font-weight: bold; }
+.log-paused { color: var(--warning, #e6a700); }
+.log-completed { color: var(--success, #2e7d32); font-weight: bold; }
+.log-error { color: var(--error, #c62828); }
+.text-success { color: var(--success, #2e7d32); }
+.text-error { color: var(--error, #c62828); }
+</style>
+
+<script>
+function importApp() {
+  return {
+    jobId: null,
+    status: 'idle',
+    phase: '-',
+    itemsImported: 0,
+    itemsMerged: 0,
+    errorMsg: '',
+    log: [],
+    eventSource: null,
+    tokenInput: '',
+
+    init() {
+      // Check for token in hidden field
+      const tokenField = this.$refs.tokenField;
+      if (tokenField) {
+        this.tokenInput = tokenField.value;
+      }
+    },
+
+    addLog(type, msg) {
+      const now = new Date();
+      const time = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      this.log.push({ type, msg, time });
+      // Auto-scroll
+      this.$nextTick(() => {
+        const container = this.$refs.logContainer;
+        if (container) {
+          container.scrollTop = container.scrollHeight;
+        }
+      });
+    },
+
+    async startImport() {
+      if (!this.tokenInput) {
+        this.errorMsg = 'Bitte Token eingeben';
+        return;
+      }
+
+      this.status = 'starting';
+      this.errorMsg = '';
+      this.log = [];
+      this.itemsImported = 0;
+      this.itemsMerged = 0;
+      this.phase = 'reader';
+
+      try {
+        // Create job
+        const formData = new FormData();
+        formData.append('token', this.tokenInput);
+
+        const resp = await fetch('/readwise/import/start', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await resp.json();
+        this.jobId = data.job_id;
+
+        this.addLog('progress', 'Job gestartet: ' + this.jobId.substring(0, 8));
+
+        // Connect to SSE stream
+        this.connectStream();
+
+      } catch (e) {
+        this.status = 'error';
+        this.errorMsg = 'Fehler beim Starten: ' + e.message;
+      }
+    },
+
+    connectStream() {
+      if (this.eventSource) {
+        this.eventSource.close();
+      }
+
+      const url = '/readwise/import/' + this.jobId + '/stream?token=' + encodeURIComponent(this.tokenInput);
+      this.eventSource = new EventSource(url);
+      this.status = 'running';
+
+      this.eventSource.addEventListener('item', (e) => {
+        const data = JSON.parse(e.data);
+        const article = data.article;
+        const merged = data.merged_with ? ' (merged)' : '';
+        this.addLog('item', article.title.substring(0, 50) + merged);
+        if (data.merged_with) {
+          this.itemsMerged++;
+        } else {
+          this.itemsImported++;
+        }
+      });
+
+      this.eventSource.addEventListener('progress', (e) => {
+        const data = JSON.parse(e.data);
+        this.itemsImported = data.items_imported;
+        this.itemsMerged = data.items_merged;
+        this.phase = data.phase;
+        this.addLog('progress', 'Progress: ' + data.items_imported + ' importiert, ' + data.items_merged + ' gemerged (' + data.phase + ')');
+      });
+
+      this.eventSource.addEventListener('paused', (e) => {
+        this.status = 'paused';
+        this.addLog('paused', 'Import pausiert');
+        this.eventSource.close();
+      });
+
+      this.eventSource.addEventListener('completed', (e) => {
+        const data = JSON.parse(e.data);
+        this.status = 'completed';
+        this.itemsImported = data.items_imported;
+        this.itemsMerged = data.items_merged;
+        this.addLog('completed', 'Import abgeschlossen: ' + data.items_imported + ' importiert, ' + data.items_merged + ' gemerged');
+        this.eventSource.close();
+      });
+
+      this.eventSource.addEventListener('error', (e) => {
+        if (e.data) {
+          const data = JSON.parse(e.data);
+          this.errorMsg = data.error;
+          this.addLog('error', 'Fehler: ' + data.error);
+        }
+        this.status = 'error';
+        this.eventSource.close();
+      });
+
+      this.eventSource.onerror = () => {
+        if (this.status === 'running') {
+          this.status = 'error';
+          this.addLog('error', 'Verbindung verloren');
+        }
+        this.eventSource.close();
+      };
+    },
+
+    async pauseImport() {
+      if (!this.jobId) return;
+
+      try {
+        await fetch('/readwise/import/' + this.jobId + '/pause', { method: 'POST' });
+        this.addLog('paused', 'Pause angefordert...');
+      } catch (e) {
+        this.errorMsg = 'Fehler beim Pausieren: ' + e.message;
+      }
+    },
+
+    async resumeImport() {
+      if (!this.jobId) return;
+
+      try {
+        await fetch('/readwise/import/' + this.jobId + '/resume', { method: 'POST' });
+        this.addLog('progress', 'Fortsetzen...');
+        this.connectStream();
+      } catch (e) {
+        this.errorMsg = 'Fehler beim Fortsetzen: ' + e.message;
+      }
+    }
+  };
+}
+</script>
+
+{% endblock %}
