@@ -1,33 +1,21 @@
 nexus-os Status
 
+Stand (kurz)
+- Repo + Guardrails stehen: preflight-fast/deep, editorconfig, redacted compose config, Claude Hooks.
+- App startet via docker compose (FastAPI + HTMX UI Grundseiten).
+- sqlite-vec ist aktiv (linux/amd64 gepinnt), Daten bleiben lokal in _local (ignored).
+
 Aktuelles Ziel
+- Machbarkeits-Slice: Readwise read-only Preview (Artikel + Highlights) in der UI anzeigen.
 
-- Phase 0: Repo Skeleton, lauffaehige App, DB init, UI Grundseiten
-- Danach: Readwise Preview Import (Machbarkeit)
+Naechste Schritte (Claude Code, max 3)
+1) UI Smoke Test: Home/Library/Digests/Drafts/Admin laden, Fehler sammeln und fixen.
+2) Readwise: API Machbarkeit klaeren (Endpoints), minimalen Article/Highlight DTO definieren (provider-agnostisch).
+3) Readwise Preview implementieren: read-only fetch + Anzeige, noch kein Persistieren.
 
-Zuletzt erledigt
+Offene Fragen (max 3)
+- Welche Readwise Endpoints liefern Volltext-Artikel vs Highlights (Readwise API vs Reader API)?
+- Welche Felder sind minimal fuer Article/Highlight inkl. Original-URL (nicht Reader URL)?
 
-- initial
-
-Naechste Schritte (max 5)
-
-1. .env erstellen und APP starten
-2. Browser Smoke Test: Startseite, Library, Digests, Drafts, Admin
-3. Git commit und push initial
-4. MCP Setup: Playwright MCP und Context7 MCP anbinden
-5. Readwise Preview Sync planen (noch ohne Save)
-
-Offene Fragen (max 5)
-
-- none
-
-Handoff Notiz (fuers Session Reset)
-
-- Fertig:
-  - none
-- Wie testen:
-  - none
-- Naechster Schritt:
-  - .env erstellen und docker compose up --build
-- Wichtigster Kontext:
-  - Small steps, Handoff nach jedem Mini-Feature, keine persoenlichen Daten ins Git
+Handoff
+- Nach jedem Mini-Feature: Handoff aktualisieren, dann commit+push.
