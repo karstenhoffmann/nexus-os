@@ -12,6 +12,7 @@ class Settings:
     require_confirm_for_costly_runs: bool
     max_llm_calls_per_day: int
     max_embed_calls_per_day: int
+    readwise_api_token: str | None
 
     @staticmethod
     def from_env() -> "Settings":
@@ -21,6 +22,10 @@ class Settings:
         def _i(name: str, default: str) -> int:
             return int(os.getenv(name, default).strip())
 
+        def _s_or_none(name: str) -> str | None:
+            val = os.getenv(name, "").strip()
+            return val if val else None
+
         return Settings(
             app_env=os.getenv("APP_ENV", "dev").strip(),
             db_path=os.getenv("DB_PATH", "/app/_local/data/app.db").strip(),
@@ -28,4 +33,5 @@ class Settings:
             require_confirm_for_costly_runs=_b("DEFAULT_REQUIRE_CONFIRM_FOR_COSTLY_RUNS", "1"),
             max_llm_calls_per_day=_i("MAX_LLM_CALLS_PER_DAY", "50"),
             max_embed_calls_per_day=_i("MAX_EMBED_CALLS_PER_DAY", "200"),
+            readwise_api_token=_s_or_none("READWISE_API_TOKEN"),
         )
