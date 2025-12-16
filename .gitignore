@@ -1,0 +1,13 @@
+# local data and secrets (never commit)
+_local/
+.env
+.claude/settings.local.json
+
+# python
+__pycache__/
+*.pyc
+.venv/
+
+# tooling
+tools/node_modules/
+tools/.playwright/

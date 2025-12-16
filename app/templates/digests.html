@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Digests</h1>
+
+<div class="card">
+  <h2>Neue Saved Query</h2>
+  <form method="post" action="/digests/create" class="col gap">
+    <input class="input" type="text" name="name" placeholder="Name" required>
+    <input class="input" type="text" name="query" placeholder="Query (FTS jetzt; Semantik spaeter)" required>
+    <button class="btn" type="submit">Create</button>
+  </form>
+</div>
+
+<h2>Vorhanden</h2>
+<div class="list">
+  {% for d in digests %}
+    <div class="item">
+      <div class="title">{{ d.name }}</div>
+      <div class="meta">
+        <span>{{ d.query }}</span>
+        <span>{{ d.created_at }}</span>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

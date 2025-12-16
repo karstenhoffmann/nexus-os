@@ -1,0 +1,33 @@
+
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nexus-os</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script defer src="/static/htmx.min.js"></script>
+  <script defer src="/static/alpine.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="container row">
+      <div class="brand"><a href="/">nexus-os</a></div>
+      <nav class="nav">
+        <a href="/library">Library</a>
+        <a href="/digests">Digests</a>
+        <a href="/drafts">Drafts</a>
+        <a href="/admin">Admin</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="container footer">
+    <div>Local-first. Single user. Guardrails on.</div>
+  </footer>
+</body>
+</html>

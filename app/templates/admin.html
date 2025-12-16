@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Admin</h1>
+
+<div class="grid">
+  <div class="card">
+    <h2>Settings (read-only)</h2>
+    <div class="kv"><div>ENV</div><div>{{ settings.app_env }}</div></div>
+    <div class="kv"><div>DB</div><div>{{ settings.db_path }}</div></div>
+    <div class="kv"><div>LLM_PROVIDER</div><div>{{ settings.llm_provider }}</div></div>
+    <div class="kv"><div>Confirm costly</div><div>{{ settings.require_confirm_for_costly_runs }}</div></div>
+    <div class="kv"><div>Max LLM/day</div><div>{{ settings.max_llm_calls_per_day }}</div></div>
+    <div class="kv"><div>Max Embed/day</div><div>{{ settings.max_embed_calls_per_day }}</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Stats</h2>
+    <div class="kv"><div>Documents</div><div>{{ stats.documents }}</div></div>
+    <div class="kv"><div>Drafts</div><div>{{ stats.drafts }}</div></div>
+  </div>
+</div>
+
+<h2>Naechste Schritte</h2>
+<p>Hier kommt spaeter: Runs, Confirm Dialoge, Budget UI, Provider Diagnose.</p>
+{% endblock %}

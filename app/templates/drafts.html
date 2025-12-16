@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Drafts</h1>
+
+<p>Skeleton: Draft Erstellung und Iteration kommt in EPIC E.</p>
+
+<div class="list">
+  {% for d in drafts %}
+    <div class="item">
+      <div class="title">{{ d.title or ("Draft #" ~ d.id) }}</div>
+      <div class="meta">
+        <span>{{ d.kind }}</span>
+        <span>{{ d.status }}</span>
+        <span>{{ d.updated_at }}</span>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}
