@@ -101,6 +101,22 @@ CREATE TABLE IF NOT EXISTS highlights (
 CREATE INDEX IF NOT EXISTS idx_highlights_document_id ON highlights(document_id);
 """
 
+def _run_migrations(conn: sqlite3.Connection) -> None:
+    """Run schema migrations for existing DBs."""
+    # Check if provider_id column exists in documents table
+    cur = conn.execute("PRAGMA table_info(documents)")
+    columns = {row[1] for row in cur.fetchall()}
+
+    if "provider_id" not in columns:
+        # Add provider_id column
+        conn.execute("ALTER TABLE documents ADD COLUMN provider_id TEXT")
+        # Create unique index (can't add UNIQUE constraint to existing table)
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_source_provider "
+            "ON documents(source, provider_id)"
+        )
+        conn.commit()
+
 VEC_SQL = """
 CREATE VIRTUAL TABLE IF NOT EXISTS doc_embeddings USING vec0(
   embedding float[1536],
@@ -117,6 +133,8 @@ class DB:
         self.conn.executescript(SCHEMA_SQL)
         self.conn.executescript(VEC_SQL)
         self.conn.commit()
+        # Run migrations for existing DBs
+        _run_migrations(self.conn)
 
     def get_stats(self) -> dict[str, Any]:
         cur = self.conn.execute("select count(*) from documents")
