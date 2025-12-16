@@ -9,6 +9,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from app.core.settings import Settings
 from app.core.storage import get_db, init_db
+from app.providers.readwise import ReadwiseAuthError, ReadwiseClient
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -73,3 +74,30 @@ def admin(request: Request):
     db = get_db()
     stats = db.get_stats()
     return render("admin.html", request=request, settings=s, stats=stats)
+
+
+@app.get("/readwise/preview", response_class=HTMLResponse)
+def readwise_preview(request: Request, token: str | None = None):
+    s = Settings.from_env()
+    effective_token = token or s.readwise_api_token
+    if not effective_token:
+        return render("readwise_preview.html", request=request, token=None, articles=[], error=None, token_param="")
+    return _fetch_readwise_preview(request, effective_token)
+
+
+@app.post("/readwise/preview", response_class=HTMLResponse)
+def readwise_preview_post(request: Request, token: str = Form(...)):
+    return _fetch_readwise_preview(request, token)
+
+
+def _fetch_readwise_preview(request: Request, token: str) -> HTMLResponse:
+    """Fetch articles from Readwise and render preview."""
+    try:
+        with ReadwiseClient(token) as client:
+            client.validate_token()
+            articles = list(client.fetch_documents(limit=20))
+    except ReadwiseAuthError as e:
+        return render("readwise_preview.html", request=request, token=None, articles=[], error=str(e), token_param="")
+    except Exception as e:
+        return render("readwise_preview.html", request=request, token=None, articles=[], error=f"Fehler: {e}", token_param="")
+    return render("readwise_preview.html", request=request, token=token, articles=articles, error=None, token_param=token)
