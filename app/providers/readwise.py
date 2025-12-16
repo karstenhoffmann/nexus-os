@@ -9,6 +9,8 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, Iterator
 from urllib.parse import urlparse, urlunparse
 
+import time
+
 import httpx
 
 from app.providers.content_types import Article, Highlight
@@ -79,6 +81,10 @@ class ReadwiseAuthError(ReadwiseError):
     """Authentication failed."""
 
 
+class ReadwiseRateLimitError(ReadwiseError):
+    """Rate limit exceeded after all retries."""
+
+
 class ReadwiseClient:
     """Client for Readwise Reader API (v3)."""
 
@@ -100,6 +106,73 @@ class ReadwiseClient:
 
     def __exit__(self, *args: object) -> None:
         self.close()
+
+    def _request_with_retry(
+        self,
+        method: str,
+        url: str,
+        *,
+        params: dict[str, str] | None = None,
+        max_retries: int = 5,
+        base_delay: float = 1.0,
+        max_delay: float = 60.0,
+    ) -> httpx.Response:
+        """Make HTTP request with exponential backoff retry on 429.
+
+        Args:
+            method: HTTP method (GET, POST, etc.)
+            url: URL path relative to base
+            params: Query parameters
+            max_retries: Maximum number of retry attempts
+            base_delay: Initial delay in seconds
+            max_delay: Maximum delay between retries
+
+        Returns:
+            httpx.Response on success
+
+        Raises:
+            ReadwiseRateLimitError: If rate limited after all retries
+            ReadwiseAuthError: If authentication fails
+        """
+        delay = base_delay
+
+        for attempt in range(max_retries + 1):
+            resp = self._client.request(method, url, params=params)
+
+            if resp.status_code == 401:
+                raise ReadwiseAuthError("Invalid Readwise API token")
+
+            if resp.status_code == 429:
+                if attempt == max_retries:
+                    raise ReadwiseRateLimitError(
+                        f"Rate limit exceeded after {max_retries} retries"
+                    )
+
+                # Check Retry-After header
+                retry_after = resp.headers.get("Retry-After")
+                if retry_after:
+                    try:
+                        wait_time = float(retry_after)
+                    except ValueError:
+                        wait_time = delay
+                else:
+                    wait_time = delay
+
+                wait_time = min(wait_time, max_delay)
+                logger.warning(
+                    f"Rate limited (429). Waiting {wait_time:.1f}s "
+                    f"(attempt {attempt + 1}/{max_retries + 1})"
+                )
+                time.sleep(wait_time)
+                delay = min(delay * 2, max_delay)  # Exponential backoff
+                continue
+
+            # Success or other error
+            resp.raise_for_status()
+            return resp
+
+        # Should not reach here, but just in case
+        raise ReadwiseRateLimitError("Rate limit handling failed")
 
     def validate_token(self) -> bool:
         """Check if the token is valid. Returns True if valid, raises ReadwiseAuthError otherwise."""
@@ -149,11 +222,7 @@ class ReadwiseClient:
             if next_cursor:
                 params["pageCursor"] = next_cursor
 
-            resp = self._client.get("/v3/list/", params=params)
-            if resp.status_code == 401:
-                raise ReadwiseAuthError("Invalid Readwise API token")
-            resp.raise_for_status()
-
+            resp = self._request_with_retry("GET", "/v3/list/", params=params)
             data = resp.json()
             results = data.get("results", [])
 
@@ -178,7 +247,7 @@ class ReadwiseClient:
 
         Highlights in Reader API are documents with parent_id = article_id.
         """
-        params = {"category": "highlight"}
+        params: dict[str, str] = {"category": "highlight"}
         highlights: list[Highlight] = []
         next_cursor: str | None = None
 
@@ -186,11 +255,7 @@ class ReadwiseClient:
             if next_cursor:
                 params["pageCursor"] = next_cursor
 
-            resp = self._client.get("/v3/list/", params=params)
-            if resp.status_code == 401:
-                raise ReadwiseAuthError("Invalid Readwise API token")
-            resp.raise_for_status()
-
+            resp = self._request_with_retry("GET", "/v3/list/", params=params)
             data = resp.json()
             results = data.get("results", [])
 
@@ -283,11 +348,7 @@ class ReadwiseClient:
         count = 0
 
         while True:
-            resp = self._client.get("/v2/export/", params=params)
-            if resp.status_code == 401:
-                raise ReadwiseAuthError("Invalid Readwise API token")
-            resp.raise_for_status()
-
+            resp = self._request_with_retry("GET", "/v2/export/", params=params)
             data = resp.json()
             results = data.get("results", [])
             next_cursor = data.get("nextPageCursor")
@@ -457,11 +518,7 @@ class ReadwiseClient:
             if job.status == ImportStatus.PAUSED:
                 return
 
-            resp = self._client.get("/v3/list/", params=params)
-            if resp.status_code == 401:
-                raise ReadwiseAuthError("Invalid Readwise API token")
-            resp.raise_for_status()
-
+            resp = self._request_with_retry("GET", "/v3/list/", params=params)
             data = resp.json()
             results = data.get("results", [])
             next_cursor = data.get("nextPageCursor")
@@ -538,11 +595,7 @@ class ReadwiseClient:
             if job.status == ImportStatus.PAUSED:
                 return
 
-            resp = self._client.get("/v2/export/", params=params)
-            if resp.status_code == 401:
-                raise ReadwiseAuthError("Invalid Readwise API token")
-            resp.raise_for_status()
-
+            resp = self._request_with_retry("GET", "/v2/export/", params=params)
             data = resp.json()
             results = data.get("results", [])
             next_cursor = data.get("nextPageCursor")
