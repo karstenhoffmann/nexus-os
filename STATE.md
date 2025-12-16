@@ -10,16 +10,15 @@ Aktuelles Ziel
 - Full-Import robust und vollstaendig.
 
 Naechste Schritte (Claude Code, max 3)
-1) Status-Anzeige in Job-Tabelle klickbar machen
-2) DB-Migration testen (neue provider_id Spalte)
-3) Import-Fortschritt in Job-Liste anzeigen (items_imported)
+1) DB-Migration testen (neue provider_id Spalte)
+2) Import-Fortschritt in Job-Liste anzeigen (items_imported)
+3) Job-Liste: abgeschlossene Jobs aus DB laden (nicht nur Memory)
 
 Offene Fragen (max 3)
 - (keine aktuell)
 
 Handoff
-- Dokumenten-Detailansicht: app/main.py:51-59
-- get_document Methode: app/core/storage.py:161-186
-- Template: app/templates/document_detail.html
-- Library-Verlinkung: app/templates/library.html:14
+- Job-Detailansicht: app/main.py:283-290
+- Template: app/templates/job_detail.html
+- Job-Tabelle klickbar: app/templates/readwise_import.html:113-114
 - preflight-fast gruen

@@ -278,3 +278,13 @@ def readwise_import_status(job_id: str):
     if not job:
         return {"error": "Job not found"}, 404
     return job.to_dict()
+
+
+@app.get("/readwise/jobs/{job_id}", response_class=HTMLResponse)
+def readwise_job_detail(request: Request, job_id: str):
+    """Show details for a specific import job."""
+    store = get_import_store()
+    job = store.get(job_id)
+    if not job:
+        return render("job_detail.html", request=request, job=None, error="Job nicht gefunden")
+    return render("job_detail.html", request=request, job=job, error=None)
