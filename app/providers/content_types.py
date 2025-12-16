@@ -22,6 +22,7 @@ class Article:
     image_url: str | None = None
     provider: str = "unknown"
     provider_id: str | None = None
+    highlight_sources: tuple[str, ...] = ()  # e.g. ("reader", "snipd")
 
 
 @dataclass(frozen=True)

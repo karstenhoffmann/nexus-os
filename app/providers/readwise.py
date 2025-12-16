@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from typing import Iterator
+from urllib.parse import urlparse, urlunparse
 
 import httpx
 
@@ -13,6 +14,32 @@ from app.providers.content_types import Article, Highlight
 logger = logging.getLogger(__name__)
 
 READWISE_BASE_URL = "https://readwise.io/api"
+
+
+def normalize_url(url: str | None) -> str | None:
+    """Normalize URL for consistent comparison.
+
+    - Convert to lowercase
+    - Remove trailing slash
+    - Normalize http to https
+    - Remove query parameters
+    """
+    if not url:
+        return None
+    url = url.strip().lower()
+    if url.startswith("http://"):
+        url = "https://" + url[7:]
+    # Parse and rebuild without query params
+    parsed = urlparse(url)
+    normalized = urlunparse((
+        parsed.scheme,
+        parsed.netloc,
+        parsed.path.rstrip("/"),
+        "",  # params
+        "",  # query
+        "",  # fragment
+    ))
+    return normalized or None
 
 
 class ReadwiseError(Exception):
@@ -158,7 +185,7 @@ class ReadwiseClient:
                 pass
 
         return Article(
-            id=f"readwise:{doc['id']}",
+            id=f"reader:{doc['id']}",
             source_url=doc.get("source_url") or doc.get("url", ""),
             title=doc.get("title", "Untitled"),
             author=doc.get("author"),
@@ -168,7 +195,7 @@ class ReadwiseClient:
             category=doc.get("category", "article"),
             html_content=doc.get("html_content"),
             image_url=doc.get("image_url"),
-            provider="readwise",
+            provider="reader",
             provider_id=doc["id"],
         )
 
@@ -185,11 +212,128 @@ class ReadwiseClient:
         text = doc.get("content") or doc.get("title") or ""
 
         return Highlight(
-            id=f"readwise:{doc['id']}",
-            article_id=f"readwise:{article_id}",
+            id=f"reader:{doc['id']}",
+            article_id=f"reader:{article_id}",
             text=text,
             note=doc.get("notes"),
             created_at=created,
-            provider="readwise",
+            provider="reader",
             provider_id=doc["id"],
+        )
+
+    # --- Export API (v2) Methods ---
+
+    def fetch_export_books(
+        self,
+        *,
+        updated_after: datetime | None = None,
+        cursor: str | None = None,
+        category: str | None = None,
+        limit: int | None = None,
+    ) -> Iterator[tuple[Article, list[Highlight], str | None]]:
+        """Fetch books/sources from Readwise Export API (v2).
+
+        Yields tuples of (article, highlights, next_cursor) to enable
+        cursor persistence for pause/resume functionality.
+
+        Args:
+            updated_after: Only fetch items updated after this datetime
+            cursor: Pagination cursor from previous request
+            category: Filter by category (books, articles, tweets, podcasts)
+            limit: Maximum number of items to return
+
+        Yields:
+            Tuple of (Article, list[Highlight], next_cursor)
+        """
+        params: dict[str, str] = {}
+        if updated_after:
+            params["updatedAfter"] = updated_after.isoformat()
+        if cursor:
+            params["pageCursor"] = cursor
+
+        count = 0
+
+        while True:
+            resp = self._client.get("/v2/export/", params=params)
+            if resp.status_code == 401:
+                raise ReadwiseAuthError("Invalid Readwise API token")
+            resp.raise_for_status()
+
+            data = resp.json()
+            results = data.get("results", [])
+            next_cursor = data.get("nextPageCursor")
+
+            for book in results:
+                # Filter by category if specified
+                book_category = book.get("category", "articles")
+                if category and book_category != category:
+                    continue
+
+                article = self._parse_export_book(book)
+                highlights = [
+                    self._parse_export_highlight(hl, book.get("source", "export"))
+                    for hl in book.get("highlights", [])
+                ]
+
+                yield article, highlights, next_cursor
+                count += 1
+
+                if limit and count >= limit:
+                    return
+
+            if not next_cursor:
+                break
+
+            params["pageCursor"] = next_cursor
+
+    def _parse_export_book(self, book: dict) -> Article:
+        """Convert Export API book to Article DTO."""
+        # Parse published date if available
+        published = None
+        # Export API doesn't have published_date directly, but may have last_highlight_at
+        if book.get("last_highlight_at"):
+            try:
+                published = datetime.fromisoformat(
+                    book["last_highlight_at"].replace("Z", "+00:00")
+                )
+            except ValueError:
+                pass
+
+        # Source identifies where the highlights came from (snipd, kindle, etc.)
+        source = book.get("source", "export")
+
+        return Article(
+            id=f"export:{book['user_book_id']}",
+            source_url=book.get("source_url") or book.get("unique_url", ""),
+            title=book.get("title", "Untitled"),
+            author=book.get("author"),
+            summary=book.get("summary"),
+            word_count=None,  # Export API doesn't provide word count
+            published_date=published,
+            category=book.get("category", "articles"),
+            html_content=None,  # Export API doesn't provide full content
+            image_url=book.get("cover_image_url"),
+            provider=source,  # e.g. "snipd", "kindle", "instapaper"
+            provider_id=str(book["user_book_id"]),
+        )
+
+    def _parse_export_highlight(self, hl: dict, source: str) -> Highlight:
+        """Convert Export API highlight to Highlight DTO."""
+        created = None
+        if hl.get("highlighted_at"):
+            try:
+                created = datetime.fromisoformat(
+                    hl["highlighted_at"].replace("Z", "+00:00")
+                )
+            except ValueError:
+                pass
+
+        return Highlight(
+            id=f"export:{hl['id']}",
+            article_id=f"export:{hl['book_id']}",
+            text=hl.get("text", ""),
+            note=hl.get("note"),
+            created_at=created,
+            provider=source,  # e.g. "snipd", "kindle"
+            provider_id=str(hl["id"]),
         )
