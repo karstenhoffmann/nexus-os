@@ -1,26 +1,25 @@
 nexus-os Status
 
 Stand (kurz)
-- Repo + Guardrails + App lauffaehig (FastAPI + HTMX + sqlite-vec).
-- ReadwiseClient mit Reader API (v3) + Export API (v2) implementiert.
-- Streaming Import mit SSE-UI und DB-Persistierung fertig.
-- Rate Limit Handling implementiert (Exponential Backoff bei 429).
+- Streaming Import mit SSE-UI, DB-Persistierung und Rate Limit Handling fertig.
+- Import-Jobs werden jetzt in DB persistiert (Tabelle import_jobs).
+- Resume nach Fehler/Neustart funktioniert: Cursor + Status bleiben erhalten.
 
 Aktuelles Ziel
-- Full-Import: Persistierung in DB.
+- Full-Import robust und vollstaendig.
 
 Naechste Schritte (Claude Code, max 3)
-1) Resume nach Fehler (Cursor persistieren)
+1) UI: Resume-Button fuer fehlgeschlagene/pausierte Jobs anzeigen
 2) Highlights in DB speichern
-3) Dedupe bei Re-Import (bereits teilweise via URL-Match)
+3) Dedupe bei Re-Import verbessern
 
 Offene Fragen (max 3)
 - (keine aktuell)
 
 Handoff
-- Artikel-Persistierung erledigt: save_article() in app/core/storage.py:141-211
-- UPSERT-Logik: Wenn URL+source existiert -> Update, sonst Insert
-- FTS-Index wird automatisch aktualisiert (_update_fts())
-- Event-Daten erweitert: provider_id, author, summary, html_content, published_date
-- Speicherung im SSE-Stream: app/main.py:215-228 (bei ITEM events)
+- import_jobs Tabelle: app/core/storage.py:73-85 (Schema)
+- ImportJobStore mit DB-Persistierung: app/core/import_job.py:81-193
+- Automatische Initialisierung: app/core/storage.py:247 (init_import_store)
+- Jobs werden bei jedem Event gespeichert: app/main.py:213 (store.update)
+- get_resumable() Methode: gibt letzten failed/paused Job zurueck
 - preflight-fast gruen

@@ -69,6 +69,20 @@ CREATE TABLE IF NOT EXISTS runs (
   created_at TEXT DEFAULT (datetime('now')),
   finished_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS import_jobs (
+  id TEXT PRIMARY KEY,
+  status TEXT NOT NULL,
+  reader_cursor TEXT,
+  export_cursor TEXT,
+  reader_done INTEGER DEFAULT 0,
+  export_done INTEGER DEFAULT 0,
+  items_imported INTEGER DEFAULT 0,
+  items_merged INTEGER DEFAULT 0,
+  started_at TEXT DEFAULT (datetime('now')),
+  last_activity TEXT DEFAULT (datetime('now')),
+  error TEXT
+);
 """
 
 VEC_SQL = """
@@ -230,6 +244,8 @@ _db: DB | None = None
 
 def init_db() -> None:
     global _db
+    from app.core.import_job import init_import_store
+
     s = Settings.from_env()
     os.makedirs(os.path.dirname(s.db_path), exist_ok=True)
 
@@ -241,6 +257,9 @@ def init_db() -> None:
 
     _db = DB(conn=conn)
     _db.init()
+
+    # Initialize import job store with same connection
+    init_import_store(conn)
 
 
 def get_db() -> DB:
