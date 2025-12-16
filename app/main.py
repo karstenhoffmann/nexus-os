@@ -218,7 +218,7 @@ def readwise_import_stream(job_id: str, token: str | None = None):
                     if event.type == ImportEventType.ITEM:
                         article_data = event.data.get("article", {})
                         if article_data.get("provider_id"):
-                            db.save_article(
+                            doc_id = db.save_article(
                                 source=article_data.get("provider", "unknown"),
                                 provider_id=article_data.get("provider_id", ""),
                                 url_original=article_data.get("source_url"),
@@ -228,6 +228,19 @@ def readwise_import_stream(job_id: str, token: str | None = None):
                                 fulltext=article_data.get("html_content"),
                                 summary=article_data.get("summary"),
                             )
+
+                            # Save highlights if present (from Export API)
+                            highlights = event.data.get("highlights", [])
+                            for hl in highlights:
+                                if hl.get("provider_id") and hl.get("text"):
+                                    db.save_highlight(
+                                        document_id=doc_id,
+                                        provider_highlight_id=hl["provider_id"],
+                                        text=hl["text"],
+                                        note=hl.get("note"),
+                                        highlighted_at=hl.get("highlighted_at"),
+                                        provider=hl.get("provider"),
+                                    )
 
                     yield event.to_sse()
         except ReadwiseAuthError as e:

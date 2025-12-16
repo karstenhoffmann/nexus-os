@@ -646,7 +646,17 @@ class ReadwiseClient:
                             "html_content": article.html_content,
                             "published_date": article.published_date.isoformat() if article.published_date else None,
                         },
-                        "highlights_count": len(highlights),
+                        "highlights": [
+                            {
+                                "id": hl.id,
+                                "text": hl.text,
+                                "note": hl.note,
+                                "highlighted_at": hl.created_at.isoformat() if hl.created_at else None,
+                                "provider": hl.provider,
+                                "provider_id": hl.provider_id,
+                            }
+                            for hl in highlights
+                        ],
                         "source": "export",
                         "merged_with": merged_with,
                     },

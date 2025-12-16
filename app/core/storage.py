@@ -83,6 +83,20 @@ CREATE TABLE IF NOT EXISTS import_jobs (
   last_activity TEXT DEFAULT (datetime('now')),
   error TEXT
 );
+
+CREATE TABLE IF NOT EXISTS highlights (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+  provider_highlight_id TEXT,
+  text TEXT NOT NULL,
+  note TEXT,
+  highlighted_at TEXT,
+  provider TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(document_id, provider_highlight_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_highlights_document_id ON highlights(document_id);
 """
 
 VEC_SQL = """
@@ -107,7 +121,9 @@ class DB:
         docs = cur.fetchone()[0]
         cur = self.conn.execute("select count(*) from drafts")
         drafts = cur.fetchone()[0]
-        return {"documents": docs, "drafts": drafts}
+        cur = self.conn.execute("select count(*) from highlights")
+        highlights = cur.fetchone()[0]
+        return {"documents": docs, "drafts": drafts, "highlights": highlights}
 
     def search_documents(self, q: str) -> list[dict[str, Any]]:
         q = (q or "").strip()
@@ -237,6 +253,63 @@ class DB:
             (doc_id,),
         )
         self.conn.commit()
+
+    def save_highlight(
+        self,
+        *,
+        document_id: int,
+        provider_highlight_id: str,
+        text: str,
+        note: str | None = None,
+        highlighted_at: str | None = None,
+        provider: str | None = None,
+    ) -> int:
+        """Save or update a highlight in the highlights table.
+
+        Uses UPSERT logic: if a highlight with the same document_id+provider_highlight_id
+        exists, it updates the existing record. Otherwise, inserts a new one.
+
+        Returns the highlight id (existing or new).
+        """
+        # Use INSERT OR REPLACE with UNIQUE constraint
+        cur = self.conn.execute(
+            """
+            INSERT INTO highlights (document_id, provider_highlight_id, text, note, highlighted_at, provider)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(document_id, provider_highlight_id) DO UPDATE SET
+                text = excluded.text,
+                note = excluded.note,
+                highlighted_at = excluded.highlighted_at,
+                provider = excluded.provider
+            RETURNING id
+            """,
+            (document_id, provider_highlight_id, text, note, highlighted_at, provider),
+        )
+        row = cur.fetchone()
+        self.conn.commit()
+        return row[0] if row else 0
+
+    def get_highlights_for_document(self, document_id: int) -> list[dict[str, Any]]:
+        """Get all highlights for a document."""
+        cur = self.conn.execute(
+            """
+            SELECT id, text, note, highlighted_at, provider
+            FROM highlights
+            WHERE document_id = ?
+            ORDER BY highlighted_at DESC, id DESC
+            """,
+            (document_id,),
+        )
+        return [
+            {
+                "id": r[0],
+                "text": r[1],
+                "note": r[2],
+                "highlighted_at": r[3],
+                "provider": r[4],
+            }
+            for r in cur.fetchall()
+        ]
 
 
 _db: DB | None = None
