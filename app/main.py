@@ -144,11 +144,13 @@ def readwise_import_page(request: Request):
     s = Settings.from_env()
     store = get_import_store()
     jobs = store.list_all()
+    resumable_job = store.get_resumable()
     return render(
         "readwise_import.html",
         request=request,
         token=s.readwise_api_token,
         jobs=jobs,
+        resumable_job=resumable_job,
     )
 
 
