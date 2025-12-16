@@ -9,19 +9,17 @@ Aktuelles Ziel
 - Full-Import: Beide APIs (Reader + Export/Snipd) mit Streaming, Pause/Resume, Merge.
 
 Naechste Schritte (Claude Code, max 3)
-1) ImportJob Modell + Store erstellen (app/core/import_job.py)
-2) Streaming Import Generator implementieren
-3) Import Routes (start/pause/resume/stream) + UI
+1) Streaming Import Generator implementieren
+2) Import Routes (start/pause/resume/stream) + UI
+3) Import UI Template mit SSE
 
 Offene Fragen (max 3)
 - (keine aktuell)
 
 Handoff
-- Phase 1 komplett: Export API (v2) implementiert + getestet
-- Neue Methoden: fetch_export_books(), _parse_export_book(), _parse_export_highlight()
-- ID-Prefix geaendert: reader: fuer Reader API, export: fuer Export API
-- URL-Normalisierung fuer Merge-Matching hinzugefuegt
-- Snipd-Podcasts werden korrekt gefetcht (category=podcasts, provider=snipd)
-- highlight_sources Feld zu Article DTO hinzugefuegt
+- Phase 2 Schritt 4 erledigt: ImportJob Modell + Store (app/core/import_job.py)
+- ImportJob Dataclass mit Status, Cursors, Counters
+- ImportJobStore: thread-safe In-Memory Store mit CRUD
+- ImportStatus Enum: pending, running, paused, completed, failed
 - Plan: /Users/karsten/.claude/plans/linked-swimming-dragon.md
 - preflight-fast gruen
