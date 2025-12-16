@@ -162,13 +162,27 @@ class ImportJobStore:
             self._persist(job)
 
     def list_all(self) -> list[ImportJob]:
-        """List all jobs, newest first."""
+        """List all jobs in memory, newest first."""
         with self._lock:
             return sorted(
                 self._jobs.values(),
                 key=lambda j: j.started_at,
                 reverse=True,
             )
+
+    def list_recent(self, limit: int = 10) -> list[ImportJob]:
+        """List recent jobs from DB (including completed), newest first."""
+        cur = self._conn.execute(
+            """
+            SELECT id, status, reader_cursor, export_cursor, reader_done, export_done,
+                   items_imported, items_merged, started_at, last_activity, error
+            FROM import_jobs
+            ORDER BY started_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        return [ImportJob.from_row(row) for row in cur.fetchall()]
 
     def get_resumable(self) -> ImportJob | None:
         """Get the most recent failed or paused job that can be resumed."""

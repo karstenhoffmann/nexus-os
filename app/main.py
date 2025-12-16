@@ -154,7 +154,7 @@ def readwise_import_page(request: Request):
     """Show import page with current/recent jobs."""
     s = Settings.from_env()
     store = get_import_store()
-    jobs = store.list_all()
+    jobs = store.list_recent(limit=10)
     resumable_job = store.get_resumable()
     return render(
         "readwise_import.html",

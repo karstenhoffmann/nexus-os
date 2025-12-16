@@ -10,13 +10,14 @@ Aktuelles Ziel
 - Full-Import robust und vollstaendig.
 
 Naechste Schritte (Claude Code, max 3)
-1) Import-Fortschritt in Job-Liste anzeigen (items_imported)
-2) Job-Liste: abgeschlossene Jobs aus DB laden (nicht nur Memory)
+1) Live-Update der Job-Liste waehrend laufendem Import (HTMX polling oder SSE)
+2) Job-Loeschfunktion in UI
 3) (offen)
 
 Offene Fragen (max 3)
 - (keine aktuell)
 
 Handoff
-- DB-Migration fuer provider_id getestet und funktioniert (app/core/storage.py:104-118)
+- Job-Liste zeigt jetzt abgeschlossene Jobs aus DB (app/core/import_job.py:173-185, app/main.py:157)
+- Neue Methode list_recent() holt letzte 10 Jobs aus DB inkl. completed
 - preflight-fast gruen
