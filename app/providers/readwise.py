@@ -3,13 +3,42 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Iterator
+from enum import Enum
+from typing import TYPE_CHECKING, Any, Iterator
 from urllib.parse import urlparse, urlunparse
 
 import httpx
 
 from app.providers.content_types import Article, Highlight
+
+if TYPE_CHECKING:
+    from app.core.import_job import ImportJob
+
+
+class ImportEventType(str, Enum):
+    """Type of import event for SSE streaming."""
+
+    ITEM = "item"
+    PROGRESS = "progress"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    ERROR = "error"
+
+
+@dataclass
+class ImportEvent:
+    """Event yielded during streaming import for SSE."""
+
+    type: ImportEventType
+    data: dict[str, Any]
+
+    def to_sse(self) -> str:
+        """Format as SSE message."""
+        import json
+
+        return f"event: {self.type.value}\ndata: {json.dumps(self.data)}\n\n"
 
 logger = logging.getLogger(__name__)
 
@@ -337,3 +366,246 @@ class ReadwiseClient:
             provider=source,  # e.g. "snipd", "kindle"
             provider_id=str(hl["id"]),
         )
+
+    # --- Streaming Import ---
+
+    def stream_import(
+        self,
+        job: ImportJob,
+        *,
+        url_index: dict[str, str] | None = None,
+    ) -> Iterator[ImportEvent]:
+        """Stream import from both APIs with pause/resume support.
+
+        Yields ImportEvents for SSE streaming. Checks job.status at each
+        iteration to support pause functionality.
+
+        Args:
+            job: ImportJob tracking state (cursors, counters, status)
+            url_index: Optional dict mapping normalized URLs to existing IDs
+                       for merge detection. Will be populated during import.
+
+        Yields:
+            ImportEvent for each item, progress update, or state change
+        """
+        from app.core.import_job import ImportStatus
+
+        if url_index is None:
+            url_index = {}
+
+        # Set job to running
+        job.status = ImportStatus.RUNNING
+
+        try:
+            # Phase 1: Reader API (has full content, import first)
+            if not job.reader_done:
+                yield from self._stream_reader_api(job, url_index)
+
+            # Check if paused after Reader API
+            if job.status == ImportStatus.PAUSED:
+                yield ImportEvent(
+                    type=ImportEventType.PAUSED,
+                    data={"items_imported": job.items_imported},
+                )
+                return
+
+            # Phase 2: Export API (supplements with highlights)
+            if not job.export_done:
+                yield from self._stream_export_api(job, url_index)
+
+            # Check if paused after Export API
+            if job.status == ImportStatus.PAUSED:
+                yield ImportEvent(
+                    type=ImportEventType.PAUSED,
+                    data={"items_imported": job.items_imported},
+                )
+                return
+
+            # Completed successfully
+            job.status = ImportStatus.COMPLETED
+            yield ImportEvent(
+                type=ImportEventType.COMPLETED,
+                data={
+                    "items_imported": job.items_imported,
+                    "items_merged": job.items_merged,
+                },
+            )
+
+        except Exception as e:
+            job.status = ImportStatus.FAILED
+            job.error = str(e)
+            logger.exception("Import failed")
+            yield ImportEvent(
+                type=ImportEventType.ERROR,
+                data={"error": str(e)},
+            )
+
+    def _stream_reader_api(
+        self,
+        job: ImportJob,
+        url_index: dict[str, str],
+    ) -> Iterator[ImportEvent]:
+        """Stream items from Reader API."""
+        from app.core.import_job import ImportStatus
+
+        params: dict[str, str] = {}
+        if job.reader_cursor:
+            params["pageCursor"] = job.reader_cursor
+
+        while True:
+            # Check for pause request
+            if job.status == ImportStatus.PAUSED:
+                return
+
+            resp = self._client.get("/v3/list/", params=params)
+            if resp.status_code == 401:
+                raise ReadwiseAuthError("Invalid Readwise API token")
+            resp.raise_for_status()
+
+            data = resp.json()
+            results = data.get("results", [])
+            next_cursor = data.get("nextPageCursor")
+
+            for doc in results:
+                # Check for pause request
+                if job.status == ImportStatus.PAUSED:
+                    return
+
+                # Skip highlights/notes (they have parent_id set)
+                if doc.get("parent_id"):
+                    continue
+
+                article = self._parse_article(doc)
+
+                # Track URL for merge detection
+                norm_url = normalize_url(article.source_url)
+                if norm_url:
+                    url_index[norm_url] = article.id
+
+                job.items_imported += 1
+                job.reader_cursor = next_cursor
+                job.touch()
+
+                yield ImportEvent(
+                    type=ImportEventType.ITEM,
+                    data={
+                        "article": {
+                            "id": article.id,
+                            "title": article.title,
+                            "source_url": article.source_url,
+                            "category": article.category,
+                            "provider": article.provider,
+                        },
+                        "source": "reader",
+                    },
+                )
+
+                # Progress event every 10 items
+                if job.items_imported % 10 == 0:
+                    yield ImportEvent(
+                        type=ImportEventType.PROGRESS,
+                        data={
+                            "items_imported": job.items_imported,
+                            "items_merged": job.items_merged,
+                            "phase": "reader",
+                        },
+                    )
+
+            # Update cursor for next page
+            if next_cursor:
+                params["pageCursor"] = next_cursor
+                job.reader_cursor = next_cursor
+            else:
+                # Reader API done
+                job.reader_done = True
+                job.reader_cursor = None
+                break
+
+    def _stream_export_api(
+        self,
+        job: ImportJob,
+        url_index: dict[str, str],
+    ) -> Iterator[ImportEvent]:
+        """Stream items from Export API, merging with Reader items by URL."""
+        from app.core.import_job import ImportStatus
+
+        params: dict[str, str] = {}
+        if job.export_cursor:
+            params["pageCursor"] = job.export_cursor
+
+        while True:
+            # Check for pause request
+            if job.status == ImportStatus.PAUSED:
+                return
+
+            resp = self._client.get("/v2/export/", params=params)
+            if resp.status_code == 401:
+                raise ReadwiseAuthError("Invalid Readwise API token")
+            resp.raise_for_status()
+
+            data = resp.json()
+            results = data.get("results", [])
+            next_cursor = data.get("nextPageCursor")
+
+            for book in results:
+                # Check for pause request
+                if job.status == ImportStatus.PAUSED:
+                    return
+
+                article = self._parse_export_book(book)
+                highlights = [
+                    self._parse_export_highlight(hl, book.get("source", "export"))
+                    for hl in book.get("highlights", [])
+                ]
+
+                # Check for merge by URL
+                norm_url = normalize_url(article.source_url)
+                merged_with: str | None = None
+                if norm_url and norm_url in url_index:
+                    merged_with = url_index[norm_url]
+                    job.items_merged += 1
+                else:
+                    # New item, track URL
+                    if norm_url:
+                        url_index[norm_url] = article.id
+                    job.items_imported += 1
+
+                job.export_cursor = next_cursor
+                job.touch()
+
+                yield ImportEvent(
+                    type=ImportEventType.ITEM,
+                    data={
+                        "article": {
+                            "id": article.id,
+                            "title": article.title,
+                            "source_url": article.source_url,
+                            "category": article.category,
+                            "provider": article.provider,
+                        },
+                        "highlights_count": len(highlights),
+                        "source": "export",
+                        "merged_with": merged_with,
+                    },
+                )
+
+                # Progress event every 10 items
+                if (job.items_imported + job.items_merged) % 10 == 0:
+                    yield ImportEvent(
+                        type=ImportEventType.PROGRESS,
+                        data={
+                            "items_imported": job.items_imported,
+                            "items_merged": job.items_merged,
+                            "phase": "export",
+                        },
+                    )
+
+            # Update cursor for next page
+            if next_cursor:
+                params["pageCursor"] = next_cursor
+                job.export_cursor = next_cursor
+            else:
+                # Export API done
+                job.export_done = True
+                job.export_cursor = None
+                break
