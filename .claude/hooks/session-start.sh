@@ -1,8 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
-echo ""
-echo "nexus-os Session Start"
-echo "- Starte mit /start"
-echo "- Nach jedem Mini-Feature: /handoff"
-echo "- Node ist nur fuer Tooling in tools/ erlaubt"
-echo ""
+
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=/dev/null
+source "$ROOT/scripts/_fmt.sh"
+
+info "Claude Session Start"
+
+if [ -f "$ROOT/STATE.md" ]; then
+  step "STATE.md (kurz)"
+  # erste ~40 Zeilen reichen als Einstieg
+  sed -n '1,40p' "$ROOT/STATE.md" || true
+  ok "STATE.md geladen"
+else
+  warn "STATE.md fehlt"
+fi
+
+ok "Start-Hook fertig"
