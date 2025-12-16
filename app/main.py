@@ -101,3 +101,34 @@ def _fetch_readwise_preview(request: Request, token: str) -> HTMLResponse:
     except Exception as e:
         return render("readwise_preview.html", request=request, token=None, articles=[], error=f"Fehler: {e}", token_param="")
     return render("readwise_preview.html", request=request, token=token, articles=articles, error=None, token_param=token)
+
+
+@app.get("/readwise/article/{article_id}", response_class=HTMLResponse)
+def readwise_article(request: Request, article_id: str, token: str | None = None):
+    """Show a single article with its highlights."""
+    s = Settings.from_env()
+    effective_token = token or s.readwise_api_token
+    if not effective_token:
+        return render("readwise_article.html", request=request, article=None, highlights=[], error="Kein Token vorhanden", token_param="")
+
+    try:
+        with ReadwiseClient(effective_token) as client:
+            # Fetch the specific article
+            article = None
+            for doc in client.fetch_documents(with_html_content=True, limit=100):
+                if doc.provider_id == article_id:
+                    article = doc
+                    break
+
+            if not article:
+                return render("readwise_article.html", request=request, article=None, highlights=[], error="Artikel nicht gefunden", token_param=effective_token)
+
+            # Fetch highlights for this article
+            highlights = client.fetch_highlights_for_article(article_id)
+
+    except ReadwiseAuthError as e:
+        return render("readwise_article.html", request=request, article=None, highlights=[], error=str(e), token_param="")
+    except Exception as e:
+        return render("readwise_article.html", request=request, article=None, highlights=[], error=f"Fehler: {e}", token_param="")
+
+    return render("readwise_article.html", request=request, article=article, highlights=highlights, error=None, token_param=effective_token)

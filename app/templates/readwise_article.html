@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="breadcrumb">
+  <a href="/readwise/preview{% if token_param %}?token={{ token_param }}{% endif %}">&larr; Zurueck zur Liste</a>
+</div>
+
+{% if error %}
+<div class="card error">{{ error }}</div>
+{% endif %}
+
+{% if article %}
+<article class="article-detail">
+  <header class="article-header">
+    <h1>{{ article.title }}</h1>
+    {% if article.author %}
+    <p class="meta">Von {{ article.author }}</p>
+    {% endif %}
+    {% if article.published_date %}
+    <p class="meta">{{ article.published_date.strftime('%d.%m.%Y') }}</p>
+    {% endif %}
+    {% if article.source_url %}
+    <p class="meta"><a href="{{ article.source_url }}" target="_blank">Originalquelle</a></p>
+    {% endif %}
+    <p class="meta">Kategorie: {{ article.category }}{% if article.word_count %} | {{ article.word_count }} Woerter{% endif %}</p>
+  </header>
+
+  {% if highlights %}
+  <section class="highlights-section">
+    <h2>Highlights ({{ highlights|length }})</h2>
+    <ul class="highlights-list">
+      {% for h in highlights %}
+      <li class="highlight-item">
+        <blockquote>{{ h.text }}</blockquote>
+        {% if h.note %}
+        <p class="highlight-note">Notiz: {{ h.note }}</p>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if article.summary %}
+  <section class="summary-section">
+    <h2>Zusammenfassung</h2>
+    <p>{{ article.summary }}</p>
+  </section>
+  {% endif %}
+
+  {% if article.html_content %}
+  <section class="content-section">
+    <h2>Inhalt</h2>
+    <div class="article-content">
+      {{ article.html_content|safe }}
+    </div>
+  </section>
+  {% endif %}
+
+</article>
+{% endif %}
+
+{% endblock %}

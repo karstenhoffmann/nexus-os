@@ -9,7 +9,7 @@ Aktuelles Ziel
 - Machbarkeits-Slice: Readwise read-only Preview (Artikel + Highlights) in der UI anzeigen.
 
 Naechste Schritte (Claude Code, max 3)
-1) Einzelartikel-Ansicht mit Highlights: /readwise/article/{id} Template + Route.
+1) UI testen: App starten, /readwise/preview oeffnen, Artikel anklicken, Highlights pruefen.
 2) Optional: favicon.ico hinzufuegen (kosmetisch).
 3) Optional: Readwise Link von Admin-Seite aus zugaenglich machen.
 
@@ -17,7 +17,7 @@ Offene Fragen (max 3)
 - (keine aktuell)
 
 Handoff
-- /readwise/preview Route fertig: Token-Eingabe oder aus .env, zeigt 20 Artikel
-- Link in Navigation eingefuegt
-- Naechster Schritt: Einzelartikel-Ansicht mit Highlights
+- Einzelartikel-Route /readwise/article/{id} fertig (main.py:106-134)
+- Template readwise_article.html zeigt Titel, Autor, Highlights, Summary, HTML-Inhalt
+- Machbarkeits-Slice komplett: Preview Liste + Einzelartikel + Highlights
 - preflight-fast gruen
