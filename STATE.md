@@ -3,21 +3,20 @@ nexus-os Status
 Stand (kurz)
 - FTS5-Volltextsuche funktioniert. /library?q=suchbegriff durchsucht Titel, Autor, Volltext, Summary.
 - 2637 Dokumente, 1457 Highlights in DB - keine Duplikate.
-- Migration erstellt FTS-Tabelle automatisch fuer bestehende DBs.
+- sqlite-vec funktioniert - Tests bestaetigen Insert/Query mit 1536 Dimensionen.
 
 Aktuelles Ziel
-- FTS5-Suche eingebaut und getestet. (FERTIG)
+- Semantische Suche (Epic C) - in Arbeit
 
 Naechste Schritte (Claude Code, max 3)
-1) (offen - naechstes Feature waehlen: semantische Suche, Digests, oder Drafts)
-2) (offen)
-3) (offen)
+1) Embedding-Funktion mit OpenAI API schreiben
+2) Embeddings fuer bestehende Dokumente generieren
+3) Aehnlichkeitssuche implementieren und in UI einbauen
 
 Offene Fragen (max 3)
 - (keine aktuell)
 
 Handoff
-- FTS5-Migration in storage.py:_run_migrations() - erstellt documents_fts und befuellt Index
-- Suche ueber /library mit Parameter q
-- search_documents() in storage.py:248 - FTS5 MATCH Query mit Relevanz-Ranking
-- rebuild_fts() in storage.py:408 - wird nach Import automatisch aufgerufen
+- sqlite-vec Tests in tests/test_sqlite_vec.py - 3 Tests bestaetigen Funktion
+- doc_embeddings Tabelle existiert bereits (storage.py:232) mit float[1536]
+- serialize_f32() Funktion in Tests zeigt wie Embeddings serialisiert werden
