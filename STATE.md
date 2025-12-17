@@ -10,14 +10,16 @@ Aktuelles Ziel
 - Full-Import robust und vollstaendig.
 
 Naechste Schritte (Claude Code, max 3)
-1) Live-Update der Job-Liste waehrend laufendem Import (HTMX polling oder SSE)
-2) Job-Loeschfunktion in UI
+1) Job-Loeschfunktion in UI
+2) Cancel-Button fuer laufende Jobs
 3) (offen)
 
 Offene Fragen (max 3)
 - (keine aktuell)
 
 Handoff
-- Job-Liste zeigt jetzt abgeschlossene Jobs aus DB (app/core/import_job.py:173-185, app/main.py:157)
-- Neue Methode list_recent() holt letzte 10 Jobs aus DB inkl. completed
+- Job-Liste aktualisiert sich jetzt live waehrend Import (Alpine.js Polling alle 3s)
+- Neuer Endpoint /readwise/import/jobs-partial (app/main.py:283-288)
+- Partial Template app/templates/partials/job_list.html
+- Polling startet bei status running/starting/resuming, stoppt automatisch
 - preflight-fast gruen

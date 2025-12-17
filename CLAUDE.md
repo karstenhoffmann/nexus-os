@@ -37,7 +37,7 @@ Kurzregeln fuer Claude Code (unverhandelbar)
 
 - HEREDOC funktioniert nicht im Terminal des Nutzers
 - API Dokumentation und Analysen sind via Context7 MCP verfügbar
-- Für E2E Tests steht Dir Playwright MCP zur Verfügung
+- Für Browser-Tests und E2E-Tests steht Dir Playwright MCP zur Verfügung
 
 7. Session Hygiene
 

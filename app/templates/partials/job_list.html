@@ -1,0 +1,20 @@
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Status</th>
+      <th>Items</th>
+      <th>Gestartet</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for job in jobs %}
+    <tr>
+      <td><a href="/readwise/jobs/{{ job.id }}"><code>{{ job.id[:8] }}</code></a></td>
+      <td><a href="/readwise/jobs/{{ job.id }}">{{ job.status.value }}</a></td>
+      <td>{{ job.items_imported }} ({{ job.items_merged }} merged)</td>
+      <td>{{ job.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>

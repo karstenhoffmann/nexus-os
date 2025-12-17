@@ -280,6 +280,14 @@ def readwise_import_status(job_id: str):
     return job.to_dict()
 
 
+@app.get("/readwise/import/jobs-partial", response_class=HTMLResponse)
+def readwise_jobs_partial(request: Request):
+    """Return job list as HTML fragment for HTMX polling."""
+    store = get_import_store()
+    jobs = store.list_recent(limit=10)
+    return render("partials/job_list.html", request=request, jobs=jobs)
+
+
 @app.get("/readwise/jobs/{job_id}", response_class=HTMLResponse)
 def readwise_job_detail(request: Request, job_id: str):
     """Show details for a specific import job."""

@@ -95,31 +95,23 @@
   </div>
 
   <!-- Recent Jobs -->
-  {% if jobs %}
   <div class="card">
     <h2>Vorherige Jobs</h2>
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Status</th>
-          <th>Items</th>
-          <th>Gestartet</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for job in jobs %}
-        <tr>
-          <td><a href="/readwise/jobs/{{ job.id }}"><code>{{ job.id[:8] }}</code></a></td>
-          <td><a href="/readwise/jobs/{{ job.id }}">{{ job.status.value }}</a></td>
-          <td>{{ job.items_imported }} ({{ job.items_merged }} merged)</td>
-          <td>{{ job.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <div id="job-list" x-ref="jobList">
+      <template x-if="jobListHtml">
+        <div x-html="jobListHtml"></div>
+      </template>
+      <template x-if="!jobListHtml">
+        <div>
+          {% if jobs %}
+          {% include "partials/job_list.html" %}
+          {% else %}
+          <p>Keine Jobs vorhanden.</p>
+          {% endif %}
+        </div>
+      </template>
+    </div>
   </div>
-  {% endif %}
 
 </div>
 
@@ -190,12 +182,50 @@ function importApp() {
     log: [],
     eventSource: null,
     tokenInput: '',
+    jobListHtml: null,
+    pollInterval: null,
 
     init() {
       // Check for token in hidden field
       const tokenField = this.$refs.tokenField;
       if (tokenField) {
         this.tokenInput = tokenField.value;
+      }
+
+      // Watch status and start/stop polling
+      this.$watch('status', (newStatus) => {
+        if (newStatus === 'running' || newStatus === 'starting' || newStatus === 'resuming') {
+          this.startPolling();
+        } else {
+          this.stopPolling();
+          // Final refresh when import ends
+          if (newStatus === 'completed' || newStatus === 'error' || newStatus === 'paused') {
+            this.refreshJobList();
+          }
+        }
+      });
+    },
+
+    startPolling() {
+      if (this.pollInterval) return;
+      this.pollInterval = setInterval(() => this.refreshJobList(), 3000);
+    },
+
+    stopPolling() {
+      if (this.pollInterval) {
+        clearInterval(this.pollInterval);
+        this.pollInterval = null;
+      }
+    },
+
+    async refreshJobList() {
+      try {
+        const resp = await fetch('/readwise/import/jobs-partial');
+        if (resp.ok) {
+          this.jobListHtml = await resp.text();
+        }
+      } catch (e) {
+        // Ignore polling errors
       }
     },
 
