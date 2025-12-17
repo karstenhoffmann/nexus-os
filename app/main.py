@@ -253,6 +253,11 @@ def readwise_import_stream(job_id: str, token: str | None = None):
                                         provider=hl.get("provider"),
                                     )
 
+                    # Rebuild FTS index after import completes
+                    if event.type == ImportEventType.COMPLETED:
+                        fts_count = db.rebuild_fts()
+                        print(f"FTS index rebuilt with {fts_count} documents")
+
                     yield event.to_sse()
         except ReadwiseAuthError as e:
             yield f"event: error\ndata: {{\"error\": \"{e}\"}}\n\n"

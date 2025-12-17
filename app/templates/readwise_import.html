@@ -48,10 +48,10 @@
       </div>
       <div>
         <strong>Fortschritt:</strong>
-        <span x-text="itemsTotal ? itemsImported + ' von ' + itemsTotal : itemsImported"></span>
+        <span x-text="itemsTotal && itemsImported <= itemsTotal ? itemsImported + ' von ' + itemsTotal : itemsImported + ' verarbeitet'"></span>
       </div>
       <div>
-        <strong>Gemerged:</strong> <span x-text="itemsMerged"></span>
+        <strong>Bereits vorhanden:</strong> <span x-text="itemsMerged"></span>
       </div>
       <div x-show="itemsFailed > 0" class="text-error">
         <strong>Fehler:</strong> <span x-text="itemsFailed"></span>
@@ -95,7 +95,7 @@
       </div>
       <div class="summary-item summary-merged">
         <span class="summary-value" x-text="itemsMerged"></span>
-        <span class="summary-label">Übersprungen (Duplikate)</span>
+        <span class="summary-label">Bereits vorhanden</span>
       </div>
       <div class="summary-item summary-failed" x-show="itemsFailed > 0">
         <span class="summary-value" x-text="itemsFailed"></span>
@@ -392,10 +392,10 @@ function importApp() {
         this.itemsFailed = data.items_failed || 0;
         this.itemsTotal = data.items_total;
         this.phase = data.phase;
-        const progressText = data.items_total
+        const progressText = data.items_total && data.items_imported <= data.items_total
           ? data.items_imported + ' von ' + data.items_total
-          : data.items_imported + ' importiert';
-        let logMsg = progressText + ', ' + data.items_merged + ' gemerged';
+          : data.items_imported + ' verarbeitet';
+        let logMsg = progressText + ', ' + data.items_merged + ' bereits vorhanden';
         if (data.items_failed > 0) {
           logMsg += ', ' + data.items_failed + ' Fehler';
         }
@@ -415,7 +415,7 @@ function importApp() {
         this.itemsImported = data.items_imported;
         this.itemsMerged = data.items_merged;
         this.itemsFailed = data.items_failed || 0;
-        let logMsg = 'Import abgeschlossen: ' + data.items_imported + ' importiert, ' + data.items_merged + ' gemerged';
+        let logMsg = 'Import abgeschlossen: ' + data.items_imported + ' importiert, ' + data.items_merged + ' bereits vorhanden';
         if (data.items_failed > 0) {
           logMsg += ', ' + data.items_failed + ' Fehler';
         }

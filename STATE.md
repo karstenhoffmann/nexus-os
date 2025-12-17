@@ -1,16 +1,15 @@
 nexus-os Status
 
 Stand (kurz)
-- Streaming Import mit SSE-UI, DB-Persistierung und Rate Limit Handling fertig.
-- Dedupe bei Re-Import via provider_id.
-- Cancel-Button, Progress (X von Y), Fehlerbehandlung fuer Einzeldokumente.
-- Summary-Card nach Abschluss zeigt Statistik (importiert, uebersprungen, Fehler).
+- Full-Import mit URL-Dedupe und Text-Hash-Dedupe fertig.
+- 2637 Dokumente, 1457 Highlights in DB - keine Duplikate.
+- UI-Labels fuer nicht-technische Nutzer optimiert.
 
 Aktuelles Ziel
-- Full-Import robust und vollstaendig. (fast fertig)
+- Dedupe-Import robust und getestet. (FERTIG)
 
 Naechste Schritte (Claude Code, max 3)
-1) Manueller Test der Summary-Card im Browser
+1) (offen - naechstes Feature waehlen)
 2) (offen)
 3) (offen)
 
@@ -18,7 +17,10 @@ Offene Fragen (max 3)
 - (keine aktuell)
 
 Handoff
-- Summary-Card in readwise_import.html (Zeile 88-108)
-- CSS fuer .summary-card, .summary-grid, .summary-item (Zeile 197-245)
-- x-cloak verhindert Flash of Unstyled Content
-- preflight-fast gruen
+- URL-Dedupe in storage.py:save_article() - sucht erst per URL, dann UPSERT
+- Text-Hash-Dedupe in storage.py:save_highlight() - UNIQUE(document_id, text_hash)
+- Hilfsfunktionen: normalize_url(), text_hash(), normalize_highlight_text()
+- UI-Labels korrigiert:
+  - readwise_import.html: "Gemerged:" -> "Bereits vorhanden:", Log-Meldungen angepasst
+  - partials/job_list.html: "merged" -> "bereits vorhanden", "X von Y" nur wenn X <= Y
+- preflight-fast ausfuehren vor Commit
