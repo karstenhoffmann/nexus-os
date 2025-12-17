@@ -85,6 +85,28 @@
   <!-- Error Display -->
   <div class="card error" x-show="errorMsg" x-text="errorMsg"></div>
 
+  <!-- Completion Summary -->
+  <div class="card summary-card" x-show="status === 'completed'" x-cloak>
+    <h2>✓ Import abgeschlossen</h2>
+    <div class="summary-grid">
+      <div class="summary-item summary-imported">
+        <span class="summary-value" x-text="itemsImported"></span>
+        <span class="summary-label">Importiert</span>
+      </div>
+      <div class="summary-item summary-merged">
+        <span class="summary-value" x-text="itemsMerged"></span>
+        <span class="summary-label">Übersprungen (Duplikate)</span>
+      </div>
+      <div class="summary-item summary-failed" x-show="itemsFailed > 0">
+        <span class="summary-value" x-text="itemsFailed"></span>
+        <span class="summary-label">Fehler</span>
+      </div>
+    </div>
+    <p class="summary-total">
+      Gesamt verarbeitet: <strong x-text="itemsImported + itemsMerged + itemsFailed"></strong> Dokumente
+    </p>
+  </div>
+
   <!-- Live Log -->
   <div class="card">
     <h2>Import Log</h2>
@@ -171,6 +193,55 @@
   border: none;
   padding: 0.5rem 1rem;
   cursor: pointer;
+}
+.summary-card {
+  background: var(--bg-success, #e8f5e9);
+  border-left: 4px solid var(--success, #2e7d32);
+}
+.summary-card h2 {
+  margin-top: 0;
+  color: var(--success, #2e7d32);
+}
+.summary-grid {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+}
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  background: var(--bg, #fff);
+  min-width: 120px;
+}
+.summary-value {
+  font-size: 2rem;
+  font-weight: bold;
+  line-height: 1;
+}
+.summary-label {
+  font-size: 0.85rem;
+  color: var(--text-muted, #666);
+  margin-top: 0.25rem;
+}
+.summary-imported .summary-value {
+  color: var(--success, #2e7d32);
+}
+.summary-merged .summary-value {
+  color: var(--accent, #4a90d9);
+}
+.summary-failed .summary-value {
+  color: var(--error, #c62828);
+}
+.summary-total {
+  margin-top: 1rem;
+  color: var(--text-muted, #666);
+}
+[x-cloak] {
+  display: none !important;
 }
 </style>
 
