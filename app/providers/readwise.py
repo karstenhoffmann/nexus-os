@@ -517,6 +517,8 @@ class ReadwiseClient:
         if job.reader_cursor:
             params["pageCursor"] = job.reader_cursor
 
+        is_first_page = job.reader_cursor is None
+
         while True:
             # Check for pause or cancel request
             if job.status in (ImportStatus.PAUSED, ImportStatus.CANCELLED):
@@ -526,6 +528,13 @@ class ReadwiseClient:
             data = resp.json()
             results = data.get("results", [])
             next_cursor = data.get("nextPageCursor")
+
+            # On first page, capture total count from API
+            if is_first_page and job.items_total is None:
+                api_count = data.get("count")
+                if api_count is not None:
+                    job.items_total = api_count
+                is_first_page = False
 
             for doc in results:
                 # Check for pause or cancel request
@@ -573,6 +582,7 @@ class ReadwiseClient:
                         data={
                             "items_imported": job.items_imported,
                             "items_merged": job.items_merged,
+                            "items_total": job.items_total,
                             "phase": "reader",
                         },
                     )
@@ -673,6 +683,7 @@ class ReadwiseClient:
                         data={
                             "items_imported": job.items_imported,
                             "items_merged": job.items_merged,
+                            "items_total": job.items_total,
                             "phase": "export",
                         },
                     )

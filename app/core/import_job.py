@@ -37,6 +37,7 @@ class ImportJob:
     export_done: bool = False
     items_imported: int = 0
     items_merged: int = 0
+    items_total: int | None = None  # Total from API count (Reader + Export)
     started_at: datetime = field(default_factory=datetime.utcnow)
     last_activity: datetime = field(default_factory=datetime.utcnow)
     error: str | None = None
@@ -56,6 +57,7 @@ class ImportJob:
             "export_done": self.export_done,
             "items_imported": self.items_imported,
             "items_merged": self.items_merged,
+            "items_total": self.items_total,
             "started_at": self.started_at.isoformat(),
             "last_activity": self.last_activity.isoformat(),
             "error": self.error,
@@ -73,6 +75,7 @@ class ImportJob:
             export_done=bool(row["export_done"]),
             items_imported=row["items_imported"],
             items_merged=row["items_merged"],
+            items_total=row["items_total"],
             started_at=datetime.fromisoformat(row["started_at"]),
             last_activity=datetime.fromisoformat(row["last_activity"]),
             error=row["error"],
@@ -94,7 +97,7 @@ class ImportJobStore:
         cur = self._conn.execute(
             """
             SELECT id, status, reader_cursor, export_cursor, reader_done, export_done,
-                   items_imported, items_merged, started_at, last_activity, error
+                   items_imported, items_merged, items_total, started_at, last_activity, error
             FROM import_jobs
             WHERE status NOT IN ('completed')
             ORDER BY started_at DESC
@@ -121,8 +124,8 @@ class ImportJobStore:
             """
             INSERT INTO import_jobs (
                 id, status, reader_cursor, export_cursor, reader_done, export_done,
-                items_imported, items_merged, started_at, last_activity, error
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                items_imported, items_merged, items_total, started_at, last_activity, error
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 status = excluded.status,
                 reader_cursor = excluded.reader_cursor,
@@ -131,6 +134,7 @@ class ImportJobStore:
                 export_done = excluded.export_done,
                 items_imported = excluded.items_imported,
                 items_merged = excluded.items_merged,
+                items_total = excluded.items_total,
                 last_activity = excluded.last_activity,
                 error = excluded.error
             """,
@@ -143,6 +147,7 @@ class ImportJobStore:
                 int(job.export_done),
                 job.items_imported,
                 job.items_merged,
+                job.items_total,
                 job.started_at.isoformat(),
                 job.last_activity.isoformat(),
                 job.error,
@@ -176,7 +181,7 @@ class ImportJobStore:
         cur = self._conn.execute(
             """
             SELECT id, status, reader_cursor, export_cursor, reader_done, export_done,
-                   items_imported, items_merged, started_at, last_activity, error
+                   items_imported, items_merged, items_total, started_at, last_activity, error
             FROM import_jobs
             ORDER BY started_at DESC
             LIMIT ?

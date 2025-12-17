@@ -47,7 +47,8 @@
         <span x-text="status" :class="{'text-success': status === 'completed', 'text-error': status === 'error'}"></span>
       </div>
       <div>
-        <strong>Importiert:</strong> <span x-text="itemsImported"></span>
+        <strong>Fortschritt:</strong>
+        <span x-text="itemsTotal ? itemsImported + ' von ' + itemsTotal : itemsImported"></span>
       </div>
       <div>
         <strong>Gemerged:</strong> <span x-text="itemsMerged"></span>
@@ -59,7 +60,7 @@
 
     <!-- Progress Bar -->
     <div class="progress-bar" style="margin-top: 1rem;">
-      <div class="progress-fill" :style="'width: ' + (status === 'completed' ? 100 : Math.min(itemsImported, 100)) + '%'"></div>
+      <div class="progress-fill" :style="'width: ' + (status === 'completed' ? 100 : (itemsTotal ? Math.round(itemsImported / itemsTotal * 100) : Math.min(itemsImported, 100))) + '%'"></div>
     </div>
 
     <!-- Controls -->
@@ -178,6 +179,7 @@ function importApp() {
     phase: '-',
     itemsImported: 0,
     itemsMerged: 0,
+    itemsTotal: null,
     errorMsg: '',
     log: [],
     eventSource: null,
@@ -253,6 +255,7 @@ function importApp() {
       this.log = [];
       this.itemsImported = 0;
       this.itemsMerged = 0;
+      this.itemsTotal = null;
       this.phase = 'reader';
 
       try {
@@ -303,8 +306,12 @@ function importApp() {
         const data = JSON.parse(e.data);
         this.itemsImported = data.items_imported;
         this.itemsMerged = data.items_merged;
+        this.itemsTotal = data.items_total;
         this.phase = data.phase;
-        this.addLog('progress', 'Progress: ' + data.items_imported + ' importiert, ' + data.items_merged + ' gemerged (' + data.phase + ')');
+        const progressText = data.items_total
+          ? data.items_imported + ' von ' + data.items_total
+          : data.items_imported + ' importiert';
+        this.addLog('progress', progressText + ', ' + data.items_merged + ' gemerged (' + data.phase + ')');
       });
 
       this.eventSource.addEventListener('paused', (e) => {

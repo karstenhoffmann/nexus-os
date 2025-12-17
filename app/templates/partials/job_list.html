@@ -13,7 +13,14 @@
     <tr>
       <td><a href="/readwise/jobs/{{ job.id }}"><code>{{ job.id[:8] }}</code></a></td>
       <td><a href="/readwise/jobs/{{ job.id }}">{{ job.status.value }}</a></td>
-      <td>{{ job.items_imported }} ({{ job.items_merged }} merged)</td>
+      <td>
+        {% if job.items_total %}
+          {{ job.items_imported }} von {{ job.items_total }}
+        {% else %}
+          {{ job.items_imported }}
+        {% endif %}
+        {% if job.items_merged > 0 %}({{ job.items_merged }} merged){% endif %}
+      </td>
       <td>{{ job.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
       <td>
         {% if job.status.value in ['running', 'pending'] %}

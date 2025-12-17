@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS import_jobs (
   export_done INTEGER DEFAULT 0,
   items_imported INTEGER DEFAULT 0,
   items_merged INTEGER DEFAULT 0,
+  items_total INTEGER,
   started_at TEXT DEFAULT (datetime('now')),
   last_activity TEXT DEFAULT (datetime('now')),
   error TEXT
@@ -115,6 +116,14 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_source_provider "
             "ON documents(source, provider_id)"
         )
+        conn.commit()
+
+    # Check if items_total column exists in import_jobs table
+    cur = conn.execute("PRAGMA table_info(import_jobs)")
+    job_columns = {row[1] for row in cur.fetchall()}
+
+    if "items_total" not in job_columns:
+        conn.execute("ALTER TABLE import_jobs ADD COLUMN items_total INTEGER")
         conn.commit()
 
 VEC_SQL = """

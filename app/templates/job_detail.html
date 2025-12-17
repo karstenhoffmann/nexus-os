@@ -30,8 +30,14 @@
       <td>{{ job.last_activity.strftime('%Y-%m-%d %H:%M:%S') }}</td>
     </tr>
     <tr>
-      <th>Items importiert</th>
-      <td>{{ job.items_imported }}</td>
+      <th>Fortschritt</th>
+      <td>
+        {% if job.items_total %}
+          {{ job.items_imported }} von {{ job.items_total }}
+        {% else %}
+          {{ job.items_imported }}
+        {% endif %}
+      </td>
     </tr>
     <tr>
       <th>Items gemerged</th>
