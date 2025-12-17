@@ -13,6 +13,9 @@ a { color: inherit; }
 .card { border: 1px solid rgba(120,120,120,0.25); border-radius: 12px; padding: 14px; background: rgba(120,120,120,0.06); }
 .btn { display: inline-block; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(120,120,120,0.4); text-decoration: none; cursor: pointer; background: rgba(120,120,120,0.10); }
 .btn:hover { background: rgba(120,120,120,0.16); }
+.btn-sm { padding: 4px 8px; font-size: 0.85em; }
+.btn-danger { border-color: rgba(220,60,60,0.5); color: #dc3c3c; }
+.btn-danger:hover { background: rgba(220,60,60,0.15); }
 .input { padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(120,120,120,0.4); width: 100%; }
 .list { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
 .item { border: 1px solid rgba(120,120,120,0.25); border-radius: 12px; padding: 12px; }

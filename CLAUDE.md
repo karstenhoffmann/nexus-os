@@ -48,7 +48,13 @@ Kurzregeln fuer Claude Code (unverhandelbar)
 - Wenn Docker/Deps/sqlite-vec betroffen: ./scripts/preflight-deep.sh empfehlen.
 - Wenn preflight gruen und Handoff geschrieben: commit + push empfehlen, inkl. Befehle und Commit Message.
 
-1. Dokumente clean halten
+8. Vor Erweiterungen: Bestand pruefen
+
+- Vor neuen Klassen/Funktionen/Patterns: existierende Konventionen im Projekt suchen.
+- Industrie-Standards (Bootstrap-Klassennamen, etc.) vor Eigennamen.
+- Neue Abstraktionen nur bei 3+ Verwendungen.
+
+9. Dokumente clean halten
 
 - Keine neuen Plan-Dateien erstellen.
 - Wenn etwas dokumentiert werden muss: README oder PROJECT_BRIEF oder STATE.

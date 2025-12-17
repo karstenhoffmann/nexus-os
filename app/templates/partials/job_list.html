@@ -5,6 +5,7 @@
       <th>Status</th>
       <th>Items</th>
       <th>Gestartet</th>
+      <th>Aktion</th>
     </tr>
   </thead>
   <tbody>
@@ -14,6 +15,15 @@
       <td><a href="/readwise/jobs/{{ job.id }}">{{ job.status.value }}</a></td>
       <td>{{ job.items_imported }} ({{ job.items_merged }} merged)</td>
       <td>{{ job.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td>
+        {% if job.status.value in ['completed', 'failed'] %}
+        <button hx-delete="/readwise/jobs/{{ job.id }}"
+                hx-target="#job-list"
+                hx-swap="innerHTML"
+                hx-confirm="Job wirklich loeschen?"
+                class="btn btn-sm btn-danger">Loeschen</button>
+        {% endif %}
+      </td>
     </tr>
     {% endfor %}
   </tbody>

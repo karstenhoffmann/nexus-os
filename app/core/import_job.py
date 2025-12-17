@@ -199,12 +199,13 @@ class ImportJobStore:
     def delete(self, job_id: str) -> bool:
         """Delete job by ID from memory and DB. Returns True if deleted."""
         with self._lock:
+            # Remove from memory if present
             if job_id in self._jobs:
                 del self._jobs[job_id]
-                self._conn.execute("DELETE FROM import_jobs WHERE id = ?", (job_id,))
-                self._conn.commit()
-                return True
-            return False
+            # Always try to delete from DB (completed jobs are not in memory)
+            cur = self._conn.execute("DELETE FROM import_jobs WHERE id = ?", (job_id,))
+            self._conn.commit()
+            return cur.rowcount > 0
 
 
 # Global store instance

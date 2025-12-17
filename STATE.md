@@ -10,16 +10,18 @@ Aktuelles Ziel
 - Full-Import robust und vollstaendig.
 
 Naechste Schritte (Claude Code, max 3)
-1) Job-Loeschfunktion in UI
-2) Cancel-Button fuer laufende Jobs
+1) Cancel-Button fuer laufende Jobs
+2) (offen)
 3) (offen)
 
 Offene Fragen (max 3)
 - (keine aktuell)
 
 Handoff
-- Job-Liste aktualisiert sich jetzt live waehrend Import (Alpine.js Polling alle 3s)
-- Neuer Endpoint /readwise/import/jobs-partial (app/main.py:283-288)
-- Partial Template app/templates/partials/job_list.html
-- Polling startet bei status running/starting/resuming, stoppt automatisch
+- Job-Loeschfunktion fertig: DELETE /readwise/jobs/{job_id} (app/main.py:291-302)
+- Loeschen nur fuer completed/failed Jobs, nicht fuer running/pending
+- Button in job_list.html mit HTMX delete + confirm dialog
+- CSS: btn-sm, btn-danger (Bootstrap-Konvention) in app.css
+- import_job.py delete() loescht jetzt auch completed Jobs aus DB
+- CLAUDE.md: Punkt 8 "Vor Erweiterungen: Bestand pruefen" hinzugefuegt
 - preflight-fast gruen

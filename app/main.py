@@ -288,6 +288,20 @@ def readwise_jobs_partial(request: Request):
     return render("partials/job_list.html", request=request, jobs=jobs)
 
 
+@app.delete("/readwise/jobs/{job_id}", response_class=HTMLResponse)
+def readwise_job_delete(request: Request, job_id: str):
+    """Delete an import job. Returns updated job list for HTMX swap."""
+    store = get_import_store()
+    job = store.get(job_id)
+    # Only allow deleting completed or failed jobs (not running)
+    if job and job.status.value in ("running", "pending"):
+        jobs = store.list_recent(limit=10)
+        return render("partials/job_list.html", request=request, jobs=jobs)
+    store.delete(job_id)
+    jobs = store.list_recent(limit=10)
+    return render("partials/job_list.html", request=request, jobs=jobs)
+
+
 @app.get("/readwise/jobs/{job_id}", response_class=HTMLResponse)
 def readwise_job_detail(request: Request, job_id: str):
     """Show details for a specific import job."""
