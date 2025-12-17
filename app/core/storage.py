@@ -197,6 +197,38 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     )
     conn.commit()
 
+    # Create FTS table if not exists (for existing DBs without FTS)
+    # Check if FTS table exists by trying to query it
+    cur = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='documents_fts'"
+    )
+    fts_exists = cur.fetchone() is not None
+
+    if not fts_exists:
+        conn.execute(
+            """
+            CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
+                title, author, fulltext, summary,
+                content='documents',
+                content_rowid='id'
+            )
+            """
+        )
+        conn.commit()
+
+        # Populate FTS index if documents exist
+        cur = conn.execute("SELECT COUNT(*) FROM documents")
+        doc_count = cur.fetchone()[0]
+        if doc_count > 0:
+            conn.execute(
+                """
+                INSERT INTO documents_fts (rowid, title, author, fulltext, summary)
+                SELECT id, title, author, fulltext, summary FROM documents
+                """
+            )
+            conn.execute("INSERT INTO documents_fts(documents_fts) VALUES('optimize')")
+            conn.commit()
+
 VEC_SQL = """
 CREATE VIRTUAL TABLE IF NOT EXISTS doc_embeddings USING vec0(
   embedding float[1536],
