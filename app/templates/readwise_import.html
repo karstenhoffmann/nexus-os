@@ -53,6 +53,9 @@
       <div>
         <strong>Gemerged:</strong> <span x-text="itemsMerged"></span>
       </div>
+      <div x-show="itemsFailed > 0" class="text-error">
+        <strong>Fehler:</strong> <span x-text="itemsFailed"></span>
+      </div>
       <div>
         <strong>Phase:</strong> <span x-text="phase"></span>
       </div>
@@ -179,6 +182,7 @@ function importApp() {
     phase: '-',
     itemsImported: 0,
     itemsMerged: 0,
+    itemsFailed: 0,
     itemsTotal: null,
     errorMsg: '',
     log: [],
@@ -255,6 +259,7 @@ function importApp() {
       this.log = [];
       this.itemsImported = 0;
       this.itemsMerged = 0;
+      this.itemsFailed = 0;
       this.itemsTotal = null;
       this.phase = 'reader';
 
@@ -302,16 +307,29 @@ function importApp() {
         }
       });
 
+      this.eventSource.addEventListener('item_error', (e) => {
+        const data = JSON.parse(e.data);
+        const title = data.title || 'Unbekannt';
+        this.itemsFailed++;
+        this.addLog('error', 'Fehler bei: ' + title.substring(0, 40) + ' - ' + data.error);
+      });
+
       this.eventSource.addEventListener('progress', (e) => {
         const data = JSON.parse(e.data);
         this.itemsImported = data.items_imported;
         this.itemsMerged = data.items_merged;
+        this.itemsFailed = data.items_failed || 0;
         this.itemsTotal = data.items_total;
         this.phase = data.phase;
         const progressText = data.items_total
           ? data.items_imported + ' von ' + data.items_total
           : data.items_imported + ' importiert';
-        this.addLog('progress', progressText + ', ' + data.items_merged + ' gemerged (' + data.phase + ')');
+        let logMsg = progressText + ', ' + data.items_merged + ' gemerged';
+        if (data.items_failed > 0) {
+          logMsg += ', ' + data.items_failed + ' Fehler';
+        }
+        logMsg += ' (' + data.phase + ')';
+        this.addLog('progress', logMsg);
       });
 
       this.eventSource.addEventListener('paused', (e) => {
@@ -325,7 +343,12 @@ function importApp() {
         this.status = 'completed';
         this.itemsImported = data.items_imported;
         this.itemsMerged = data.items_merged;
-        this.addLog('completed', 'Import abgeschlossen: ' + data.items_imported + ' importiert, ' + data.items_merged + ' gemerged');
+        this.itemsFailed = data.items_failed || 0;
+        let logMsg = 'Import abgeschlossen: ' + data.items_imported + ' importiert, ' + data.items_merged + ' gemerged';
+        if (data.items_failed > 0) {
+          logMsg += ', ' + data.items_failed + ' Fehler';
+        }
+        this.addLog('completed', logMsg);
         this.eventSource.close();
       });
 

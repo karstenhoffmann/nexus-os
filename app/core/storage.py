@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS import_jobs (
   export_done INTEGER DEFAULT 0,
   items_imported INTEGER DEFAULT 0,
   items_merged INTEGER DEFAULT 0,
+  items_failed INTEGER DEFAULT 0,
   items_total INTEGER,
   started_at TEXT DEFAULT (datetime('now')),
   last_activity TEXT DEFAULT (datetime('now')),
@@ -124,6 +125,10 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
 
     if "items_total" not in job_columns:
         conn.execute("ALTER TABLE import_jobs ADD COLUMN items_total INTEGER")
+        conn.commit()
+
+    if "items_failed" not in job_columns:
+        conn.execute("ALTER TABLE import_jobs ADD COLUMN items_failed INTEGER DEFAULT 0")
         conn.commit()
 
 VEC_SQL = """

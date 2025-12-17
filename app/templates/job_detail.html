@@ -44,6 +44,10 @@
       <td>{{ job.items_merged }}</td>
     </tr>
     <tr>
+      <th>Items fehlgeschlagen</th>
+      <td>{% if job.items_failed > 0 %}<span class="text-error">{{ job.items_failed }}</span>{% else %}0{% endif %}</td>
+    </tr>
+    <tr>
       <th>Reader API</th>
       <td>{{ "Fertig" if job.reader_done else "Offen" }}</td>
     </tr>

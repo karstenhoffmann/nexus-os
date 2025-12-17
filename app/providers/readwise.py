@@ -23,6 +23,7 @@ class ImportEventType(str, Enum):
     """Type of import event for SSE streaming."""
 
     ITEM = "item"
+    ITEM_ERROR = "item_error"  # Single item failed but import continues
     PROGRESS = "progress"
     PAUSED = "paused"
     COMPLETED = "completed"
@@ -493,6 +494,7 @@ class ReadwiseClient:
                 data={
                     "items_imported": job.items_imported,
                     "items_merged": job.items_merged,
+                    "items_failed": job.items_failed,
                 },
             )
 
@@ -545,43 +547,63 @@ class ReadwiseClient:
                 if doc.get("parent_id"):
                     continue
 
-                article = self._parse_article(doc)
+                try:
+                    article = self._parse_article(doc)
 
-                # Track URL for merge detection
-                norm_url = normalize_url(article.source_url)
-                if norm_url:
-                    url_index[norm_url] = article.id
+                    # Track URL for merge detection
+                    norm_url = normalize_url(article.source_url)
+                    if norm_url:
+                        url_index[norm_url] = article.id
 
-                job.items_imported += 1
-                job.reader_cursor = next_cursor
-                job.touch()
+                    job.items_imported += 1
+                    job.reader_cursor = next_cursor
+                    job.touch()
 
-                yield ImportEvent(
-                    type=ImportEventType.ITEM,
-                    data={
-                        "article": {
-                            "id": article.id,
-                            "title": article.title,
-                            "source_url": article.source_url,
-                            "category": article.category,
-                            "provider": article.provider,
-                            "provider_id": article.provider_id,
-                            "author": article.author,
-                            "summary": article.summary,
-                            "html_content": article.html_content,
-                            "published_date": article.published_date.isoformat() if article.published_date else None,
+                    yield ImportEvent(
+                        type=ImportEventType.ITEM,
+                        data={
+                            "article": {
+                                "id": article.id,
+                                "title": article.title,
+                                "source_url": article.source_url,
+                                "category": article.category,
+                                "provider": article.provider,
+                                "provider_id": article.provider_id,
+                                "author": article.author,
+                                "summary": article.summary,
+                                "html_content": article.html_content,
+                                "published_date": article.published_date.isoformat() if article.published_date else None,
+                            },
+                            "source": "reader",
                         },
-                        "source": "reader",
-                    },
-                )
+                    )
+
+                except Exception as e:
+                    # Log error but continue with next item
+                    doc_id = doc.get("id", "unknown")
+                    doc_title = doc.get("title", "unknown")[:50]
+                    logger.warning(f"Failed to process Reader doc {doc_id} ({doc_title}): {e}")
+                    job.items_failed += 1
+                    job.touch()
+
+                    yield ImportEvent(
+                        type=ImportEventType.ITEM_ERROR,
+                        data={
+                            "doc_id": doc_id,
+                            "title": doc_title,
+                            "error": str(e),
+                            "source": "reader",
+                        },
+                    )
 
                 # Progress event every 10 items
-                if job.items_imported % 10 == 0:
+                if (job.items_imported + job.items_failed) % 10 == 0:
                     yield ImportEvent(
                         type=ImportEventType.PROGRESS,
                         data={
                             "items_imported": job.items_imported,
                             "items_merged": job.items_merged,
+                            "items_failed": job.items_failed,
                             "items_total": job.items_total,
                             "phase": "reader",
                         },
@@ -624,65 +646,85 @@ class ReadwiseClient:
                 if job.status in (ImportStatus.PAUSED, ImportStatus.CANCELLED):
                     return
 
-                article = self._parse_export_book(book)
-                highlights = [
-                    self._parse_export_highlight(hl, book.get("source", "export"))
-                    for hl in book.get("highlights", [])
-                ]
+                try:
+                    article = self._parse_export_book(book)
+                    highlights = [
+                        self._parse_export_highlight(hl, book.get("source", "export"))
+                        for hl in book.get("highlights", [])
+                    ]
 
-                # Check for merge by URL
-                norm_url = normalize_url(article.source_url)
-                merged_with: str | None = None
-                if norm_url and norm_url in url_index:
-                    merged_with = url_index[norm_url]
-                    job.items_merged += 1
-                else:
-                    # New item, track URL
-                    if norm_url:
-                        url_index[norm_url] = article.id
-                    job.items_imported += 1
+                    # Check for merge by URL
+                    norm_url = normalize_url(article.source_url)
+                    merged_with: str | None = None
+                    if norm_url and norm_url in url_index:
+                        merged_with = url_index[norm_url]
+                        job.items_merged += 1
+                    else:
+                        # New item, track URL
+                        if norm_url:
+                            url_index[norm_url] = article.id
+                        job.items_imported += 1
 
-                job.export_cursor = next_cursor
-                job.touch()
+                    job.export_cursor = next_cursor
+                    job.touch()
 
-                yield ImportEvent(
-                    type=ImportEventType.ITEM,
-                    data={
-                        "article": {
-                            "id": article.id,
-                            "title": article.title,
-                            "source_url": article.source_url,
-                            "category": article.category,
-                            "provider": article.provider,
-                            "provider_id": article.provider_id,
-                            "author": article.author,
-                            "summary": article.summary,
-                            "html_content": article.html_content,
-                            "published_date": article.published_date.isoformat() if article.published_date else None,
+                    yield ImportEvent(
+                        type=ImportEventType.ITEM,
+                        data={
+                            "article": {
+                                "id": article.id,
+                                "title": article.title,
+                                "source_url": article.source_url,
+                                "category": article.category,
+                                "provider": article.provider,
+                                "provider_id": article.provider_id,
+                                "author": article.author,
+                                "summary": article.summary,
+                                "html_content": article.html_content,
+                                "published_date": article.published_date.isoformat() if article.published_date else None,
+                            },
+                            "highlights": [
+                                {
+                                    "id": hl.id,
+                                    "text": hl.text,
+                                    "note": hl.note,
+                                    "highlighted_at": hl.created_at.isoformat() if hl.created_at else None,
+                                    "provider": hl.provider,
+                                    "provider_id": hl.provider_id,
+                                }
+                                for hl in highlights
+                            ],
+                            "source": "export",
+                            "merged_with": merged_with,
                         },
-                        "highlights": [
-                            {
-                                "id": hl.id,
-                                "text": hl.text,
-                                "note": hl.note,
-                                "highlighted_at": hl.created_at.isoformat() if hl.created_at else None,
-                                "provider": hl.provider,
-                                "provider_id": hl.provider_id,
-                            }
-                            for hl in highlights
-                        ],
-                        "source": "export",
-                        "merged_with": merged_with,
-                    },
-                )
+                    )
+
+                except Exception as e:
+                    # Log error but continue with next item
+                    book_id = book.get("user_book_id", "unknown")
+                    book_title = book.get("title", "unknown")[:50]
+                    logger.warning(f"Failed to process Export book {book_id} ({book_title}): {e}")
+                    job.items_failed += 1
+                    job.touch()
+
+                    yield ImportEvent(
+                        type=ImportEventType.ITEM_ERROR,
+                        data={
+                            "doc_id": book_id,
+                            "title": book_title,
+                            "error": str(e),
+                            "source": "export",
+                        },
+                    )
 
                 # Progress event every 10 items
-                if (job.items_imported + job.items_merged) % 10 == 0:
+                if (job.items_imported + job.items_merged + job.items_failed) % 10 == 0:
                     yield ImportEvent(
                         type=ImportEventType.PROGRESS,
                         data={
                             "items_imported": job.items_imported,
                             "items_merged": job.items_merged,
+                            "items_failed": job.items_failed,
                             "items_total": job.items_total,
                             "phase": "export",
                         },
