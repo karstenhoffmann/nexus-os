@@ -16,7 +16,13 @@
       <td>{{ job.items_imported }} ({{ job.items_merged }} merged)</td>
       <td>{{ job.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
       <td>
-        {% if job.status.value in ['completed', 'failed'] %}
+        {% if job.status.value in ['running', 'pending'] %}
+        <button hx-post="/readwise/jobs/{{ job.id }}/cancel"
+                hx-target="#job-list"
+                hx-swap="innerHTML"
+                hx-confirm="Import wirklich abbrechen?"
+                class="btn btn-sm btn-warning">Abbrechen</button>
+        {% elif job.status.value in ['completed', 'failed', 'cancelled'] %}
         <button hx-delete="/readwise/jobs/{{ job.id }}"
                 hx-target="#job-list"
                 hx-swap="innerHTML"

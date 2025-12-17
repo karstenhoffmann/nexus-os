@@ -462,24 +462,28 @@ class ReadwiseClient:
             if not job.reader_done:
                 yield from self._stream_reader_api(job, url_index)
 
-            # Check if paused after Reader API
+            # Check if paused or cancelled after Reader API
             if job.status == ImportStatus.PAUSED:
                 yield ImportEvent(
                     type=ImportEventType.PAUSED,
                     data={"items_imported": job.items_imported},
                 )
                 return
+            if job.status == ImportStatus.CANCELLED:
+                return
 
             # Phase 2: Export API (supplements with highlights)
             if not job.export_done:
                 yield from self._stream_export_api(job, url_index)
 
-            # Check if paused after Export API
+            # Check if paused or cancelled after Export API
             if job.status == ImportStatus.PAUSED:
                 yield ImportEvent(
                     type=ImportEventType.PAUSED,
                     data={"items_imported": job.items_imported},
                 )
+                return
+            if job.status == ImportStatus.CANCELLED:
                 return
 
             # Completed successfully
@@ -514,8 +518,8 @@ class ReadwiseClient:
             params["pageCursor"] = job.reader_cursor
 
         while True:
-            # Check for pause request
-            if job.status == ImportStatus.PAUSED:
+            # Check for pause or cancel request
+            if job.status in (ImportStatus.PAUSED, ImportStatus.CANCELLED):
                 return
 
             resp = self._request_with_retry("GET", "/v3/list/", params=params)
@@ -524,8 +528,8 @@ class ReadwiseClient:
             next_cursor = data.get("nextPageCursor")
 
             for doc in results:
-                # Check for pause request
-                if job.status == ImportStatus.PAUSED:
+                # Check for pause or cancel request
+                if job.status in (ImportStatus.PAUSED, ImportStatus.CANCELLED):
                     return
 
                 # Skip highlights/notes (they have parent_id set)
@@ -596,8 +600,8 @@ class ReadwiseClient:
             params["pageCursor"] = job.export_cursor
 
         while True:
-            # Check for pause request
-            if job.status == ImportStatus.PAUSED:
+            # Check for pause or cancel request
+            if job.status in (ImportStatus.PAUSED, ImportStatus.CANCELLED):
                 return
 
             resp = self._request_with_retry("GET", "/v2/export/", params=params)
@@ -606,8 +610,8 @@ class ReadwiseClient:
             next_cursor = data.get("nextPageCursor")
 
             for book in results:
-                # Check for pause request
-                if job.status == ImportStatus.PAUSED:
+                # Check for pause or cancel request
+                if job.status in (ImportStatus.PAUSED, ImportStatus.CANCELLED):
                     return
 
                 article = self._parse_export_book(book)

@@ -20,6 +20,7 @@ class ImportStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
     PAUSED = "paused"
+    CANCELLED = "cancelled"
     COMPLETED = "completed"
     FAILED = "failed"
 
@@ -206,6 +207,19 @@ class ImportJobStore:
             cur = self._conn.execute("DELETE FROM import_jobs WHERE id = ?", (job_id,))
             self._conn.commit()
             return cur.rowcount > 0
+
+    def cancel(self, job_id: str) -> ImportJob | None:
+        """Cancel a running or pending job. Returns the job if cancelled, None otherwise."""
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if not job:
+                return None
+            if job.status not in (ImportStatus.RUNNING, ImportStatus.PENDING):
+                return None
+            job.status = ImportStatus.CANCELLED
+            job.touch()
+            self._persist(job)
+            return job
 
 
 # Global store instance
