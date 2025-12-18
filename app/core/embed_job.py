@@ -15,7 +15,22 @@ from app.core.settings import Settings
 
 logger = logging.getLogger(__name__)
 
-BATCH_SIZE = 50  # OpenAI supports up to 2048, but 50 is safer for memory
+BATCH_SIZE = 10  # OpenAI embedding limit is 8192 tokens per input
+MAX_EMBED_CHARS = 20000  # ~5000 tokens, safe for 8192 limit with variable tokenization
+
+
+def truncate_for_embedding(text: str, max_chars: int = MAX_EMBED_CHARS) -> str:
+    """Truncate text to fit within embedding model token limits."""
+    if len(text) <= max_chars:
+        return text
+    # Log truncation
+    logger.warning(f"Truncating text from {len(text)} to {max_chars} chars")
+    # Truncate at word boundary
+    truncated = text[:max_chars]
+    last_space = truncated.rfind(" ")
+    if last_space > max_chars * 0.8:
+        return truncated[:last_space] + "..."
+    return truncated + "..."
 
 
 async def generate_embeddings_batch(limit: int = 100) -> dict[str, int]:
@@ -340,7 +355,8 @@ async def generate_chunk_embeddings_v2(
     # Process chunks in batches
     for i in range(0, len(chunks_to_embed), BATCH_SIZE):
         batch = chunks_to_embed[i : i + BATCH_SIZE]
-        texts = [row[1] for row in batch]
+        # Truncate texts that exceed embedding model limits
+        texts = [truncate_for_embedding(row[1]) for row in batch]
         chunk_ids = [row[0] for row in batch]
 
         start_time = time.monotonic()

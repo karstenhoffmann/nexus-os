@@ -180,7 +180,7 @@ class OpenAIProvider(EmbeddingProvider):
         self._model = model
         self._model_info = OPENAI_MODELS[model]
         self._api_key = api_key or os.getenv("OPENAI_API_KEY", "").strip()
-        self._max_chars = 30000  # ~8000 tokens rough estimate
+        self._max_chars = 20000  # ~5000 tokens, safe for 8192 limit with variable tokenization
 
     @property
     def name(self) -> str:

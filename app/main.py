@@ -15,6 +15,7 @@ from app.core.fetch_job import (
     get_fetch_store,
     run_fetch_job,
 )
+from app.core.content_fetcher import extract_text_from_html
 from app.core.embed_job import generate_embeddings_batch, generate_embeddings_v2, generate_chunk_embeddings_v2
 from app.core.chunking import get_chunking_info, chunk_document
 from app.core.embeddings import get_embedding, serialize_f32
@@ -513,6 +514,124 @@ def api_unchunked_documents():
     }
 
 
+@app.get("/api/chunks/next-unembedded")
+def api_next_unembedded_chunks(limit: int = 20):
+    """Get the next chunks without embeddings (for diagnostics)."""
+    db = get_db()
+    cur = db.conn.execute(
+        """
+        SELECT c.id, c.document_id, length(c.chunk_text) as text_length
+        FROM document_chunks c
+        LEFT JOIN embeddings e ON e.chunk_id = c.id
+        WHERE e.id IS NULL
+        ORDER BY c.id
+        LIMIT ?
+        """,
+        (limit,),
+    )
+    chunks = [
+        {"chunk_id": row[0], "document_id": row[1], "text_length": row[2]}
+        for row in cur.fetchall()
+    ]
+    return {
+        "count": len(chunks),
+        "max_safe_length": 30000,
+        "chunks": chunks,
+    }
+
+
+@app.post("/api/admin/clean-html-fulltext")
+def api_clean_html_fulltext(limit: int = 100, rechunk: bool = True):
+    """Clean HTML in existing fulltext fields and optionally re-chunk.
+
+    This migrates existing raw HTML fulltext to clean plain text
+    using trafilatura extraction. Optionally deletes and recreates
+    chunks for cleaned documents.
+
+    Args:
+        limit: Maximum documents to process per call
+        rechunk: If True, delete existing chunks and create new ones
+
+    Returns:
+        Dict with cleaned, skipped, failed, chunks_deleted, chunks_created counts
+    """
+    db = get_db()
+
+    # Find documents with HTML-like fulltext (that haven't been migrated yet)
+    cur = db.conn.execute(
+        """
+        SELECT id, title, fulltext, fulltext_html
+        FROM documents
+        WHERE fulltext IS NOT NULL
+          AND fulltext != ''
+          AND (fulltext LIKE '<%' OR fulltext LIKE '%<p>%' OR fulltext LIKE '%<div>%')
+          AND fulltext_html IS NULL
+        LIMIT ?
+        """,
+        (limit,),
+    )
+    docs = cur.fetchall()
+
+    cleaned = 0
+    skipped = 0
+    failed = 0
+    chunks_deleted = 0
+    chunks_created = 0
+
+    for doc_id, title, fulltext, fulltext_html in docs:
+        if not fulltext or not fulltext.strip():
+            skipped += 1
+            continue
+
+        clean_text = extract_text_from_html(fulltext)
+        if clean_text:
+            # Save original HTML to fulltext_html before cleaning fulltext
+            db.conn.execute(
+                "UPDATE documents SET fulltext_html = ?, fulltext = ? WHERE id = ?",
+                (fulltext, clean_text, doc_id),
+            )
+            cleaned += 1
+
+            if rechunk:
+                # Delete existing chunks (and their embeddings via cascade)
+                deleted = db.conn.execute(
+                    "DELETE FROM document_chunks WHERE document_id = ?",
+                    (doc_id,),
+                ).rowcount
+                chunks_deleted += deleted
+
+                # Create new chunks from clean text
+                chunks = chunk_document(clean_text, title or "")
+                if chunks:
+                    db.save_chunks(doc_id, [c.to_dict() for c in chunks])
+                    chunks_created += len(chunks)
+        else:
+            failed += 1
+
+    db.conn.commit()
+
+    # Count remaining HTML documents (not yet migrated)
+    remaining = db.conn.execute(
+        """
+        SELECT COUNT(*)
+        FROM documents
+        WHERE fulltext IS NOT NULL
+          AND fulltext != ''
+          AND (fulltext LIKE '<%' OR fulltext LIKE '%<p>%' OR fulltext LIKE '%<div>%')
+          AND fulltext_html IS NULL
+        """
+    ).fetchone()[0]
+
+    return {
+        "cleaned": cleaned,
+        "skipped": skipped,
+        "failed": failed,
+        "chunks_deleted": chunks_deleted,
+        "chunks_created": chunks_created,
+        "remaining": remaining,
+    }
+
+
 @app.get("/api/usage/stats")
 def api_usage_stats(period: str = "today"):
     """Get API usage statistics.
@@ -904,6 +1023,8 @@ def readwise_import_stream(job_id: str, token: str | None = None):
                         article_data = event.data.get("article", {})
                         if article_data.get("provider_id"):
                             html_content = article_data.get("html_content")
+                            # Extract clean text from HTML (removes tags, scripts, images)
+                            clean_text = extract_text_from_html(html_content) if html_content else None
                             doc_id = db.save_article(
                                 source=article_data.get("provider", "unknown"),
                                 provider_id=article_data.get("provider_id", ""),
@@ -911,8 +1032,9 @@ def readwise_import_stream(job_id: str, token: str | None = None):
                                 title=article_data.get("title"),
                                 author=article_data.get("author"),
                                 published_at=article_data.get("published_date"),
-                                fulltext=html_content,
-                                fulltext_source="readwise" if html_content else None,
+                                fulltext=clean_text,
+                                fulltext_html=html_content,  # Keep original HTML with images
+                                fulltext_source="readwise" if clean_text else None,
                                 summary=article_data.get("summary"),
                             )
 

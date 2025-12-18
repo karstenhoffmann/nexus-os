@@ -345,3 +345,68 @@ async def fetch_url(url: str) -> FetchResult:
     """Convenience function to fetch a single URL."""
     fetcher = get_fetcher()
     return await fetcher.fetch(url)
+
+
+def _strip_html_tags(html: str) -> str:
+    """Simple fallback: strip HTML tags using regex.
+
+    Used when trafilatura can't extract content (e.g., HTML fragments).
+    """
+    import re
+    from html import unescape
+
+    # Remove script and style elements
+    text = re.sub(r'<(script|style)[^>]*>.*?</\1>', '', html, flags=re.DOTALL | re.IGNORECASE)
+    # Remove all HTML tags
+    text = re.sub(r'<[^>]+>', ' ', text)
+    # Decode HTML entities
+    text = unescape(text)
+    # Normalize whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+
+def extract_text_from_html(html: str) -> str | None:
+    """Extract clean text from HTML using trafilatura with fallback.
+
+    This is useful for cleaning HTML content from Readwise imports
+    before storing in the database. Removes all HTML tags, scripts,
+    styles, and extracts readable text content.
+
+    For full HTML pages, uses trafilatura for intelligent extraction.
+    For HTML fragments (e.g., from Readwise), falls back to simple
+    tag stripping when trafilatura returns None.
+
+    Args:
+        html: Raw HTML content
+
+    Returns:
+        Clean text content, or None if extraction fails
+    """
+    if not html or not html.strip():
+        return None
+
+    # Try trafilatura first (best for full HTML pages)
+    if TRAFILATURA_AVAILABLE:
+        try:
+            text = trafilatura.extract(
+                html,
+                include_comments=False,
+                include_tables=True,
+                no_fallback=False,
+                favor_recall=True,
+            )
+            if text and len(text.strip()) > 50:
+                return text
+        except Exception as e:
+            logger.debug(f"trafilatura extraction failed: {e}")
+
+    # Fallback: simple HTML tag stripping for fragments
+    try:
+        text = _strip_html_tags(html)
+        if text and len(text.strip()) > 10:
+            return text
+    except Exception as e:
+        logger.warning(f"Failed to strip HTML tags: {e}")
+
+    return None

@@ -330,6 +330,11 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE documents ADD COLUMN fulltext_source TEXT")
         conn.commit()
 
+    # Add fulltext_html column (preserves original HTML from Readwise)
+    if "fulltext_html" not in columns:
+        conn.execute("ALTER TABLE documents ADD COLUMN fulltext_html TEXT")
+        conn.commit()
+
 VEC_SQL = """
 -- Legacy table (kept for backward compatibility)
 CREATE VIRTUAL TABLE IF NOT EXISTS doc_embeddings USING vec0(
@@ -465,6 +470,7 @@ class DB:
         published_at: str | None = None,
         saved_at: str | None = None,
         fulltext: str | None = None,
+        fulltext_html: str | None = None,
         fulltext_source: str | None = None,
         summary: str | None = None,
         raw_json: str | None = None,
@@ -480,6 +486,8 @@ class DB:
         but the same URL (common with Snipd/Readwise).
 
         Args:
+            fulltext: Clean text for search/chunking/embedding
+            fulltext_html: Original HTML from source (preserved for rich display)
             fulltext_source: Source of fulltext ('readwise', 'trafilatura', 'manual')
 
         Returns the document id (existing or new).
@@ -512,6 +520,7 @@ class DB:
                         published_at = COALESCE(?, published_at),
                         saved_at = COALESCE(?, saved_at),
                         fulltext = ?,
+                        fulltext_html = COALESCE(?, fulltext_html),
                         fulltext_source = ?,
                         fulltext_fetched_at = datetime('now'),
                         summary = COALESCE(?, summary),
@@ -520,7 +529,7 @@ class DB:
                     WHERE id = ?
                     """,
                     (provider_id, url_original, url_canonical, title, author,
-                     published_at, saved_at, fulltext, fulltext_source, summary, raw_json, existing_id),
+                     published_at, saved_at, fulltext, fulltext_html, fulltext_source, summary, raw_json, existing_id),
                 )
             else:
                 self.conn.execute(
@@ -533,13 +542,14 @@ class DB:
                         author = COALESCE(?, author),
                         published_at = COALESCE(?, published_at),
                         saved_at = COALESCE(?, saved_at),
+                        fulltext_html = COALESCE(?, fulltext_html),
                         summary = COALESCE(?, summary),
                         raw_json = COALESCE(?, raw_json),
                         updated_at = datetime('now')
                     WHERE id = ?
                     """,
                     (provider_id, url_original, url_canonical, title, author,
-                     published_at, saved_at, summary, raw_json, existing_id),
+                     published_at, saved_at, fulltext_html, summary, raw_json, existing_id),
                 )
             self.conn.commit()
             return existing_id
@@ -551,9 +561,9 @@ class DB:
             """
             INSERT INTO documents (
                 source, provider_id, url_original, url_canonical, title, author,
-                published_at, saved_at, fulltext, fulltext_source, fulltext_fetched_at, summary, raw_json
+                published_at, saved_at, fulltext, fulltext_html, fulltext_source, fulltext_fetched_at, summary, raw_json
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? IS NOT NULL THEN datetime('now') END, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? IS NOT NULL THEN datetime('now') END, ?, ?)
             ON CONFLICT(source, provider_id) DO UPDATE SET
                 url_original = COALESCE(excluded.url_original, url_original),
                 url_canonical = COALESCE(excluded.url_canonical, url_canonical),
@@ -562,6 +572,7 @@ class DB:
                 published_at = COALESCE(excluded.published_at, published_at),
                 saved_at = COALESCE(excluded.saved_at, saved_at),
                 fulltext = COALESCE(excluded.fulltext, fulltext),
+                fulltext_html = COALESCE(excluded.fulltext_html, fulltext_html),
                 fulltext_source = CASE WHEN excluded.fulltext IS NOT NULL THEN excluded.fulltext_source ELSE fulltext_source END,
                 fulltext_fetched_at = CASE WHEN excluded.fulltext IS NOT NULL THEN datetime('now') ELSE fulltext_fetched_at END,
                 summary = COALESCE(excluded.summary, summary),
@@ -570,7 +581,7 @@ class DB:
             RETURNING id
             """,
             (source, provider_id, url_original, url_canonical, title, author,
-             published_at, saved_at, fulltext, fulltext_source, fulltext, summary, raw_json),
+             published_at, saved_at, fulltext, fulltext_html, fulltext_source, fulltext, summary, raw_json),
         )
         row = cur.fetchone()
         self.conn.commit()
