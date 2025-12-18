@@ -16,7 +16,7 @@ from app.core.fetch_job import (
     run_fetch_job,
 )
 from app.core.embed_job import generate_embeddings_batch, generate_embeddings_v2, generate_chunk_embeddings_v2
-from app.core.chunking import get_chunking_info
+from app.core.chunking import get_chunking_info, chunk_document
 from app.core.embeddings import get_embedding, serialize_f32
 from app.core.embedding_providers import (
     get_provider,
@@ -426,10 +426,91 @@ def api_embedding_stats_v2():
     return db.get_embedding_stats_v2()
 
 
+@app.post("/api/chunks/generate")
+def api_generate_chunks_only(limit: int = 500):
+    """Create chunks for documents with fulltext (without generating embeddings).
+
+    This is a synchronous operation that avoids SQLite concurrency issues.
+
+    Args:
+        limit: Maximum documents to process (default 500)
+
+    Returns:
+        Dict with chunks_created, documents_processed counts
+    """
+    db = get_db()
+
+    cur = db.conn.execute(
+        """
+        SELECT d.id, d.title, d.fulltext
+        FROM documents d
+        LEFT JOIN document_chunks c ON c.document_id = d.id
+        WHERE c.id IS NULL AND d.fulltext IS NOT NULL AND d.fulltext != ''
+        LIMIT ?
+        """,
+        (limit,),
+    )
+    docs_to_chunk = cur.fetchall()
+
+    chunks_created = 0
+    documents_processed = 0
+
+    for doc_id, title, fulltext in docs_to_chunk:
+        if not fulltext:
+            continue
+        chunks = chunk_document(fulltext, title or "")
+        if chunks:
+            db.save_chunks(doc_id, [c.to_dict() for c in chunks])
+            chunks_created += len(chunks)
+            documents_processed += 1
+
+    # Get remaining count
+    remaining = db.conn.execute(
+        """
+        SELECT COUNT(*)
+        FROM documents d
+        LEFT JOIN document_chunks c ON c.document_id = d.id
+        WHERE c.id IS NULL AND d.fulltext IS NOT NULL AND d.fulltext != ''
+        """
+    ).fetchone()[0]
+
+    return {
+        "chunks_created": chunks_created,
+        "documents_processed": documents_processed,
+        "remaining_documents": remaining,
+    }
+
+
 @app.get("/api/chunking/info")
 def api_chunking_info():
     """Get information about chunking parameters."""
     return get_chunking_info()
+
+
+@app.get("/api/chunking/unchunked")
+def api_unchunked_documents():
+    """Get documents with fulltext that don't have chunks (for diagnostics)."""
+    db = get_db()
+    cur = db.conn.execute(
+        """
+        SELECT d.id, d.title, length(d.fulltext) as fulltext_length
+        FROM documents d
+        LEFT JOIN document_chunks c ON c.document_id = d.id
+        WHERE c.id IS NULL AND d.fulltext IS NOT NULL AND d.fulltext != ''
+        ORDER BY fulltext_length ASC
+        LIMIT 20
+        """
+    )
+    docs = [
+        {"id": row[0], "title": row[1], "fulltext_length": row[2]}
+        for row in cur.fetchall()
+    ]
+    return {
+        "count": len(docs),
+        "min_chunk_size_required": 100,
+        "documents": docs,
+        "explanation": "Documents shorter than 100 characters cannot be chunked (intentional)",
+    }
 
 
 @app.get("/api/usage/stats")

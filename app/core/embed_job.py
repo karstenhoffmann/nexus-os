@@ -172,21 +172,34 @@ async def generate_embeddings_v2(
             batch_cost = provider.estimate_cost(batch_tokens)
             total_cost += batch_cost
 
+            # Prepare batch data for single-transaction save (fixes SQLite concurrency)
+            embeddings_data = []
             for doc_id, embedding in zip(doc_ids, embeddings):
                 try:
                     embedding_bytes = serialize_f32(embedding)
-                    db.save_embedding_v2(
-                        embedding=embedding_bytes,
+                    embeddings_data.append({
+                        "embedding": embedding_bytes,
+                        "document_id": doc_id,
+                    })
+                except Exception as e:
+                    failed += 1
+                    logger.error(f"Failed to serialize embedding for doc {doc_id}: {e}")
+
+            # Save all embeddings in single transaction
+            if embeddings_data:
+                try:
+                    saved = db.save_embeddings_batch(
+                        embeddings_data=embeddings_data,
                         dimensions=provider.dimensions,
                         provider=provider.name.lower(),
                         model=provider.model_id,
-                        document_id=doc_id,
                     )
-                    processed += 1
-                    logger.info(f"Embedded document {doc_id} with {provider.name}/{provider.model_id}")
+                    processed += saved
+                    for doc_id in doc_ids[:saved]:
+                        logger.info(f"Embedded document {doc_id} with {provider.name}/{provider.model_id}")
                 except Exception as e:
-                    failed += 1
-                    logger.error(f"Failed to save embedding for doc {doc_id}: {e}")
+                    failed += len(embeddings_data)
+                    logger.error(f"Failed to save embedding batch: {e}")
 
             # Track usage
             if track_usage:
@@ -340,20 +353,32 @@ async def generate_chunk_embeddings_v2(
             batch_cost = provider.estimate_cost(batch_tokens)
             total_cost += batch_cost
 
+            # Prepare batch data for single-transaction save (fixes SQLite concurrency)
+            embeddings_data = []
             for chunk_id, embedding in zip(chunk_ids, embeddings):
                 try:
                     embedding_bytes = serialize_f32(embedding)
-                    db.save_embedding_v2(
-                        embedding=embedding_bytes,
+                    embeddings_data.append({
+                        "embedding": embedding_bytes,
+                        "chunk_id": chunk_id,
+                    })
+                except Exception as e:
+                    failed += 1
+                    logger.error(f"Failed to serialize embedding for chunk {chunk_id}: {e}")
+
+            # Save all embeddings in single transaction
+            if embeddings_data:
+                try:
+                    saved = db.save_embeddings_batch(
+                        embeddings_data=embeddings_data,
                         dimensions=provider.dimensions,
                         provider=provider.name.lower(),
                         model=provider.model_id,
-                        chunk_id=chunk_id,
                     )
-                    processed += 1
+                    processed += saved
                 except Exception as e:
-                    failed += 1
-                    logger.error(f"Failed to save chunk embedding {chunk_id}: {e}")
+                    failed += len(embeddings_data)
+                    logger.error(f"Failed to save embedding batch: {e}")
 
             if track_usage:
                 db.log_api_usage(

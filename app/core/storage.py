@@ -943,6 +943,64 @@ class DB:
         self.conn.commit()
         return embedding_id
 
+    def save_embeddings_batch(
+        self,
+        embeddings_data: list[dict],
+        dimensions: int,
+        provider: str,
+        model: str,
+    ) -> int:
+        """Save multiple embeddings in a single transaction (batch operation).
+
+        This method saves all embeddings atomically, avoiding SQLite concurrency
+        issues that can occur when saving embeddings one-by-one in async contexts.
+
+        Args:
+            embeddings_data: List of dicts with keys:
+                - embedding: bytes (serialized embedding)
+                - chunk_id: int (optional)
+                - document_id: int (optional)
+            dimensions: Vector dimensions (768, 1024, 1536, 3072)
+            provider: Provider name ('openai', 'ollama')
+            model: Model ID
+
+        Returns:
+            Number of embeddings saved
+        """
+        if not embeddings_data:
+            return 0
+
+        vec_table = f"embeddings_{dimensions}"
+        count = 0
+
+        for data in embeddings_data:
+            embedding = data["embedding"]
+            chunk_id = data.get("chunk_id")
+            document_id = data.get("document_id")
+
+            if document_id is None and chunk_id is None:
+                continue
+
+            # Use lastrowid instead of RETURNING to avoid cursor issues
+            cur = self.conn.execute(
+                """
+                INSERT INTO embeddings (document_id, chunk_id, provider, model, embedding, dimensions)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (document_id, chunk_id, provider, model, embedding, dimensions),
+            )
+            embedding_id = cur.lastrowid
+
+            self.conn.execute(
+                f"INSERT INTO {vec_table} (embedding, embedding_id) VALUES (?, ?)",
+                (embedding, embedding_id),
+            )
+            count += 1
+
+        # Single commit for entire batch
+        self.conn.commit()
+        return count
+
     def semantic_search_v2(
         self,
         query_embedding: bytes,
@@ -1142,7 +1200,6 @@ class DB:
                 provider, model, operation, tokens_input, tokens_output,
                 cost_usd, latency_ms, success, error_message, metadata
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            RETURNING id
             """,
             (
                 provider,
@@ -1157,8 +1214,9 @@ class DB:
                 metadata,
             ),
         )
+        usage_id = cur.lastrowid
         self.conn.commit()
-        return cur.fetchone()[0]
+        return usage_id
 
     def semantic_search_with_chunks(
         self,
