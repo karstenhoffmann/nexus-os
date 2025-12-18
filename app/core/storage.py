@@ -152,6 +152,65 @@ CREATE TABLE IF NOT EXISTS highlights (
 
 CREATE INDEX IF NOT EXISTS idx_highlights_document_id ON highlights(document_id);
 CREATE INDEX IF NOT EXISTS idx_documents_source_url ON documents(source, url_canonical);
+
+-- Chunks mit Positionsdaten fuer Zitierbarkeit
+CREATE TABLE IF NOT EXISTS document_chunks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+  chunk_index INTEGER NOT NULL,
+  chunk_text TEXT NOT NULL,
+  char_start INTEGER NOT NULL,
+  char_end INTEGER NOT NULL,
+  token_count INTEGER,
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(document_id, chunk_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_chunks_document_id ON document_chunks(document_id);
+
+-- Embeddings mit Provider-Info (unterstuetzt mehrere Provider/Modelle)
+CREATE TABLE IF NOT EXISTS embeddings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  document_id INTEGER REFERENCES documents(id) ON DELETE CASCADE,
+  chunk_id INTEGER REFERENCES document_chunks(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL,
+  model TEXT NOT NULL,
+  embedding BLOB NOT NULL,
+  dimensions INTEGER NOT NULL,
+  created_at TEXT DEFAULT (datetime('now')),
+  CHECK (document_id IS NOT NULL OR chunk_id IS NOT NULL)
+);
+
+CREATE INDEX IF NOT EXISTS idx_embeddings_document_id ON embeddings(document_id);
+CREATE INDEX IF NOT EXISTS idx_embeddings_chunk_id ON embeddings(chunk_id);
+CREATE INDEX IF NOT EXISTS idx_embeddings_provider_model ON embeddings(provider, model);
+
+-- API Usage Tracking (fuer Kosten-Dashboard)
+CREATE TABLE IF NOT EXISTS api_usage (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+  provider TEXT NOT NULL,
+  model TEXT NOT NULL,
+  operation TEXT NOT NULL,
+  tokens_input INTEGER NOT NULL,
+  tokens_output INTEGER DEFAULT 0,
+  cost_usd REAL NOT NULL,
+  latency_ms INTEGER,
+  success INTEGER NOT NULL DEFAULT 1,
+  error_message TEXT,
+  metadata TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_usage_timestamp ON api_usage(timestamp);
+CREATE INDEX IF NOT EXISTS idx_usage_provider ON api_usage(provider);
+CREATE INDEX IF NOT EXISTS idx_usage_operation ON api_usage(operation);
+
+-- FTS fuer Chunks (Hybrid-Suche)
+CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
+  chunk_text,
+  content='document_chunks',
+  content_rowid='id'
+);
 """
 
 def _run_migrations(conn: sqlite3.Connection) -> None:
@@ -230,9 +289,35 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
             conn.commit()
 
 VEC_SQL = """
+-- Legacy table (kept for backward compatibility)
 CREATE VIRTUAL TABLE IF NOT EXISTS doc_embeddings USING vec0(
   embedding float[1536],
   document_id integer
+);
+
+-- Vec0 Tabellen pro Dimension (fuer verschiedene Modelle)
+-- 768: Ollama nomic-embed-text
+CREATE VIRTUAL TABLE IF NOT EXISTS embeddings_768 USING vec0(
+  embedding float[768],
+  +embedding_id INTEGER
+);
+
+-- 1024: Ollama mxbai-embed-large
+CREATE VIRTUAL TABLE IF NOT EXISTS embeddings_1024 USING vec0(
+  embedding float[1024],
+  +embedding_id INTEGER
+);
+
+-- 1536: OpenAI text-embedding-3-small
+CREATE VIRTUAL TABLE IF NOT EXISTS embeddings_1536 USING vec0(
+  embedding float[1536],
+  +embedding_id INTEGER
+);
+
+-- 3072: OpenAI text-embedding-3-large
+CREATE VIRTUAL TABLE IF NOT EXISTS embeddings_3072 USING vec0(
+  embedding float[3072],
+  +embedding_id INTEGER
 );
 """
 
@@ -601,6 +686,472 @@ class DB:
                 }
             )
         return results
+
+    # ==================== Chunk Methods ====================
+
+    def save_chunks(
+        self, document_id: int, chunks: list[dict[str, Any]]
+    ) -> list[int]:
+        """Save chunks for a document.
+
+        Args:
+            document_id: The document ID
+            chunks: List of chunk dicts with keys:
+                - chunk_index: int
+                - chunk_text: str
+                - char_start: int
+                - char_end: int
+                - token_count: int (optional)
+
+        Returns:
+            List of chunk IDs
+        """
+        # Delete existing chunks for this document (re-chunking)
+        self.conn.execute(
+            "DELETE FROM document_chunks WHERE document_id = ?",
+            (document_id,),
+        )
+
+        chunk_ids = []
+        for chunk in chunks:
+            cur = self.conn.execute(
+                """
+                INSERT INTO document_chunks (document_id, chunk_index, chunk_text, char_start, char_end, token_count)
+                VALUES (?, ?, ?, ?, ?, ?)
+                RETURNING id
+                """,
+                (
+                    document_id,
+                    chunk["chunk_index"],
+                    chunk["chunk_text"],
+                    chunk["char_start"],
+                    chunk["char_end"],
+                    chunk.get("token_count"),
+                ),
+            )
+            chunk_ids.append(cur.fetchone()[0])
+
+        self.conn.commit()
+        return chunk_ids
+
+    def get_chunks_for_document(self, document_id: int) -> list[dict[str, Any]]:
+        """Get all chunks for a document."""
+        cur = self.conn.execute(
+            """
+            SELECT id, chunk_index, chunk_text, char_start, char_end, token_count
+            FROM document_chunks
+            WHERE document_id = ?
+            ORDER BY chunk_index
+            """,
+            (document_id,),
+        )
+        return [
+            {
+                "id": row[0],
+                "chunk_index": row[1],
+                "chunk_text": row[2],
+                "char_start": row[3],
+                "char_end": row[4],
+                "token_count": row[5],
+            }
+            for row in cur.fetchall()
+        ]
+
+    def get_chunk_context(
+        self, chunk_id: int, context_chunks: int = 2
+    ) -> dict[str, Any]:
+        """Get a chunk with surrounding context.
+
+        Args:
+            chunk_id: The chunk ID
+            context_chunks: Number of chunks before/after to include
+
+        Returns:
+            Dict with chunk info and context_before/context_after
+        """
+        # Get the chunk and its document_id
+        cur = self.conn.execute(
+            """
+            SELECT id, document_id, chunk_index, chunk_text, char_start, char_end
+            FROM document_chunks WHERE id = ?
+            """,
+            (chunk_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return {}
+
+        chunk = {
+            "id": row[0],
+            "document_id": row[1],
+            "chunk_index": row[2],
+            "chunk_text": row[3],
+            "char_start": row[4],
+            "char_end": row[5],
+        }
+
+        # Get surrounding chunks
+        cur = self.conn.execute(
+            """
+            SELECT chunk_index, chunk_text
+            FROM document_chunks
+            WHERE document_id = ? AND chunk_index BETWEEN ? AND ?
+            ORDER BY chunk_index
+            """,
+            (
+                chunk["document_id"],
+                chunk["chunk_index"] - context_chunks,
+                chunk["chunk_index"] + context_chunks,
+            ),
+        )
+
+        context_before = []
+        context_after = []
+        for ctx_row in cur.fetchall():
+            if ctx_row[0] < chunk["chunk_index"]:
+                context_before.append(ctx_row[1])
+            elif ctx_row[0] > chunk["chunk_index"]:
+                context_after.append(ctx_row[1])
+
+        chunk["context_before"] = "\n".join(context_before)
+        chunk["context_after"] = "\n".join(context_after)
+
+        return chunk
+
+    # ==================== New Embeddings Methods ====================
+
+    def save_embedding_v2(
+        self,
+        *,
+        embedding: bytes,
+        dimensions: int,
+        provider: str,
+        model: str,
+        document_id: int | None = None,
+        chunk_id: int | None = None,
+    ) -> int:
+        """Save an embedding with provider info.
+
+        Args:
+            embedding: Serialized embedding bytes (from serialize_f32)
+            dimensions: Vector dimensions (768, 1024, 1536, 3072)
+            provider: Provider name ('openai', 'ollama')
+            model: Model ID ('text-embedding-3-small', etc.)
+            document_id: Document ID (for document-level embedding)
+            chunk_id: Chunk ID (for chunk-level embedding)
+
+        Returns:
+            Embedding ID
+        """
+        if document_id is None and chunk_id is None:
+            raise ValueError("Either document_id or chunk_id must be provided")
+
+        # Insert into embeddings table
+        cur = self.conn.execute(
+            """
+            INSERT INTO embeddings (document_id, chunk_id, provider, model, embedding, dimensions)
+            VALUES (?, ?, ?, ?, ?, ?)
+            RETURNING id
+            """,
+            (document_id, chunk_id, provider, model, embedding, dimensions),
+        )
+        embedding_id = cur.fetchone()[0]
+
+        # Insert into vec0 table for KNN search
+        vec_table = f"embeddings_{dimensions}"
+        self.conn.execute(
+            f"INSERT INTO {vec_table} (embedding, embedding_id) VALUES (?, ?)",
+            (embedding, embedding_id),
+        )
+
+        self.conn.commit()
+        return embedding_id
+
+    def semantic_search_v2(
+        self,
+        query_embedding: bytes,
+        dimensions: int,
+        limit: int = 10,
+        search_chunks: bool = False,
+        provider: str | None = None,
+        model: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Search documents or chunks by semantic similarity.
+
+        Args:
+            query_embedding: Serialized embedding bytes
+            dimensions: Vector dimensions (must match the embedding model)
+            limit: Maximum results
+            search_chunks: If True, search chunk embeddings; otherwise document embeddings
+            provider: Optional filter by provider
+            model: Optional filter by model
+
+        Returns:
+            List of results with distance and metadata
+        """
+        vec_table = f"embeddings_{dimensions}"
+
+        if search_chunks:
+            # Search in chunks
+            query = f"""
+                SELECT v.embedding_id, v.distance,
+                       e.chunk_id, c.chunk_text, c.char_start, c.char_end, c.document_id,
+                       d.title, d.author, d.url_original
+                FROM {vec_table} v
+                JOIN embeddings e ON e.id = v.embedding_id
+                JOIN document_chunks c ON c.id = e.chunk_id
+                JOIN documents d ON d.id = c.document_id
+                WHERE v.embedding MATCH ? AND k = ?
+                  AND e.chunk_id IS NOT NULL
+            """
+            params: list[Any] = [query_embedding, limit]
+
+            if provider:
+                query += " AND e.provider = ?"
+                params.append(provider)
+            if model:
+                query += " AND e.model = ?"
+                params.append(model)
+
+            query += " ORDER BY v.distance"
+            cur = self.conn.execute(query, params)
+
+            results = []
+            for row in cur.fetchall():
+                results.append({
+                    "embedding_id": row[0],
+                    "distance": row[1],
+                    "chunk_id": row[2],
+                    "chunk_text": row[3],
+                    "char_start": row[4],
+                    "char_end": row[5],
+                    "document_id": row[6],
+                    "title": row[7],
+                    "author": row[8],
+                    "url": row[9],
+                })
+            return results
+
+        else:
+            # Search in documents
+            query = f"""
+                SELECT v.embedding_id, v.distance,
+                       e.document_id, d.title, d.author, d.url_original, d.saved_at
+                FROM {vec_table} v
+                JOIN embeddings e ON e.id = v.embedding_id
+                JOIN documents d ON d.id = e.document_id
+                WHERE v.embedding MATCH ? AND k = ?
+                  AND e.document_id IS NOT NULL
+            """
+            params = [query_embedding, limit]
+
+            if provider:
+                query += " AND e.provider = ?"
+                params.append(provider)
+            if model:
+                query += " AND e.model = ?"
+                params.append(model)
+
+            query += " ORDER BY v.distance"
+            cur = self.conn.execute(query, params)
+
+            results = []
+            for row in cur.fetchall():
+                results.append({
+                    "embedding_id": row[0],
+                    "distance": row[1],
+                    "id": row[2],
+                    "title": row[3],
+                    "author": row[4],
+                    "url": row[5],
+                    "saved_at": row[6],
+                })
+            return results
+
+    def get_documents_without_embedding_v2(
+        self, provider: str, model: str, limit: int = 100
+    ) -> list[dict[str, Any]]:
+        """Get documents that don't have embeddings for a specific provider/model.
+
+        Returns documents with id, title, and text content for embedding.
+        """
+        cur = self.conn.execute(
+            """
+            SELECT d.id, d.title, d.author, d.summary, d.fulltext
+            FROM documents d
+            LEFT JOIN embeddings e ON e.document_id = d.id
+                AND e.provider = ? AND e.model = ?
+            WHERE e.id IS NULL
+            ORDER BY d.id
+            LIMIT ?
+            """,
+            (provider, model, limit),
+        )
+        docs = []
+        for row in cur.fetchall():
+            parts = []
+            if row[1]:  # title
+                parts.append(row[1])
+            if row[2]:  # author
+                parts.append(f"by {row[2]}")
+            if row[3]:  # summary
+                parts.append(row[3])
+            if row[4]:  # fulltext
+                parts.append(row[4])
+            text = "\n\n".join(parts)
+            docs.append({"id": row[0], "title": row[1], "text": text})
+        return docs
+
+    def get_embedding_stats_v2(self) -> dict[str, Any]:
+        """Get detailed embedding statistics by provider/model."""
+        cur = self.conn.execute("SELECT COUNT(*) FROM documents")
+        total_docs = cur.fetchone()[0]
+
+        cur = self.conn.execute("SELECT COUNT(*) FROM document_chunks")
+        total_chunks = cur.fetchone()[0]
+
+        # Get stats by provider/model
+        cur = self.conn.execute(
+            """
+            SELECT provider, model,
+                   SUM(CASE WHEN document_id IS NOT NULL THEN 1 ELSE 0 END) as doc_count,
+                   SUM(CASE WHEN chunk_id IS NOT NULL THEN 1 ELSE 0 END) as chunk_count
+            FROM embeddings
+            GROUP BY provider, model
+            """
+        )
+        by_provider = []
+        for row in cur.fetchall():
+            by_provider.append({
+                "provider": row[0],
+                "model": row[1],
+                "document_embeddings": row[2],
+                "chunk_embeddings": row[3],
+            })
+
+        # Legacy stats (doc_embeddings table)
+        cur = self.conn.execute("SELECT COUNT(*) FROM doc_embeddings")
+        legacy_count = cur.fetchone()[0]
+
+        return {
+            "total_documents": total_docs,
+            "total_chunks": total_chunks,
+            "by_provider": by_provider,
+            "legacy_embeddings": legacy_count,
+        }
+
+    # ==================== Usage Tracking ====================
+
+    def log_api_usage(
+        self,
+        *,
+        provider: str,
+        model: str,
+        operation: str,
+        tokens_input: int,
+        cost_usd: float,
+        tokens_output: int = 0,
+        latency_ms: int | None = None,
+        success: bool = True,
+        error_message: str | None = None,
+        metadata: str | None = None,
+    ) -> int:
+        """Log an API call for usage tracking.
+
+        Returns the usage record ID.
+        """
+        cur = self.conn.execute(
+            """
+            INSERT INTO api_usage (
+                provider, model, operation, tokens_input, tokens_output,
+                cost_usd, latency_ms, success, error_message, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id
+            """,
+            (
+                provider,
+                model,
+                operation,
+                tokens_input,
+                tokens_output,
+                cost_usd,
+                latency_ms,
+                1 if success else 0,
+                error_message,
+                metadata,
+            ),
+        )
+        self.conn.commit()
+        return cur.fetchone()[0]
+
+    def get_usage_stats(self, period: str = "today") -> dict[str, Any]:
+        """Get usage statistics for a time period.
+
+        Args:
+            period: 'today', 'week', 'month', or 'all'
+        """
+        date_filter = ""
+        if period == "today":
+            date_filter = "WHERE date(timestamp) = date('now')"
+        elif period == "week":
+            date_filter = "WHERE timestamp >= datetime('now', '-7 days')"
+        elif period == "month":
+            date_filter = "WHERE timestamp >= datetime('now', '-30 days')"
+
+        cur = self.conn.execute(
+            f"""
+            SELECT
+                SUM(cost_usd) as total_cost,
+                SUM(tokens_input) as total_tokens_input,
+                SUM(tokens_output) as total_tokens_output,
+                COUNT(*) as total_requests,
+                AVG(latency_ms) as avg_latency,
+                SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as error_count
+            FROM api_usage
+            {date_filter}
+            """
+        )
+        row = cur.fetchone()
+
+        # By provider
+        cur = self.conn.execute(
+            f"""
+            SELECT provider,
+                   SUM(cost_usd) as cost,
+                   SUM(tokens_input) as tokens,
+                   COUNT(*) as requests,
+                   AVG(latency_ms) as avg_latency
+            FROM api_usage
+            {date_filter}
+            GROUP BY provider
+            """
+        )
+        by_provider = {r[0]: {"cost": r[1], "tokens": r[2], "requests": r[3], "avg_latency": r[4]} for r in cur.fetchall()}
+
+        # By operation
+        cur = self.conn.execute(
+            f"""
+            SELECT operation,
+                   SUM(cost_usd) as cost,
+                   COUNT(*) as requests
+            FROM api_usage
+            {date_filter}
+            GROUP BY operation
+            """
+        )
+        by_operation = {r[0]: {"cost": r[1], "requests": r[2]} for r in cur.fetchall()}
+
+        return {
+            "period": period,
+            "total_cost_usd": row[0] or 0,
+            "total_tokens_input": row[1] or 0,
+            "total_tokens_output": row[2] or 0,
+            "total_requests": row[3] or 0,
+            "avg_latency_ms": round(row[4] or 0),
+            "error_count": row[5] or 0,
+            "by_provider": by_provider,
+            "by_operation": by_operation,
+        }
 
 
 _db: DB | None = None

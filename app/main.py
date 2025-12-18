@@ -10,8 +10,16 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from app.core.settings import Settings
 from app.core.storage import get_db, init_db
 from app.core.import_job import ImportStatus, get_import_store
-from app.core.embed_job import generate_embeddings_batch
+from app.core.embed_job import generate_embeddings_batch, generate_embeddings_v2, generate_chunk_embeddings_v2
+from app.core.chunking import get_chunking_info
 from app.core.embeddings import get_embedding, serialize_f32
+from app.core.embedding_providers import (
+    get_provider,
+    get_all_models,
+    OpenAIProvider,
+    OllamaProvider,
+    EmbeddingError,
+)
 from app.providers.readwise import ImportEventType, ReadwiseAuthError, ReadwiseClient
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -131,6 +139,188 @@ def admin_embedding_stats():
     """Get current embedding statistics."""
     db = get_db()
     return db.get_embedding_stats()
+
+
+@app.get("/api/providers/health")
+async def api_providers_health():
+    """Check health of all embedding providers.
+
+    Returns status for both OpenAI and Ollama providers.
+    Useful for admin UI to show which providers are available.
+    """
+    results = []
+
+    # Check OpenAI
+    try:
+        openai_provider = OpenAIProvider()
+        openai_health = await openai_provider.health_check()
+        results.append({
+            "provider": openai_health.provider,
+            "model": openai_health.model,
+            "healthy": openai_health.healthy,
+            "message": openai_health.message,
+            "latency_ms": openai_health.latency_ms,
+            "details": openai_health.details,
+        })
+    except Exception as e:
+        results.append({
+            "provider": "OpenAI",
+            "model": "text-embedding-3-small",
+            "healthy": False,
+            "message": str(e),
+        })
+
+    # Check Ollama
+    try:
+        ollama_provider = OllamaProvider()
+        ollama_health = await ollama_provider.health_check()
+        results.append({
+            "provider": ollama_health.provider,
+            "model": ollama_health.model,
+            "healthy": ollama_health.healthy,
+            "message": ollama_health.message,
+            "latency_ms": ollama_health.latency_ms,
+            "details": ollama_health.details,
+        })
+    except Exception as e:
+        results.append({
+            "provider": "Ollama",
+            "model": "nomic-embed-text",
+            "healthy": False,
+            "message": str(e),
+        })
+
+    return {"providers": results}
+
+
+@app.get("/api/providers/models")
+def api_providers_models():
+    """Get all available embedding models grouped by provider.
+
+    Returns model details including dimensions, costs, and descriptions.
+    """
+    all_models = get_all_models()
+    result = {}
+
+    for provider_name, models in all_models.items():
+        result[provider_name] = [
+            {
+                "model_id": info.model_id,
+                "dimensions": info.dimensions,
+                "cost_per_1m_tokens": info.cost_per_1m_tokens,
+                "max_tokens": info.max_tokens,
+                "description": info.description,
+            }
+            for info in models.values()
+        ]
+
+    return {"models": result}
+
+
+@app.get("/api/providers/{provider}/health")
+async def api_provider_health(provider: str, model: str | None = None):
+    """Check health of a specific provider.
+
+    Args:
+        provider: 'openai' or 'ollama'
+        model: Optional specific model to check
+    """
+    try:
+        embed_provider = get_provider(provider, model)
+        health = await embed_provider.health_check()
+        return {
+            "provider": health.provider,
+            "model": health.model,
+            "healthy": health.healthy,
+            "message": health.message,
+            "latency_ms": health.latency_ms,
+            "details": health.details,
+        }
+    except ValueError as e:
+        return {"error": str(e)}, 400
+    except Exception as e:
+        return {"error": str(e)}, 500
+
+
+# ==================== V2 Embedding Endpoints ====================
+
+
+@app.post("/api/embeddings/generate")
+async def api_generate_embeddings(
+    provider: str | None = None,
+    model: str | None = None,
+    limit: int = 100,
+    include_chunks: bool = False,
+):
+    """Generate embeddings for documents using the specified provider.
+
+    Args:
+        provider: 'openai' or 'ollama' (uses default from settings if not specified)
+        model: Model ID (uses provider default if not specified)
+        limit: Maximum documents to process (default 100)
+        include_chunks: Also generate chunk-level embeddings (default False)
+
+    Returns:
+        Dict with processed, failed, chunks_processed, cost_usd, provider, model
+    """
+    result = await generate_embeddings_v2(
+        provider_name=provider,
+        model=model,
+        limit=limit,
+        include_chunks=include_chunks,
+    )
+    return result
+
+
+@app.post("/api/embeddings/generate-chunks")
+async def api_generate_chunk_embeddings(
+    provider: str | None = None,
+    model: str | None = None,
+    limit: int = 300,
+):
+    """Generate embeddings for document chunks.
+
+    First creates chunks for documents that don't have them,
+    then generates embeddings for chunks without embeddings.
+
+    Args:
+        provider: 'openai' or 'ollama'
+        model: Model ID
+        limit: Maximum chunks to process (default 300)
+
+    Returns:
+        Dict with processed, failed, chunks_created, cost_usd
+    """
+    result = await generate_chunk_embeddings_v2(
+        provider_name=provider,
+        model=model,
+        limit=limit,
+    )
+    return result
+
+
+@app.get("/api/embeddings/stats")
+def api_embedding_stats_v2():
+    """Get detailed embedding statistics by provider/model."""
+    db = get_db()
+    return db.get_embedding_stats_v2()
+
+
+@app.get("/api/chunking/info")
+def api_chunking_info():
+    """Get information about chunking parameters."""
+    return get_chunking_info()
+
+
+@app.get("/api/usage/stats")
+def api_usage_stats(period: str = "today"):
+    """Get API usage statistics.
+
+    Args:
+        period: 'today', 'week', 'month', or 'all'
+    """
+    db = get_db()
+    return db.get_usage_stats(period)
 
 
 @app.get("/api/semantic-search")

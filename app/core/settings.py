@@ -13,6 +13,10 @@ class Settings:
     max_llm_calls_per_day: int
     max_embed_calls_per_day: int
     readwise_api_token: str | None
+    # Embedding provider settings
+    embedding_provider: str  # 'openai' or 'ollama'
+    embedding_model: str  # e.g., 'text-embedding-3-small' or 'nomic-embed-text'
+    ollama_base_url: str  # Ollama server URL
 
     @staticmethod
     def from_env() -> "Settings":
@@ -26,6 +30,13 @@ class Settings:
             val = os.getenv(name, "").strip()
             return val if val else None
 
+        embedding_provider = os.getenv("EMBEDDING_PROVIDER", "openai").strip().lower()
+        # Default model depends on provider
+        if embedding_provider == "ollama":
+            default_model = "nomic-embed-text"
+        else:
+            default_model = "text-embedding-3-small"
+
         return Settings(
             app_env=os.getenv("APP_ENV", "dev").strip(),
             db_path=os.getenv("DB_PATH", "/app/_local/data/app.db").strip(),
@@ -34,4 +45,7 @@ class Settings:
             max_llm_calls_per_day=_i("MAX_LLM_CALLS_PER_DAY", "50"),
             max_embed_calls_per_day=_i("MAX_EMBED_CALLS_PER_DAY", "200"),
             readwise_api_token=_s_or_none("READWISE_API_TOKEN"),
+            embedding_provider=embedding_provider,
+            embedding_model=os.getenv("EMBEDDING_MODEL", default_model).strip(),
+            ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434").strip(),
         )

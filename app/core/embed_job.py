@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import time
 
 from app.core.embeddings import get_embeddings_batch, serialize_f32
+from app.core.embedding_providers import get_provider, EmbeddingError
+from app.core.chunking import chunk_document, chunk_for_embedding
 from app.core.storage import get_db
+from app.core.settings import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +20,8 @@ BATCH_SIZE = 50  # OpenAI supports up to 2048, but 50 is safer for memory
 
 async def generate_embeddings_batch(limit: int = 100) -> dict[str, int]:
     """Generate embeddings for documents that don't have them yet.
+
+    Uses the legacy doc_embeddings table for backward compatibility.
 
     Args:
         limit: Maximum number of documents to process in this run.
@@ -94,3 +101,288 @@ async def generate_all_embeddings(
         await asyncio.sleep(delay_between_batches)
 
     return {"processed": total_processed, "failed": total_failed}
+
+
+# ==================== V2 Functions with Provider Abstraction ====================
+
+
+async def generate_embeddings_v2(
+    provider_name: str | None = None,
+    model: str | None = None,
+    limit: int = 100,
+    include_chunks: bool = False,
+    track_usage: bool = True,
+) -> dict[str, int]:
+    """Generate embeddings using the new provider abstraction.
+
+    Args:
+        provider_name: 'openai' or 'ollama'. Uses settings default if not specified.
+        model: Model ID. Uses provider default if not specified.
+        limit: Maximum documents to process
+        include_chunks: If True, also generate chunk-level embeddings
+        track_usage: If True, log API usage for cost tracking
+
+    Returns:
+        Dict with processed, failed, remaining counts and cost info
+    """
+    db = get_db()
+    settings = Settings.from_env()
+
+    # Get provider
+    provider_name = provider_name or settings.embedding_provider
+    provider = get_provider(provider_name, model)
+
+    # Get documents without embeddings for this provider/model
+    docs = db.get_documents_without_embedding_v2(
+        provider=provider.name.lower(),
+        model=provider.model_id,
+        limit=limit,
+    )
+
+    if not docs:
+        stats = db.get_embedding_stats_v2()
+        return {
+            "processed": 0,
+            "failed": 0,
+            "remaining": 0,
+            "cost_usd": 0.0,
+            "provider": provider.name,
+            "model": provider.model_id,
+        }
+
+    processed = 0
+    failed = 0
+    total_tokens = 0
+    total_cost = 0.0
+
+    # Process in batches
+    for i in range(0, len(docs), BATCH_SIZE):
+        batch = docs[i : i + BATCH_SIZE]
+        texts = [chunk_for_embedding(doc["text"], doc.get("title", "")) for doc in batch]
+        doc_ids = [doc["id"] for doc in batch]
+
+        start_time = time.monotonic()
+        try:
+            embeddings = await provider.embed(texts)
+            latency_ms = int((time.monotonic() - start_time) * 1000)
+
+            # Estimate tokens (rough)
+            batch_tokens = sum(len(t) // 4 for t in texts)
+            total_tokens += batch_tokens
+            batch_cost = provider.estimate_cost(batch_tokens)
+            total_cost += batch_cost
+
+            for doc_id, embedding in zip(doc_ids, embeddings):
+                try:
+                    embedding_bytes = serialize_f32(embedding)
+                    db.save_embedding_v2(
+                        embedding=embedding_bytes,
+                        dimensions=provider.dimensions,
+                        provider=provider.name.lower(),
+                        model=provider.model_id,
+                        document_id=doc_id,
+                    )
+                    processed += 1
+                    logger.info(f"Embedded document {doc_id} with {provider.name}/{provider.model_id}")
+                except Exception as e:
+                    failed += 1
+                    logger.error(f"Failed to save embedding for doc {doc_id}: {e}")
+
+            # Track usage
+            if track_usage:
+                db.log_api_usage(
+                    provider=provider.name.lower(),
+                    model=provider.model_id,
+                    operation="embed_batch",
+                    tokens_input=batch_tokens,
+                    cost_usd=batch_cost,
+                    latency_ms=latency_ms,
+                    success=True,
+                    metadata=json.dumps({"doc_ids": doc_ids, "batch_size": len(batch)}),
+                )
+
+        except EmbeddingError as e:
+            failed += len(batch)
+            logger.error(f"Batch embedding failed: {e}")
+
+            if track_usage:
+                db.log_api_usage(
+                    provider=provider.name.lower(),
+                    model=provider.model_id,
+                    operation="embed_batch",
+                    tokens_input=0,
+                    cost_usd=0,
+                    success=False,
+                    error_message=str(e),
+                )
+
+            if not e.retriable:
+                break  # Don't continue if error is not retriable
+
+        except Exception as e:
+            failed += len(batch)
+            logger.error(f"Batch embedding failed: {e}")
+
+    # Optionally generate chunk embeddings
+    chunks_processed = 0
+    if include_chunks and processed > 0:
+        chunks_result = await generate_chunk_embeddings_v2(
+            provider_name=provider_name,
+            model=model,
+            limit=limit * 3,  # Roughly 3 chunks per doc on average
+            track_usage=track_usage,
+        )
+        chunks_processed = chunks_result.get("processed", 0)
+        total_cost += chunks_result.get("cost_usd", 0)
+
+    return {
+        "processed": processed,
+        "failed": failed,
+        "chunks_processed": chunks_processed,
+        "cost_usd": round(total_cost, 6),
+        "tokens": total_tokens,
+        "provider": provider.name,
+        "model": provider.model_id,
+    }
+
+
+async def generate_chunk_embeddings_v2(
+    provider_name: str | None = None,
+    model: str | None = None,
+    limit: int = 100,
+    track_usage: bool = True,
+) -> dict[str, int]:
+    """Generate embeddings for document chunks.
+
+    First chunks documents that don't have chunks yet,
+    then generates embeddings for chunks without embeddings.
+
+    Args:
+        provider_name: 'openai' or 'ollama'
+        model: Model ID
+        limit: Maximum chunks to process
+        track_usage: If True, log API usage
+
+    Returns:
+        Dict with processed, failed counts and cost info
+    """
+    db = get_db()
+    settings = Settings.from_env()
+
+    provider_name = provider_name or settings.embedding_provider
+    provider = get_provider(provider_name, model)
+
+    # First, chunk documents that don't have chunks yet
+    cur = db.conn.execute(
+        """
+        SELECT d.id, d.title, d.fulltext
+        FROM documents d
+        LEFT JOIN document_chunks c ON c.document_id = d.id
+        WHERE c.id IS NULL AND d.fulltext IS NOT NULL AND d.fulltext != ''
+        LIMIT ?
+        """,
+        (limit,),
+    )
+    docs_to_chunk = cur.fetchall()
+
+    chunks_created = 0
+    for doc_id, title, fulltext in docs_to_chunk:
+        if not fulltext:
+            continue
+        chunks = chunk_document(fulltext, title or "")
+        if chunks:
+            db.save_chunks(doc_id, [c.to_dict() for c in chunks])
+            chunks_created += len(chunks)
+            logger.info(f"Created {len(chunks)} chunks for document {doc_id}")
+
+    # Now get chunks without embeddings for this provider/model
+    cur = db.conn.execute(
+        """
+        SELECT c.id, c.chunk_text, c.document_id
+        FROM document_chunks c
+        LEFT JOIN embeddings e ON e.chunk_id = c.id
+            AND e.provider = ? AND e.model = ?
+        WHERE e.id IS NULL
+        LIMIT ?
+        """,
+        (provider.name.lower(), provider.model_id, limit),
+    )
+    chunks_to_embed = cur.fetchall()
+
+    if not chunks_to_embed:
+        return {
+            "processed": 0,
+            "failed": 0,
+            "chunks_created": chunks_created,
+            "cost_usd": 0.0,
+            "provider": provider.name,
+            "model": provider.model_id,
+        }
+
+    processed = 0
+    failed = 0
+    total_tokens = 0
+    total_cost = 0.0
+
+    # Process chunks in batches
+    for i in range(0, len(chunks_to_embed), BATCH_SIZE):
+        batch = chunks_to_embed[i : i + BATCH_SIZE]
+        texts = [row[1] for row in batch]
+        chunk_ids = [row[0] for row in batch]
+
+        start_time = time.monotonic()
+        try:
+            embeddings = await provider.embed(texts)
+            latency_ms = int((time.monotonic() - start_time) * 1000)
+
+            batch_tokens = sum(len(t) // 4 for t in texts)
+            total_tokens += batch_tokens
+            batch_cost = provider.estimate_cost(batch_tokens)
+            total_cost += batch_cost
+
+            for chunk_id, embedding in zip(chunk_ids, embeddings):
+                try:
+                    embedding_bytes = serialize_f32(embedding)
+                    db.save_embedding_v2(
+                        embedding=embedding_bytes,
+                        dimensions=provider.dimensions,
+                        provider=provider.name.lower(),
+                        model=provider.model_id,
+                        chunk_id=chunk_id,
+                    )
+                    processed += 1
+                except Exception as e:
+                    failed += 1
+                    logger.error(f"Failed to save chunk embedding {chunk_id}: {e}")
+
+            if track_usage:
+                db.log_api_usage(
+                    provider=provider.name.lower(),
+                    model=provider.model_id,
+                    operation="embed_chunks",
+                    tokens_input=batch_tokens,
+                    cost_usd=batch_cost,
+                    latency_ms=latency_ms,
+                    success=True,
+                    metadata=json.dumps({"chunk_ids": chunk_ids, "batch_size": len(batch)}),
+                )
+
+        except EmbeddingError as e:
+            failed += len(batch)
+            logger.error(f"Chunk embedding batch failed: {e}")
+            if not e.retriable:
+                break
+
+        except Exception as e:
+            failed += len(batch)
+            logger.error(f"Chunk embedding batch failed: {e}")
+
+    return {
+        "processed": processed,
+        "failed": failed,
+        "chunks_created": chunks_created,
+        "cost_usd": round(total_cost, 6),
+        "tokens": total_tokens,
+        "provider": provider.name,
+        "model": provider.model_id,
+    }
