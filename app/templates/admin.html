@@ -17,7 +17,47 @@
   <div class="card">
     <h2>Stats</h2>
     <div class="kv"><div>Documents</div><div>{{ stats.documents }}</div></div>
+    <div class="kv"><div>Highlights</div><div>{{ stats.highlights }}</div></div>
     <div class="kv"><div>Drafts</div><div>{{ stats.drafts }}</div></div>
+  </div>
+
+  <div class="card" x-data="{ loading: false, result: null, error: null, pending: {{ embedding_stats.pending }} }">
+    <h2>Embeddings</h2>
+    <div class="kv"><div>Mit Embedding</div><div>{{ embedding_stats.embedded_documents }}</div></div>
+    <div class="kv"><div>Ausstehend</div><div x-text="pending">{{ embedding_stats.pending }}</div></div>
+    <div class="kv"><div>Gesamt</div><div>{{ embedding_stats.total_documents }}</div></div>
+
+    {% if embedding_stats.pending > 0 %}
+    <div style="margin-top: 1rem;">
+      <button
+        class="btn"
+        :disabled="loading"
+        @click="
+          loading = true;
+          error = null;
+          result = null;
+          fetch('/admin/embeddings/generate?limit=100', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+              result = data;
+              pending = data.remaining;
+              loading = false;
+            })
+            .catch(e => { error = e.message; loading = false; })
+        ">
+        <span x-show="!loading">Embeddings generieren (100 Dokumente)</span>
+        <span x-show="loading">Generiere...</span>
+      </button>
+      <p x-show="result" class="success" style="margin-top: 0.5rem;">
+        Verarbeitet: <span x-text="result?.processed"></span>,
+        Fehlgeschlagen: <span x-text="result?.failed"></span>,
+        Verbleibend: <span x-text="result?.remaining"></span>
+      </p>
+      <p x-show="error" class="error" style="margin-top: 0.5rem;" x-text="error"></p>
+    </div>
+    {% else %}
+    <p style="margin-top: 0.5rem; color: green;">Alle Dokumente haben Embeddings.</p>
+    {% endif %}
   </div>
 </div>
 

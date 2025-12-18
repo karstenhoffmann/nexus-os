@@ -10,6 +10,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from app.core.settings import Settings
 from app.core.storage import get_db, init_db
 from app.core.import_job import ImportStatus, get_import_store
+from app.core.embed_job import generate_embeddings_batch
 from app.providers.readwise import ImportEventType, ReadwiseAuthError, ReadwiseClient
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -85,7 +86,28 @@ def admin(request: Request):
     s = Settings.from_env()
     db = get_db()
     stats = db.get_stats()
-    return render("admin.html", request=request, settings=s, stats=stats)
+    embedding_stats = db.get_embedding_stats()
+    return render("admin.html", request=request, settings=s, stats=stats, embedding_stats=embedding_stats)
+
+
+@app.post("/admin/embeddings/generate")
+async def admin_generate_embeddings(limit: int = 100):
+    """Generate embeddings for documents that don't have them yet.
+
+    This is an async endpoint that processes up to `limit` documents.
+    For 2600+ documents, call multiple times or use a larger limit.
+
+    Returns: {"processed": int, "failed": int, "remaining": int}
+    """
+    result = await generate_embeddings_batch(limit=limit)
+    return result
+
+
+@app.get("/admin/embeddings/stats")
+def admin_embedding_stats():
+    """Get current embedding statistics."""
+    db = get_db()
+    return db.get_embedding_stats()
 
 
 @app.get("/readwise/preview", response_class=HTMLResponse)
