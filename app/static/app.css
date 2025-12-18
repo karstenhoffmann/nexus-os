@@ -11,6 +11,11 @@
   --primary-hover: #2563eb;
   --primary-light: rgba(59, 130, 246, 0.1);
 
+  /* Sekundaerfarbe (fuer Akzente, sekundaere Aktionen) */
+  --secondary: #6b7280;
+  --secondary-hover: #4b5563;
+  --secondary-light: rgba(107, 114, 128, 0.1);
+
   /* Statusfarben (einheitlich!) */
   --success: #10b981;
   --success-bg: rgba(16, 185, 129, 0.1);
@@ -89,9 +94,9 @@
   --transition-slow: 0.3s ease;
 }
 
-/* Dark Mode */
+/* Dark Mode - System Preference */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #1a1a1a;
     --bg-secondary: #2d2d2d;
     --bg-card: #242424;
@@ -118,6 +123,29 @@
     --warning-bg: rgba(245, 158, 11, 0.15);
     --info-bg: rgba(59, 130, 246, 0.15);
   }
+}
+
+/* Dark Mode - Manual Override */
+:root[data-theme="dark"] {
+  --bg: #1a1a1a;
+  --bg-secondary: #2d2d2d;
+  --bg-card: #242424;
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  --text: #ececf1;
+  --text-secondary: #acacbe;
+  --text-muted: #8e8ea0;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --topbar-bg: #0d0d0d;
+  --topbar-text: #ececf1;
+  --success-bg: rgba(16, 185, 129, 0.15);
+  --error-bg: rgba(239, 68, 68, 0.15);
+  --warning-bg: rgba(245, 158, 11, 0.15);
+  --info-bg: rgba(59, 130, 246, 0.15);
 }
 
 /* ===========================================
@@ -218,6 +246,33 @@ p:last-child { margin-bottom: 0; }
 .nav a:hover {
   opacity: 1;
   background: rgba(255, 255, 255, 0.1);
+}
+.nav a.active {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--primary);
+}
+
+/* Theme Toggle Button */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  margin-left: var(--space-sm);
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--topbar-text);
+  cursor: pointer;
+  font-size: var(--font-size-lg);
+  transition: all var(--transition-fast);
+}
+.theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .grid {
@@ -460,6 +515,70 @@ input[type="color"]::-webkit-color-swatch {
 .progress-success .progress-fill { background: var(--success); }
 .progress-warning .progress-fill { background: var(--warning); }
 .progress-error .progress-fill { background: var(--error); }
+
+/* ===========================================
+   Tables
+   =========================================== */
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: var(--section-gap);
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+
+.data-table thead {
+  background: var(--bg-secondary);
+}
+
+.data-table th {
+  padding: var(--space-md);
+  text-align: left;
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.data-table td {
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--font-size-sm);
+  vertical-align: top;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+.data-table a {
+  color: var(--primary);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Compact Table Variant */
+.data-table.compact th,
+.data-table.compact td {
+  padding: var(--space-sm) var(--space-md);
+}
+
+/* Responsive Table */
+@media (max-width: 768px) {
+  .data-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
 
 /* ===========================================
    Lists & Items

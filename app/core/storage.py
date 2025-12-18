@@ -1229,13 +1229,14 @@ class DB:
         cur = self.conn.execute("SELECT COUNT(*) FROM document_chunks")
         total_chunks = cur.fetchone()[0]
 
-        # Get stats by provider/model
+        # Get stats by provider/model (only count embeddings with existing chunks)
         cur = self.conn.execute(
             """
             SELECT provider, model,
-                   SUM(CASE WHEN document_id IS NOT NULL THEN 1 ELSE 0 END) as doc_count,
-                   SUM(CASE WHEN chunk_id IS NOT NULL THEN 1 ELSE 0 END) as chunk_count
-            FROM embeddings
+                   SUM(CASE WHEN e.document_id IS NOT NULL THEN 1 ELSE 0 END) as doc_count,
+                   SUM(CASE WHEN e.chunk_id IS NOT NULL AND c.id IS NOT NULL THEN 1 ELSE 0 END) as chunk_count
+            FROM embeddings e
+            LEFT JOIN document_chunks c ON c.id = e.chunk_id
             GROUP BY provider, model
             """
         )

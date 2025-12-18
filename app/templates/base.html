@@ -136,6 +136,54 @@
       .then(r => r.json())
       .then(theme => window.applyTheme(theme))
       .catch(() => {}); // Ignoriere Fehler, Default-Werte greifen
+
+    // Dark Mode Toggle
+    window.toggleTheme = function() {
+      const root = document.documentElement;
+      const current = root.getAttribute('data-theme');
+      const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+      let newTheme;
+      if (current === 'dark') {
+        newTheme = 'light';
+      } else if (current === 'light') {
+        newTheme = 'dark';
+      } else {
+        // No manual override yet - toggle opposite of system
+        newTheme = systemDark ? 'light' : 'dark';
+      }
+
+      root.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      updateThemeIcon(newTheme);
+    };
+
+    window.updateThemeIcon = function(theme) {
+      const btn = document.getElementById('theme-toggle');
+      if (!btn) return;
+      const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const isDark = theme === 'dark' || (!theme && systemDark);
+      btn.textContent = isDark ? '☀️' : '🌙';
+      btn.title = isDark ? 'Light Mode' : 'Dark Mode';
+    };
+
+    // Restore saved theme on load
+    document.addEventListener('DOMContentLoaded', () => {
+      const saved = localStorage.getItem('theme');
+      if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+      }
+      updateThemeIcon(saved);
+
+      // Set active nav link
+      const path = window.location.pathname;
+      document.querySelectorAll('.nav a').forEach(a => {
+        const href = a.getAttribute('href');
+        if (path === href || (href !== '/' && path.startsWith(href))) {
+          a.classList.add('active');
+        }
+      });
+    });
   </script>
 </head>
 <body>
@@ -149,6 +197,7 @@
         <a href="/readwise/preview">Readwise</a>
         <a href="/readwise/import">Import</a>
         <a href="/admin">Admin</a>
+        <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">🌙</button>
       </nav>
     </div>
   </header>
