@@ -69,7 +69,13 @@ async def library(request: Request, q: str = "", mode: str = "fts"):
         try:
             query_embedding = await get_embedding(q.strip())
             embedding_bytes = serialize_f32(query_embedding)
-            rows = db.semantic_search(embedding_bytes, limit=50)
+            # Try chunk-based search first (includes citations and context)
+            rows = db.semantic_search_with_chunks(
+                embedding_bytes,
+                dimensions=1536,  # OpenAI text-embedding-3-small
+                limit=50,
+                include_context=True,
+            )
         except Exception as e:
             # Fallback to FTS on error
             rows = db.search_documents(q)
@@ -119,6 +125,93 @@ def admin(request: Request):
     stats = db.get_stats()
     embedding_stats = db.get_embedding_stats()
     return render("admin.html", request=request, settings=s, stats=stats, embedding_stats=embedding_stats)
+
+
+@app.get("/admin/compare", response_class=HTMLResponse)
+def admin_compare(request: Request):
+    """Model comparison page for side-by-side embedding provider testing."""
+    return render("admin_compare.html", request=request)
+
+
+@app.get("/api/compare/search")
+async def api_compare_search(q: str, provider: str = "openai", limit: int = 5):
+    """Search using a specific provider for comparison.
+
+    Args:
+        q: Search query
+        provider: 'openai' or 'ollama'
+        limit: Maximum results (default 5)
+
+    Returns:
+        Search results with timing and cost info
+    """
+    import time
+
+    if not q or not q.strip():
+        return {"error": "Query is required", "results": []}
+
+    try:
+        embed_provider = get_provider(provider)
+
+        # Get query embedding
+        start = time.monotonic()
+        query_embedding = await embed_provider.embed_single(q.strip())
+        embed_time = time.monotonic() - start
+
+        # Serialize and search
+        embedding_bytes = serialize_f32(query_embedding)
+        db = get_db()
+
+        # Search using the legacy table (all docs have embeddings there)
+        search_start = time.monotonic()
+        results = db.semantic_search(embedding_bytes, limit=limit)
+        search_time = time.monotonic() - search_start
+
+        total_latency = int((embed_time + search_time) * 1000)
+
+        # Estimate cost
+        token_estimate = len(q) // 4
+        cost_usd = embed_provider.estimate_cost(token_estimate)
+
+        # Track usage
+        db.log_api_usage(
+            provider=embed_provider.name.lower(),
+            model=embed_provider.model_id,
+            operation="compare_search",
+            tokens_input=token_estimate,
+            cost_usd=cost_usd,
+            latency_ms=total_latency,
+            success=True,
+        )
+
+        return {
+            "provider": embed_provider.name,
+            "model": embed_provider.model_id,
+            "results": results,
+            "latency_ms": total_latency,
+            "cost_usd": cost_usd,
+            "query": q,
+        }
+
+    except EmbeddingError as e:
+        return {
+            "provider": provider,
+            "model": "unknown",
+            "results": [],
+            "error": str(e),
+            "latency_ms": 0,
+            "cost_usd": 0,
+        }
+
+    except Exception as e:
+        return {
+            "provider": provider,
+            "model": "unknown",
+            "results": [],
+            "error": str(e),
+            "latency_ms": 0,
+            "cost_usd": 0,
+        }
 
 
 @app.post("/admin/embeddings/generate")

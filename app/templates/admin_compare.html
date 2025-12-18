@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Modell-Vergleich</h1>
+<p class="muted">Teste verschiedene Embedding-Modelle mit der gleichen Suchanfrage.</p>
+
+<div x-data="compareApp()" x-init="init()">
+  <!-- Suchanfrage -->
+  <div class="card" style="margin-top: 1rem;">
+    <form @submit.prevent="runComparison()">
+      <div class="row gap">
+        <input
+          type="text"
+          class="input"
+          placeholder="Suchanfrage eingeben..."
+          x-model="query"
+          :disabled="loading"
+        >
+        <button class="btn" type="submit" :disabled="loading || !query.trim()">
+          <span x-show="!loading">Vergleichen</span>
+          <span x-show="loading">Suche laeuft...</span>
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Provider Status -->
+  <div class="grid" style="margin-top: 1rem;">
+    <template x-for="provider in providers" :key="provider.provider">
+      <div class="card">
+        <div class="row" style="justify-content: flex-start; gap: 8px;">
+          <span x-show="provider.healthy" style="color: #22c55e;">●</span>
+          <span x-show="!provider.healthy" style="color: #ef4444;">●</span>
+          <strong x-text="provider.provider"></strong>
+        </div>
+        <div class="kv" style="margin-top: 8px;">
+          <div>Modell</div>
+          <div x-text="provider.model"></div>
+        </div>
+        <div class="kv">
+          <div>Status</div>
+          <div x-text="provider.message"></div>
+        </div>
+        <div class="kv" x-show="provider.latency_ms">
+          <div>Latenz</div>
+          <div><span x-text="provider.latency_ms"></span>ms</div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- Ergebnisse Side-by-Side -->
+  <div x-show="results.length > 0" style="margin-top: 2rem;">
+    <h2>Ergebnisse fuer: "<span x-text="lastQuery"></span>"</h2>
+
+    <div class="compare-grid">
+      <template x-for="result in results" :key="result.provider">
+        <div class="card">
+          <div class="compare-header">
+            <strong x-text="result.provider"></strong>
+            <span class="badge" x-text="result.model"></span>
+          </div>
+          <div class="compare-meta">
+            <span>Latenz: <span x-text="result.latency_ms"></span>ms</span>
+            <span x-show="result.cost_usd > 0">Kosten: $<span x-text="result.cost_usd.toFixed(6)"></span></span>
+            <span x-show="result.cost_usd === 0">Kostenlos</span>
+          </div>
+
+          <div class="compare-results">
+            <template x-for="(doc, idx) in result.documents" :key="doc.id">
+              <div class="compare-item">
+                <div class="compare-rank" x-text="idx + 1"></div>
+                <div class="compare-content">
+                  <a :href="'/documents/' + doc.id" x-text="doc.title || ('Doc #' + doc.id)"></a>
+                  <div class="compare-distance">
+                    Distanz: <span x-text="doc.distance.toFixed(4)"></span>
+                  </div>
+                </div>
+              </div>
+            </template>
+            <p x-show="result.documents.length === 0" class="muted">Keine Ergebnisse</p>
+            <p x-show="result.error" class="error" x-text="result.error"></p>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- Analyse -->
+    <div class="card" style="margin-top: 1rem;" x-show="results.length === 2">
+      <h3>Analyse</h3>
+      <div class="analysis">
+        <template x-if="results[0] && results[1]">
+          <div>
+            <p x-show="results[0].latency_ms < results[1].latency_ms">
+              <strong x-text="results[0].provider"></strong> ist
+              <span x-text="Math.round(results[1].latency_ms / results[0].latency_ms)"></span>x schneller.
+            </p>
+            <p x-show="results[1].latency_ms < results[0].latency_ms">
+              <strong x-text="results[1].provider"></strong> ist
+              <span x-text="Math.round(results[0].latency_ms / results[1].latency_ms)"></span>x schneller.
+            </p>
+            <p>
+              <strong>Ranking-Uebereinstimmung:</strong>
+              <span x-text="calculateOverlap()"></span> von 5 Top-Ergebnissen sind gleich.
+            </p>
+            <p x-show="results[0].cost_usd > 0 && results[1].cost_usd === 0">
+              <strong>Kosten:</strong> <span x-text="results[1].provider"></span> ist kostenlos,
+              <span x-text="results[0].provider"></span> kostet $<span x-text="results[0].cost_usd.toFixed(6)"></span> pro Suche.
+            </p>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hinweise -->
+  <div class="card" style="margin-top: 2rem;">
+    <h3>Hinweise</h3>
+    <ul style="margin: 0; padding-left: 1.2rem;">
+      <li><strong>Distanz:</strong> Niedriger = aehnlicher (0.0 - 2.0 bei Cosine)</li>
+      <li><strong>OpenAI:</strong> Beste Qualitaet, kostet ~$0.00002 pro Suche</li>
+      <li><strong>Ollama:</strong> Laeuft lokal, kostenlos, etwas geringere Qualitaet</li>
+      <li>Ollama muss installiert und das Modell geladen sein (<code>ollama pull nomic-embed-text</code>)</li>
+    </ul>
+  </div>
+</div>
+
+<style>
+.compare-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+}
+.compare-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+.compare-meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.85em;
+  opacity: 0.8;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(120,120,120,0.2);
+}
+.compare-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.compare-item {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  border-radius: 8px;
+  background: rgba(120,120,120,0.05);
+}
+.compare-rank {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(120,120,120,0.15);
+  font-size: 0.8em;
+  font-weight: 600;
+}
+.compare-content {
+  flex: 1;
+}
+.compare-content a {
+  font-weight: 500;
+}
+.compare-distance {
+  font-size: 0.8em;
+  opacity: 0.7;
+  margin-top: 2px;
+}
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: rgba(120,120,120,0.15);
+  font-size: 0.75em;
+}
+.muted {
+  opacity: 0.7;
+}
+.error {
+  color: #ef4444;
+}
+.success {
+  color: #22c55e;
+}
+.analysis p {
+  margin: 0.5rem 0;
+}
+</style>
+
+<script>
+function compareApp() {
+  return {
+    query: '',
+    lastQuery: '',
+    loading: false,
+    providers: [],
+    results: [],
+
+    async init() {
+      // Load provider health status
+      try {
+        const resp = await fetch('/api/providers/health');
+        const data = await resp.json();
+        this.providers = data.providers || [];
+      } catch (e) {
+        console.error('Failed to load providers:', e);
+      }
+    },
+
+    async runComparison() {
+      if (!this.query.trim()) return;
+
+      this.loading = true;
+      this.lastQuery = this.query;
+      this.results = [];
+
+      const providers = ['openai', 'ollama'];
+
+      for (const provider of providers) {
+        try {
+          const start = Date.now();
+          const resp = await fetch(`/api/compare/search?q=${encodeURIComponent(this.query)}&provider=${provider}&limit=5`);
+          const data = await resp.json();
+          const latency = Date.now() - start;
+
+          this.results.push({
+            provider: data.provider || provider,
+            model: data.model || 'unknown',
+            latency_ms: data.latency_ms || latency,
+            cost_usd: data.cost_usd || 0,
+            documents: data.results || [],
+            error: data.error || null
+          });
+        } catch (e) {
+          this.results.push({
+            provider: provider,
+            model: 'unknown',
+            latency_ms: 0,
+            cost_usd: 0,
+            documents: [],
+            error: e.message
+          });
+        }
+      }
+
+      this.loading = false;
+    },
+
+    calculateOverlap() {
+      if (this.results.length < 2) return 0;
+      const ids1 = new Set(this.results[0].documents.slice(0, 5).map(d => d.id));
+      const ids2 = new Set(this.results[1].documents.slice(0, 5).map(d => d.id));
+      let overlap = 0;
+      for (const id of ids1) {
+        if (ids2.has(id)) overlap++;
+      }
+      return overlap;
+    }
+  };
+}
+</script>
+
+{% endblock %}

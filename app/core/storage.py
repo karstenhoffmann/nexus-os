@@ -1084,6 +1084,88 @@ class DB:
         self.conn.commit()
         return cur.fetchone()[0]
 
+    def semantic_search_with_chunks(
+        self,
+        query_embedding: bytes,
+        dimensions: int = 1536,
+        limit: int = 10,
+        include_context: bool = True,
+    ) -> list[dict[str, Any]]:
+        """Search with chunk-level results and context for citations.
+
+        Uses the new embeddings table if chunk embeddings exist,
+        otherwise falls back to document-level search.
+
+        Args:
+            query_embedding: Serialized embedding bytes
+            dimensions: Vector dimensions (must match model)
+            limit: Maximum results
+            include_context: Include surrounding chunks for context
+
+        Returns:
+            List of results with chunk_text, position data, and context
+        """
+        # Check if we have chunk embeddings
+        cur = self.conn.execute(
+            "SELECT COUNT(*) FROM embeddings WHERE chunk_id IS NOT NULL"
+        )
+        chunk_count = cur.fetchone()[0]
+
+        if chunk_count == 0:
+            # Fall back to document-level search
+            return self.semantic_search(query_embedding, limit)
+
+        # Search in chunk embeddings
+        vec_table = f"embeddings_{dimensions}"
+
+        try:
+            cur = self.conn.execute(
+                f"""
+                SELECT v.embedding_id, v.distance,
+                       e.chunk_id, c.chunk_text, c.char_start, c.char_end,
+                       c.chunk_index, c.document_id,
+                       d.title, d.author, d.url_original, d.saved_at
+                FROM {vec_table} v
+                JOIN embeddings e ON e.id = v.embedding_id
+                JOIN document_chunks c ON c.id = e.chunk_id
+                JOIN documents d ON d.id = c.document_id
+                WHERE v.embedding MATCH ? AND k = ?
+                  AND e.chunk_id IS NOT NULL
+                ORDER BY v.distance
+                """,
+                (query_embedding, limit),
+            )
+
+            results = []
+            for row in cur.fetchall():
+                result = {
+                    "id": row[7],  # document_id
+                    "distance": row[1],
+                    "chunk_id": row[2],
+                    "chunk_text": row[3],
+                    "char_start": row[4],
+                    "char_end": row[5],
+                    "chunk_index": row[6],
+                    "title": row[8],
+                    "author": row[9],
+                    "url": row[10],
+                    "saved_at": row[11],
+                }
+
+                # Get context if requested
+                if include_context:
+                    context = self.get_chunk_context(row[2], context_chunks=1)
+                    result["context_before"] = context.get("context_before", "")
+                    result["context_after"] = context.get("context_after", "")
+
+                results.append(result)
+
+            return results
+
+        except Exception:
+            # Fallback if vec table doesn't exist or other error
+            return self.semantic_search(query_embedding, limit)
+
     def get_usage_stats(self, period: str = "today") -> dict[str, Any]:
         """Get usage statistics for a time period.
 
