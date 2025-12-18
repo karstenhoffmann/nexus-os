@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import markdown2
+
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -42,6 +44,16 @@ jinja = Environment(
     loader=FileSystemLoader(str(TEMPLATES_DIR)),
     autoescape=select_autoescape(["html", "xml"]),
 )
+
+
+def _render_markdown(text: str) -> str:
+    """Render markdown to HTML safely."""
+    if not text:
+        return ""
+    return markdown2.markdown(text, extras=["fenced-code-blocks", "tables", "break-on-newline"])
+
+
+jinja.filters["markdown"] = _render_markdown
 
 app = FastAPI(title="nexus-os")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -1631,6 +1643,9 @@ def readwise_import_stream(job_id: str, token: str | None = None):
                                 title=article_data.get("title"),
                                 author=article_data.get("author"),
                                 published_at=article_data.get("published_date"),
+                                saved_at=article_data.get("saved_at"),
+                                category=article_data.get("category"),
+                                word_count=article_data.get("word_count"),
                                 fulltext=clean_text,
                                 fulltext_html=html_content,  # Keep original HTML with images
                                 fulltext_source="readwise" if clean_text else None,

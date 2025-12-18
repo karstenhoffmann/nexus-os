@@ -6,61 +6,484 @@
 </div>
 
 {% if error %}
-<div class="card error">{{ error }}</div>
+<div class="card card-error">
+  <i data-feather="alert-circle"></i> {{ error }}
+</div>
 {% endif %}
 
 {% if doc %}
-<article class="article-detail">
-  <header class="article-header">
+<article class="document-detail" x-data="documentApp()">
+
+  <!-- Header with metadata -->
+  <header class="document-header card">
     <h1>{{ doc.title or "Ohne Titel" }}</h1>
-    {% if doc.author %}
-    <p class="meta">Von {{ doc.author }}</p>
-    {% endif %}
-    {% if doc.published_at %}
-    <p class="meta">{{ doc.published_at }}</p>
-    {% endif %}
-    {% if doc.url_original %}
-    <p class="meta"><a href="{{ doc.url_original }}" target="_blank" class="external-link">Originalquelle <i data-feather="external-link"></i></a></p>
-    {% endif %}
-    <p class="meta">Quelle: {{ doc.source }}{% if doc.saved_at %} | Gespeichert: {{ doc.saved_at }}{% endif %}</p>
+
+    <div class="meta-grid">
+      {% if doc.author %}
+      <div class="meta-item">
+        <i data-feather="user"></i>
+        <span>{{ doc.author }}</span>
+      </div>
+      {% endif %}
+
+      {% if doc.category %}
+      <div class="meta-item">
+        <span class="badge badge-{{ doc.category }}">{{ doc.category }}</span>
+      </div>
+      {% endif %}
+
+      {% if doc.word_count %}
+      <div class="meta-item">
+        <i data-feather="file-text"></i>
+        <span>{{ "{:,}".format(doc.word_count).replace(",", ".") }} Woerter</span>
+      </div>
+      {% endif %}
+
+      {% if doc.saved_at %}
+      <div class="meta-item">
+        <i data-feather="bookmark"></i>
+        <span>Gespeichert: {{ doc.saved_at[:10] }}</span>
+      </div>
+      {% endif %}
+
+      {% if doc.published_at %}
+      <div class="meta-item">
+        <i data-feather="calendar"></i>
+        <span>Veroeffentlicht: {{ doc.published_at[:10] }}</span>
+      </div>
+      {% endif %}
+
+      {% if doc.url_original %}
+      <div class="meta-item">
+        <a href="{{ doc.url_original }}" target="_blank" rel="noopener">
+          <i data-feather="external-link"></i> Original
+        </a>
+      </div>
+      {% endif %}
+
+      <div class="meta-item meta-muted">
+        <span>Quelle: {{ doc.source }}</span>
+      </div>
+    </div>
   </header>
 
+  <!-- Summary Section -->
+  {% if doc.summary %}
+  <section class="card">
+    <div class="section-header">
+      <h2><i data-feather="align-left"></i> Zusammenfassung</h2>
+    </div>
+    <div class="summary-content">
+      {{ doc.summary|markdown|safe }}
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Highlights Section -->
   {% if highlights %}
-  <section class="highlights-section">
-    <h2>Highlights ({{ highlights|length }})</h2>
+  <section class="card">
+    <div class="section-header">
+      <h2><i data-feather="bookmark"></i> Highlights ({{ highlights|length }})</h2>
+    </div>
     <ul class="highlights-list">
       {% for h in highlights %}
       <li class="highlight-item">
-        <blockquote>{{ h.text }}</blockquote>
-        {% if h.note %}
-        <p class="highlight-note">Notiz: {{ h.note }}</p>
-        {% endif %}
-        {% if h.highlighted_at %}
-        <p class="highlight-meta">{{ h.highlighted_at }}</p>
-        {% endif %}
+        <div class="highlight-content">
+          <blockquote>{{ h.text|markdown|safe }}</blockquote>
+          {% if h.note %}
+          <p class="highlight-note">
+            <i data-feather="message-circle"></i> {{ h.note }}
+          </p>
+          {% endif %}
+          {% if h.highlighted_at %}
+          <p class="highlight-meta">{{ h.highlighted_at[:10] }}</p>
+          {% endif %}
+        </div>
+        <button class="btn btn-icon copy-btn" @click="copyToClipboard($event, '{{ h.text|e|replace("'", "\\'") }}')" title="Markdown kopieren">
+          <i data-feather="copy"></i>
+        </button>
       </li>
       {% endfor %}
     </ul>
   </section>
   {% endif %}
 
-  {% if doc.summary %}
-  <section class="summary-section">
-    <h2>Zusammenfassung</h2>
-    <p>{{ doc.summary }}</p>
-  </section>
-  {% endif %}
-
+  <!-- Fulltext Section -->
   {% if doc.fulltext %}
-  <section class="content-section">
-    <h2>Inhalt</h2>
+  <section class="card">
+    <div class="section-header">
+      <h2><i data-feather="file-text"></i> Inhalt</h2>
+      <button class="btn btn-secondary btn-sm copy-btn" @click="copyFulltext($event)" title="Rohen Text kopieren">
+        <i data-feather="copy"></i> Kopieren
+      </button>
+    </div>
     <div class="article-content">
-      {{ doc.fulltext|safe }}
+      {{ doc.fulltext|markdown|safe }}
     </div>
   </section>
+  {% elif not highlights %}
+  <div class="card empty-state">
+    <i data-feather="inbox" class="empty-icon"></i>
+    <p>Kein Inhalt fuer dieses Dokument verfuegbar.</p>
+  </div>
   {% endif %}
 
 </article>
+
+<script>
+const rawFulltext = {{ doc.fulltext|tojson|safe if doc.fulltext else '""' }};
+
+function documentApp() {
+  return {
+    async copyToClipboard(event, text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        this.showCopyFeedback(event.currentTarget);
+      } catch (err) {
+        console.error('Copy failed:', err);
+      }
+    },
+    async copyFulltext(event) {
+      try {
+        await navigator.clipboard.writeText(rawFulltext);
+        this.showCopyFeedback(event.currentTarget);
+      } catch (err) {
+        console.error('Copy failed:', err);
+      }
+    },
+    showCopyFeedback(button) {
+      const originalHTML = button.innerHTML;
+      button.innerHTML = '<i data-feather="check"></i>';
+      feather.replace();
+      button.classList.add('copy-success');
+      setTimeout(() => {
+        button.innerHTML = originalHTML;
+        feather.replace();
+        button.classList.remove('copy-success');
+      }, 1500);
+    }
+  };
+}
+</script>
 {% endif %}
+
+<style>
+.document-detail {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.document-header {
+  margin-bottom: var(--space-lg);
+}
+
+.document-header h1 {
+  margin-bottom: var(--space-md);
+  line-height: 1.3;
+}
+
+.meta-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-lg);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.meta-item svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.meta-item a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.meta-muted {
+  color: var(--text-muted);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.section-header h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.section-header h2 svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--text-muted);
+}
+
+.summary-content {
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+.highlights-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.highlight-item {
+  display: flex;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--warning, #f59e0b);
+}
+
+.highlight-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.highlight-item blockquote {
+  margin: 0;
+  font-style: italic;
+  line-height: var(--line-height-relaxed);
+}
+
+.highlight-item blockquote p {
+  margin: 0;
+}
+
+.highlight-note {
+  margin-top: var(--space-sm);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  font-style: normal;
+}
+
+.highlight-note svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+}
+
+.highlight-meta {
+  margin-top: var(--space-xs);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.copy-btn {
+  opacity: 0.5;
+  transition: opacity var(--transition-fast, 150ms);
+  flex-shrink: 0;
+}
+
+.highlight-item:hover .copy-btn,
+.section-header:hover .copy-btn {
+  opacity: 1;
+}
+
+.copy-btn.copy-success {
+  color: var(--success, #22c55e);
+  opacity: 1;
+}
+
+.btn-icon {
+  padding: var(--space-xs);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+}
+
+.btn-icon:hover {
+  background: var(--bg-hover, rgba(0,0,0,0.05));
+}
+
+.btn-sm {
+  font-size: var(--font-size-sm);
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.article-content {
+  line-height: var(--line-height-relaxed, 1.7);
+}
+
+.article-content p {
+  margin-bottom: var(--space-md);
+}
+
+.article-content h1,
+.article-content h2,
+.article-content h3,
+.article-content h4 {
+  margin-top: var(--space-lg);
+  margin-bottom: var(--space-sm);
+}
+
+.article-content ul,
+.article-content ol {
+  margin-bottom: var(--space-md);
+  padding-left: var(--space-lg);
+}
+
+.article-content li {
+  margin-bottom: var(--space-xs);
+}
+
+.article-content code {
+  background: var(--bg-secondary);
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--radius-xs, 2px);
+  font-size: 0.9em;
+  font-family: var(--font-mono, monospace);
+}
+
+.article-content pre {
+  background: var(--bg-secondary);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  margin-bottom: var(--space-md);
+}
+
+.article-content pre code {
+  background: none;
+  padding: 0;
+}
+
+.article-content blockquote {
+  border-left: 3px solid var(--border-strong, var(--border-color));
+  padding-left: var(--space-md);
+  margin-left: 0;
+  margin-right: 0;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.article-content a {
+  color: var(--primary);
+}
+
+.article-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+}
+
+.empty-state {
+  text-align: center;
+  padding: var(--space-xxl) var(--space-lg);
+  color: var(--text-muted);
+}
+
+.empty-icon {
+  width: 3rem;
+  height: 3rem;
+  opacity: 0.3;
+  margin-bottom: var(--space-md);
+}
+
+.card-error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.card-error svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+/* Badge styles (reuse from library) */
+.badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: lowercase;
+}
+
+.badge-article {
+  background: var(--primary-bg, rgba(59, 130, 246, 0.1));
+  color: var(--primary);
+}
+
+.badge-pdf {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+.badge-podcast {
+  background: rgba(245, 158, 11, 0.1);
+  color: #d97706;
+}
+
+.badge-video {
+  background: rgba(34, 197, 94, 0.1);
+  color: #16a34a;
+}
+
+.badge-tweet {
+  background: rgba(29, 161, 242, 0.1);
+  color: #1da1f2;
+}
+
+.badge-email,
+.badge-rss {
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+}
+
+.badge-epub {
+  background: rgba(168, 85, 247, 0.1);
+  color: #9333ea;
+}
+
+.badge-books,
+.badge-articles {
+  background: var(--primary-bg, rgba(59, 130, 246, 0.1));
+  color: var(--primary);
+}
+
+.badge-podcasts {
+  background: rgba(245, 158, 11, 0.1);
+  color: #d97706;
+}
+
+.badge-tweets {
+  background: rgba(29, 161, 242, 0.1);
+  color: #1da1f2;
+}
+</style>
 
 {% endblock %}

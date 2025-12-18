@@ -464,6 +464,10 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     # Backfill category and word_count from raw_json
     _backfill_document_metadata(conn)
 
+    # Ensure all documents have a category (fallback for docs without raw_json)
+    conn.execute("UPDATE documents SET category = 'article' WHERE category IS NULL")
+    conn.commit()
+
 
 VEC_SQL = """
 -- Legacy table (kept for backward compatibility)
@@ -552,11 +556,12 @@ class DB:
         return rows
 
     def get_document(self, doc_id: int) -> dict[str, Any] | None:
-        """Get a single document by ID."""
+        """Get a single document by ID with all metadata."""
         cur = self.conn.execute(
             """
-            SELECT id, source, provider_id, url_original, title, author,
-                   published_at, saved_at, fulltext, summary, created_at
+            SELECT id, source, provider_id, url_original, url_canonical, title, author,
+                   published_at, saved_at, fulltext, fulltext_html, summary,
+                   category, word_count, created_at, updated_at
             FROM documents WHERE id = ?
             """,
             (doc_id,),
@@ -569,13 +574,18 @@ class DB:
             "source": row[1],
             "provider_id": row[2],
             "url_original": row[3],
-            "title": row[4],
-            "author": row[5],
-            "published_at": row[6],
-            "saved_at": row[7],
-            "fulltext": row[8],
-            "summary": row[9],
-            "created_at": row[10],
+            "url_canonical": row[4],
+            "title": row[5],
+            "author": row[6],
+            "published_at": row[7],
+            "saved_at": row[8],
+            "fulltext": row[9],
+            "fulltext_html": row[10],
+            "summary": row[11],
+            "category": row[12],
+            "word_count": row[13],
+            "created_at": row[14],
+            "updated_at": row[15],
         }
 
     def list_digests(self) -> list[dict[str, Any]]:
@@ -891,6 +901,8 @@ class DB:
         author: str | None = None,
         published_at: str | None = None,
         saved_at: str | None = None,
+        category: str | None = None,
+        word_count: int | None = None,
         fulltext: str | None = None,
         fulltext_html: str | None = None,
         fulltext_source: str | None = None,
@@ -941,6 +953,8 @@ class DB:
                         author = COALESCE(?, author),
                         published_at = COALESCE(?, published_at),
                         saved_at = COALESCE(?, saved_at),
+                        category = COALESCE(?, category),
+                        word_count = COALESCE(?, word_count),
                         fulltext = ?,
                         fulltext_html = COALESCE(?, fulltext_html),
                         fulltext_source = ?,
@@ -951,7 +965,7 @@ class DB:
                     WHERE id = ?
                     """,
                     (provider_id, url_original, url_canonical, title, author,
-                     published_at, saved_at, fulltext, fulltext_html, fulltext_source, summary, raw_json, existing_id),
+                     published_at, saved_at, category, word_count, fulltext, fulltext_html, fulltext_source, summary, raw_json, existing_id),
                 )
             else:
                 self.conn.execute(
@@ -964,6 +978,8 @@ class DB:
                         author = COALESCE(?, author),
                         published_at = COALESCE(?, published_at),
                         saved_at = COALESCE(?, saved_at),
+                        category = COALESCE(?, category),
+                        word_count = COALESCE(?, word_count),
                         fulltext_html = COALESCE(?, fulltext_html),
                         summary = COALESCE(?, summary),
                         raw_json = COALESCE(?, raw_json),
@@ -971,7 +987,7 @@ class DB:
                     WHERE id = ?
                     """,
                     (provider_id, url_original, url_canonical, title, author,
-                     published_at, saved_at, fulltext_html, summary, raw_json, existing_id),
+                     published_at, saved_at, category, word_count, fulltext_html, summary, raw_json, existing_id),
                 )
             self.conn.commit()
             return existing_id
@@ -983,9 +999,10 @@ class DB:
             """
             INSERT INTO documents (
                 source, provider_id, url_original, url_canonical, title, author,
-                published_at, saved_at, fulltext, fulltext_html, fulltext_source, fulltext_fetched_at, summary, raw_json
+                published_at, saved_at, category, word_count,
+                fulltext, fulltext_html, fulltext_source, fulltext_fetched_at, summary, raw_json
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? IS NOT NULL THEN datetime('now') END, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? IS NOT NULL THEN datetime('now') END, ?, ?)
             ON CONFLICT(source, provider_id) DO UPDATE SET
                 url_original = COALESCE(excluded.url_original, url_original),
                 url_canonical = COALESCE(excluded.url_canonical, url_canonical),
@@ -993,6 +1010,8 @@ class DB:
                 author = COALESCE(excluded.author, author),
                 published_at = COALESCE(excluded.published_at, published_at),
                 saved_at = COALESCE(excluded.saved_at, saved_at),
+                category = COALESCE(excluded.category, category),
+                word_count = COALESCE(excluded.word_count, word_count),
                 fulltext = COALESCE(excluded.fulltext, fulltext),
                 fulltext_html = COALESCE(excluded.fulltext_html, fulltext_html),
                 fulltext_source = CASE WHEN excluded.fulltext IS NOT NULL THEN excluded.fulltext_source ELSE fulltext_source END,
@@ -1003,7 +1022,8 @@ class DB:
             RETURNING id
             """,
             (source, provider_id, url_original, url_canonical, title, author,
-             published_at, saved_at, fulltext, fulltext_html, fulltext_source, fulltext, summary, raw_json),
+             published_at, saved_at, category, word_count,
+             fulltext, fulltext_html, fulltext_source, fulltext, summary, raw_json),
         )
         row = cur.fetchone()
         self.conn.commit()

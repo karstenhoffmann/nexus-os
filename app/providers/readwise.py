@@ -574,6 +574,8 @@ class ReadwiseClient:
                                 "summary": article.summary,
                                 "html_content": article.html_content,
                                 "published_date": article.published_date.isoformat() if article.published_date else None,
+                                "word_count": article.word_count,
+                                "saved_at": doc.get("saved_at") or doc.get("created_at"),
                             },
                             "source": "reader",
                         },
@@ -683,6 +685,8 @@ class ReadwiseClient:
                                 "summary": article.summary,
                                 "html_content": article.html_content,
                                 "published_date": article.published_date.isoformat() if article.published_date else None,
+                                "word_count": article.word_count,
+                                "saved_at": book.get("updated") or book.get("last_highlight_at"),
                             },
                             "highlights": [
                                 {

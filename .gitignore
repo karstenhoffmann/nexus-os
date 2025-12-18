@@ -11,3 +11,4 @@ __pycache__/
 # tooling
 tools/node_modules/
 tools/.playwright/
+.playwright-mcp/

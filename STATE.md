@@ -14,17 +14,19 @@ Naechste Schritte (Claude Code, max 3)
 3) Optional: Doppelte Embeddings pruefen (8 Stueck)
 
 Handoff
-- FTS-Index repariert (2025-12-18):
-  - documents_fts war korrupt ("database disk image is malformed")
-  - Geloest: DROP + CREATE + Repopulate (2638 Dokumente indexiert)
-  - Keyword-Suche funktioniert jetzt wieder
-
-- Library Tabellenansicht (Commit 3210fa1):
-  - Neue Spalten: category, word_count (mit Backfill aus raw_json)
-  - Filter-Pills: Volltext/Highlights, Kategorie-Filter mit Counts
-  - Sortierbare Spalten: Titel, Autor, Typ, Datum, Woerter, Score
-  - Chunk-Preview bei semantischer Suche
-  - Kategorie-Badges farbcodiert
+- Library & Detail-Seite Verbesserungen (2025-12-18):
+  - Bug gefixt: category/word_count wurden bei Import nicht gespeichert
+  - save_article() um category/word_count Parameter erweitert
+  - Readwise Events um word_count/saved_at erweitert
+  - Backfill-Migration: alle Docs ohne category auf 'article' gesetzt
+  - Neue Dependency: markdown2 fuer Markdown-Rendering
+  - Detail-Seite komplett redesigned:
+    - Metadata-Grid mit category, word_count, saved_at, published_at
+    - Highlights mit Copy-Buttons (roher Markdown in Zwischenablage)
+    - Fulltext mit Markdown-Rendering und Copy-Button
+    - CSS-Variablen fuer Dark Mode Kompatibilitaet
+  - WICHTIG: Nach Container-Neustart werden alle categories automatisch auf 'article' gesetzt
+  - Testen: docker compose up --build, dann /library und /documents/{id} pruefen
 
 Status
 - Total Chunks: 69.338
