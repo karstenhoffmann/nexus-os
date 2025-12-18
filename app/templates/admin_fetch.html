@@ -1,0 +1,640 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Fulltext Fetching</h1>
+
+<div x-data="fetchApp()" x-init="init()">
+
+  <!-- Stats Overview -->
+  <div class="card">
+    <h2>Statistiken</h2>
+    <div class="stats-grid">
+      <div class="stat-item">
+        <span class="stat-value">{{ stats.total }}</span>
+        <span class="stat-label">Dokumente</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-value">{{ stats.with_url }}</span>
+        <span class="stat-label">Mit URL</span>
+      </div>
+      <div class="stat-item stat-success">
+        <span class="stat-value" x-text="withFulltext">{{ stats.with_fulltext }}</span>
+        <span class="stat-label">Mit Fulltext</span>
+      </div>
+      <div class="stat-item stat-pending">
+        <span class="stat-value" x-text="pending">{{ stats.pending }}</span>
+        <span class="stat-label">Ausstehend</span>
+      </div>
+      <div class="stat-item stat-error">
+        <span class="stat-value" x-text="failed">{{ stats.failed }}</span>
+        <span class="stat-label">Fehlgeschlagen</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resume Banner -->
+  {% if resumable_job %}
+  <div class="card resume-banner" x-show="!jobId || jobId !== '{{ resumable_job.id }}'">
+    <h2>Unterbrochener Job gefunden</h2>
+    <p>
+      <strong>Status:</strong> {{ resumable_job.status.value }} |
+      <strong>Verarbeitet:</strong> {{ resumable_job.items_processed }} von {{ resumable_job.items_total or '?' }} |
+      <strong>Erfolg:</strong> {{ resumable_job.items_succeeded }} |
+      <strong>Fehler:</strong> {{ resumable_job.items_failed }}
+    </p>
+    <button @click="resumeJob('{{ resumable_job.id }}')" class="btn">
+      Job fortsetzen
+    </button>
+    <button @click="dismissResume()" class="btn btn-sm">
+      Ignorieren
+    </button>
+  </div>
+  {% endif %}
+
+  <!-- Running Job Status -->
+  {% if running_job %}
+  <div class="card running-banner">
+    <h2>Job laeuft</h2>
+    <p>
+      <strong>ID:</strong> {{ running_job.id[:8] }} |
+      <strong>Fortschritt:</strong> {{ running_job.items_processed }} von {{ running_job.items_total or '?' }}
+    </p>
+    <div class="progress-bar">
+      <div class="progress-fill" style="width: {{ running_job.progress_percent }}%"></div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Control Card -->
+  <div class="card">
+    <h2>Steuerung</h2>
+
+    <div class="row gap" style="align-items: center; flex-wrap: wrap;">
+      <div>
+        <strong>Status:</strong>
+        <span x-text="status" :class="{
+          'text-success': status === 'completed',
+          'text-error': status === 'failed' || status === 'error',
+          'text-warning': status === 'paused'
+        }"></span>
+      </div>
+      <div x-show="itemsTotal > 0">
+        <strong>Fortschritt:</strong>
+        <span x-text="itemsProcessed + ' / ' + itemsTotal"></span>
+        (<span x-text="Math.round(progressPercent)"></span>%)
+      </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-bar" style="margin: 1rem 0;">
+      <div class="progress-fill" :style="'width: ' + progressPercent + '%'"></div>
+    </div>
+
+    <!-- Counters -->
+    <div class="row gap" style="margin-bottom: 1rem; flex-wrap: wrap;">
+      <div class="counter counter-success">
+        <span x-text="itemsSucceeded"></span> Erfolg
+      </div>
+      <div class="counter counter-error">
+        <span x-text="itemsFailed"></span> Fehler
+      </div>
+      <div class="counter counter-skip">
+        <span x-text="itemsSkipped"></span> Uebersprungen
+      </div>
+    </div>
+
+    <!-- Buttons -->
+    <div class="row gap">
+      <button
+        @click="startFetch()"
+        class="btn"
+        :disabled="status === 'running'"
+        x-show="status !== 'running' && status !== 'paused'">
+        Fetch starten
+      </button>
+      <button
+        @click="pauseFetch()"
+        class="btn btn-warning"
+        x-show="status === 'running'">
+        Pausieren
+      </button>
+      <button
+        @click="resumeFetch()"
+        class="btn"
+        x-show="status === 'paused'">
+        Fortsetzen
+      </button>
+      <button
+        @click="cancelFetch()"
+        class="btn btn-danger"
+        x-show="status === 'running' || status === 'paused'">
+        Abbrechen
+      </button>
+    </div>
+  </div>
+
+  <!-- Error Display -->
+  <div class="card error-card" x-show="errorMsg" x-cloak>
+    <strong>Fehler:</strong> <span x-text="errorMsg"></span>
+  </div>
+
+  <!-- Failure Summary -->
+  {% if failure_summary %}
+  <div class="card">
+    <h2>Fehler-Zusammenfassung</h2>
+    <div class="failure-grid">
+      {% for error_type, count in failure_summary.items() %}
+      <div class="failure-item">
+        <span class="failure-count">{{ count }}</span>
+        <span class="failure-type">{{ error_type }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="margin-top: 1rem;">
+      <button @click="retryFailed()" class="btn btn-sm">
+        Retry-faehige zuruecksetzen
+      </button>
+      <span class="hint">(timeout, http_5xx)</span>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Live Log -->
+  <div class="card">
+    <h2>Live Log</h2>
+    <div class="log-container" x-ref="logContainer">
+      <template x-for="(entry, index) in log" :key="index">
+        <div class="log-entry" :class="'log-' + entry.type">
+          <span class="log-time" x-text="entry.time"></span>
+          <span class="log-icon" x-text="entry.icon"></span>
+          <span x-text="entry.msg"></span>
+        </div>
+      </template>
+      <div x-show="log.length === 0" class="log-empty">
+        Noch keine Aktivitaet. Starte einen Fetch-Job.
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Jobs -->
+  <div class="card">
+    <h2>Vorherige Jobs</h2>
+    {% if jobs %}
+    <div class="job-list">
+      {% for job in jobs %}
+      <div class="job-item">
+        <div class="job-header">
+          <span class="job-id">{{ job.id[:8] }}</span>
+          <span class="job-status job-status-{{ job.status.value }}">{{ job.status.value }}</span>
+        </div>
+        <div class="job-details">
+          <span>{{ job.items_succeeded }} Erfolg</span>
+          <span>{{ job.items_failed }} Fehler</span>
+          <span>{{ job.items_skipped }} Skip</span>
+          <span class="job-time">{{ job.last_activity.strftime('%d.%m. %H:%M') }}</span>
+        </div>
+        <div class="job-progress">
+          <div class="progress-bar-small">
+            <div class="progress-fill" style="width: {{ job.progress_percent }}%"></div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p>Keine Jobs vorhanden.</p>
+    {% endif %}
+  </div>
+
+</div>
+
+<style>
+.stats-grid {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
+  background: rgba(120,120,120,0.05);
+  border-radius: 8px;
+  min-width: 100px;
+}
+.stat-value {
+  font-size: 1.8rem;
+  font-weight: bold;
+}
+.stat-label {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+.stat-success .stat-value { color: #2e7d32; }
+.stat-pending .stat-value { color: #1565c0; }
+.stat-error .stat-value { color: #c62828; }
+
+.progress-bar {
+  background: rgba(120,120,120,0.15);
+  border-radius: 4px;
+  height: 8px;
+  overflow: hidden;
+}
+.progress-fill {
+  background: #4a90d9;
+  height: 100%;
+  transition: width 0.3s ease;
+}
+.progress-bar-small {
+  background: rgba(120,120,120,0.15);
+  border-radius: 2px;
+  height: 4px;
+  overflow: hidden;
+}
+
+.counter {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+}
+.counter-success { background: rgba(46,125,50,0.15); color: #2e7d32; }
+.counter-error { background: rgba(198,40,40,0.15); color: #c62828; }
+.counter-skip { background: rgba(120,120,120,0.15); }
+
+.text-success { color: #2e7d32; }
+.text-error { color: #c62828; }
+.text-warning { color: #e6a700; }
+
+.resume-banner {
+  background: rgba(230,167,0,0.1);
+  border-left: 4px solid #e6a700;
+}
+.running-banner {
+  background: rgba(74,144,217,0.1);
+  border-left: 4px solid #4a90d9;
+}
+.error-card {
+  background: rgba(198,40,40,0.1);
+  border-left: 4px solid #c62828;
+  color: #c62828;
+}
+
+.failure-grid {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.failure-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(120,120,120,0.05);
+  border-radius: 8px;
+}
+.failure-count {
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+.failure-type {
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+.hint {
+  font-size: 0.8rem;
+  opacity: 0.6;
+  margin-left: 0.5rem;
+}
+
+.log-container {
+  max-height: 300px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 0.85rem;
+  background: rgba(120,120,120,0.05);
+  padding: 0.5rem;
+  border-radius: 8px;
+}
+.log-entry {
+  padding: 0.25rem 0;
+  border-bottom: 1px solid rgba(120,120,120,0.1);
+}
+.log-time {
+  opacity: 0.5;
+  margin-right: 0.5rem;
+}
+.log-icon {
+  margin-right: 0.25rem;
+}
+.log-item_success { color: #2e7d32; }
+.log-item_failed { color: #c62828; }
+.log-item_skipped { opacity: 0.6; }
+.log-progress { color: #1565c0; }
+.log-started, .log-completed { font-weight: bold; }
+.log-completed { color: #2e7d32; }
+.log-failed, .log-error { color: #c62828; }
+.log-paused, .log-cancelled { color: #e6a700; }
+.log-empty {
+  opacity: 0.5;
+  text-align: center;
+  padding: 2rem;
+}
+
+.job-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.job-item {
+  padding: 0.75rem;
+  background: rgba(120,120,120,0.05);
+  border-radius: 8px;
+}
+.job-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.job-id {
+  font-family: monospace;
+  font-weight: bold;
+}
+.job-status {
+  font-size: 0.8rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+}
+.job-status-completed { background: rgba(46,125,50,0.2); color: #2e7d32; }
+.job-status-running { background: rgba(74,144,217,0.2); color: #1565c0; }
+.job-status-paused { background: rgba(230,167,0,0.2); color: #e6a700; }
+.job-status-failed { background: rgba(198,40,40,0.2); color: #c62828; }
+.job-status-cancelled { background: rgba(120,120,120,0.2); }
+.job-status-pending { background: rgba(120,120,120,0.2); }
+.job-details {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.85rem;
+  opacity: 0.8;
+  margin-bottom: 0.5rem;
+}
+.job-time {
+  margin-left: auto;
+}
+.job-progress {
+  margin-top: 0.25rem;
+}
+
+[x-cloak] { display: none !important; }
+</style>
+
+<script>
+function fetchApp() {
+  return {
+    jobId: null,
+    status: 'idle',
+    itemsProcessed: 0,
+    itemsSucceeded: 0,
+    itemsFailed: 0,
+    itemsSkipped: 0,
+    itemsTotal: {{ stats.pending }},
+    progressPercent: 0,
+    errorMsg: '',
+    log: [],
+    eventSource: null,
+    // Live stats
+    withFulltext: {{ stats.with_fulltext }},
+    pending: {{ stats.pending }},
+    failed: {{ stats.failed }},
+
+    init() {
+      // Check for running job
+      {% if running_job %}
+      this.jobId = '{{ running_job.id }}';
+      this.status = 'running';
+      this.itemsProcessed = {{ running_job.items_processed }};
+      this.itemsSucceeded = {{ running_job.items_succeeded }};
+      this.itemsFailed = {{ running_job.items_failed }};
+      this.itemsSkipped = {{ running_job.items_skipped }};
+      this.itemsTotal = {{ running_job.items_total or 0 }};
+      this.progressPercent = {{ running_job.progress_percent }};
+      this.connectStream();
+      {% endif %}
+    },
+
+    addLog(type, msg, icon = '') {
+      const now = new Date();
+      const time = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      this.log.unshift({ type, msg, time, icon });
+      // Limit log size
+      if (this.log.length > 100) {
+        this.log = this.log.slice(0, 100);
+      }
+    },
+
+    async startFetch() {
+      this.status = 'starting';
+      this.errorMsg = '';
+      this.log = [];
+      this.itemsProcessed = 0;
+      this.itemsSucceeded = 0;
+      this.itemsFailed = 0;
+      this.itemsSkipped = 0;
+
+      try {
+        const resp = await fetch('/api/fetch/start', { method: 'POST' });
+        const data = await resp.json();
+
+        if (data.error) {
+          this.errorMsg = data.error;
+          this.status = 'error';
+          return;
+        }
+
+        this.jobId = data.job_id;
+        this.itemsTotal = data.items_total;
+        this.addLog('started', 'Job gestartet: ' + this.jobId.substring(0, 8), '');
+        this.connectStream();
+
+      } catch (e) {
+        this.status = 'error';
+        this.errorMsg = 'Fehler beim Starten: ' + e.message;
+      }
+    },
+
+    connectStream() {
+      if (this.eventSource) {
+        this.eventSource.close();
+      }
+
+      const url = '/api/fetch/' + this.jobId + '/stream';
+      this.eventSource = new EventSource(url);
+      this.status = 'running';
+
+      this.eventSource.addEventListener('started', (e) => {
+        const data = JSON.parse(e.data);
+        this.addLog('started', 'Fetch gestartet', '');
+      });
+
+      this.eventSource.addEventListener('item_success', (e) => {
+        const data = JSON.parse(e.data);
+        this.updateFromData(data);
+        this.addLog('item_success', data.title + ' (' + data.char_count + ' Zeichen)', '');
+        this.withFulltext++;
+        this.pending--;
+      });
+
+      this.eventSource.addEventListener('item_failed', (e) => {
+        const data = JSON.parse(e.data);
+        this.updateFromData(data);
+        this.addLog('item_failed', data.title + ' - ' + data.error_type, '');
+        this.failed++;
+        this.pending--;
+      });
+
+      this.eventSource.addEventListener('item_skipped', (e) => {
+        const data = JSON.parse(e.data);
+        this.updateFromData(data);
+        this.addLog('item_skipped', data.title + ' (' + data.reason + ')', '');
+        this.pending--;
+      });
+
+      this.eventSource.addEventListener('progress', (e) => {
+        const data = JSON.parse(e.data);
+        this.updateFromData(data);
+      });
+
+      this.eventSource.addEventListener('paused', (e) => {
+        const data = JSON.parse(e.data);
+        this.updateFromData(data);
+        this.status = 'paused';
+        this.addLog('paused', 'Job pausiert', '');
+        this.eventSource.close();
+      });
+
+      this.eventSource.addEventListener('completed', (e) => {
+        const data = JSON.parse(e.data);
+        this.updateFromData(data);
+        this.status = 'completed';
+        this.addLog('completed', 'Fetch abgeschlossen: ' + this.itemsSucceeded + ' Erfolg, ' + this.itemsFailed + ' Fehler', '');
+        this.eventSource.close();
+      });
+
+      this.eventSource.addEventListener('failed', (e) => {
+        const data = JSON.parse(e.data);
+        this.status = 'failed';
+        this.errorMsg = data.error || 'Unbekannter Fehler';
+        this.addLog('failed', 'Job fehlgeschlagen: ' + this.errorMsg, '');
+        this.eventSource.close();
+      });
+
+      this.eventSource.addEventListener('cancelled', (e) => {
+        this.status = 'cancelled';
+        this.addLog('cancelled', 'Job abgebrochen', '');
+        this.eventSource.close();
+      });
+
+      this.eventSource.addEventListener('error', (e) => {
+        if (e.data) {
+          const data = JSON.parse(e.data);
+          this.errorMsg = data.error;
+          this.addLog('error', 'Fehler: ' + data.error, '');
+        }
+        this.status = 'error';
+        this.eventSource.close();
+      });
+
+      this.eventSource.onerror = () => {
+        if (this.status === 'running') {
+          this.status = 'error';
+          this.addLog('error', 'Verbindung verloren', '');
+        }
+        this.eventSource.close();
+      };
+    },
+
+    updateFromData(data) {
+      this.itemsProcessed = data.items_processed || this.itemsProcessed;
+      this.itemsSucceeded = data.items_succeeded || this.itemsSucceeded;
+      this.itemsFailed = data.items_failed || this.itemsFailed;
+      this.itemsSkipped = data.items_skipped || this.itemsSkipped;
+      this.progressPercent = data.progress_percent || this.progressPercent;
+    },
+
+    async pauseFetch() {
+      if (!this.jobId) return;
+      try {
+        await fetch('/api/fetch/' + this.jobId + '/pause', { method: 'POST' });
+        this.addLog('paused', 'Pause angefordert...', '');
+      } catch (e) {
+        this.errorMsg = 'Fehler beim Pausieren: ' + e.message;
+      }
+    },
+
+    async resumeFetch() {
+      if (!this.jobId) return;
+      try {
+        await fetch('/api/fetch/' + this.jobId + '/resume', { method: 'POST' });
+        this.addLog('progress', 'Fortsetzen...', '');
+        this.connectStream();
+      } catch (e) {
+        this.errorMsg = 'Fehler beim Fortsetzen: ' + e.message;
+      }
+    },
+
+    async resumeJob(previousJobId) {
+      this.jobId = previousJobId;
+      this.status = 'resuming';
+      this.errorMsg = '';
+      this.log = [];
+
+      try {
+        await fetch('/api/fetch/' + previousJobId + '/resume', { method: 'POST' });
+        this.addLog('progress', 'Fortsetzen von Job ' + previousJobId.substring(0, 8) + '...', '');
+        this.connectStream();
+      } catch (e) {
+        this.errorMsg = 'Fehler beim Fortsetzen: ' + e.message;
+        this.status = 'error';
+      }
+    },
+
+    async cancelFetch() {
+      if (!this.jobId) return;
+      try {
+        await fetch('/api/fetch/' + this.jobId + '/cancel', { method: 'POST' });
+        this.status = 'cancelled';
+        this.addLog('cancelled', 'Job abgebrochen', '');
+        if (this.eventSource) {
+          this.eventSource.close();
+        }
+      } catch (e) {
+        this.errorMsg = 'Fehler beim Abbrechen: ' + e.message;
+      }
+    },
+
+    async retryFailed() {
+      try {
+        const resp = await fetch('/api/fetch/retry-failed', { method: 'POST' });
+        const data = await resp.json();
+        this.addLog('progress', data.cleared + ' Fehler zurueckgesetzt', '');
+        // Refresh stats
+        const statsResp = await fetch('/api/fetch/stats');
+        const stats = await statsResp.json();
+        this.pending = stats.pending;
+        this.failed = stats.failed;
+      } catch (e) {
+        this.errorMsg = 'Fehler: ' + e.message;
+      }
+    },
+
+    dismissResume() {
+      const banner = document.querySelector('.resume-banner');
+      if (banner) {
+        banner.style.display = 'none';
+      }
+    }
+  };
+}
+</script>
+
+{% endblock %}
