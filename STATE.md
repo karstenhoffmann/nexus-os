@@ -2,25 +2,23 @@ nexus-os Status
 
 Stand (kurz)
 - Semantische Suche funktioniert (sqlite-vec KNN + Chunk-Metadaten)
-- UI/Design System mit CSS-Variablen und Dark Mode
+- UI/Design System mit CSS-Variablen, Dark Mode, Feather Icons
 - Digests-Feature komplett (Saved Queries mit FTS + Semantic)
 
 Aktuelles Ziel
-- App nutzen und ggf. weitere Verbesserungen
+- Digests-Seite Feedback einarbeiten, dann Drafts
 
 Naechste Schritte (Claude Code, max 3)
-1) Feature Development: Drafts-Seite
-2) Weitere UX-Verbesserungen
+1) Digests-Feedback vom User einarbeiten
+2) Feature Development: Drafts-Seite
 3) Optional: Doppelte Embeddings pruefen (8 Stueck)
 
 Handoff
-- Digests-Feature (Commit 1139548):
-  - storage.py: CRUD-Funktionen, get_recent_highlights(), execute_digest_query()
-  - main.py: /api/digests/{id}/results, /api/digests/{id}/count (HTMX)
-  - digests.html: Alpine.js + HTMX mit Lazy-Loading
-  - "Neueste Highlights" Default-Sektion
-  - Click-to-expand Pattern fuer Ergebnisse
-  - Beide Modi: FTS (Keyword) und Semantic
+- Feather Icons Integration (Commit b3be8f2):
+  - base.html: CDN, Nav-Icons, Theme-Toggle (moon/sun)
+  - app.css: Icon-Utilities (.icon-spin, .btn-icon, Status-Farben)
+  - Alle Templates: Konsistente Icons fuer Aktionen, Status, Navigation
+  - Chevrons fuer Expand/Collapse, Edit/Delete Icons, Job-Controls
 
 Status
 - Total Chunks: 69.338
