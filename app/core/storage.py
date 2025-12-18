@@ -264,6 +264,13 @@ CREATE TABLE IF NOT EXISTS embed_jobs (
   last_activity TEXT DEFAULT (datetime('now')),
   error TEXT
 );
+
+-- App Settings (Key-Value Store fuer Theme etc.)
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT DEFAULT (datetime('now'))
+);
 """
 
 def _run_migrations(conn: sqlite3.Connection) -> None:
@@ -383,6 +390,20 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
                 started_at TEXT DEFAULT (datetime('now')),
                 last_activity TEXT DEFAULT (datetime('now')),
                 error TEXT
+            )
+        """)
+        conn.commit()
+
+    # Create app_settings table if not exists (for theme etc.)
+    cur = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='app_settings'"
+    )
+    if cur.fetchone() is None:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TEXT DEFAULT (datetime('now'))
             )
         """)
         conn.commit()
@@ -1701,6 +1722,41 @@ class DB:
             "by_provider": by_provider,
             "by_operation": by_operation,
         }
+
+    # ==================== App Settings (Theme etc.) ====================
+
+    def get_setting(self, key: str, default: str | None = None) -> str | None:
+        """Get a setting value by key."""
+        cur = self.conn.execute(
+            "SELECT value FROM app_settings WHERE key = ?",
+            (key,)
+        )
+        row = cur.fetchone()
+        return row[0] if row else default
+
+    def set_setting(self, key: str, value: str) -> None:
+        """Set a setting value (upsert)."""
+        self.conn.execute(
+            """
+            INSERT INTO app_settings (key, value, updated_at)
+            VALUES (?, ?, datetime('now'))
+            ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = datetime('now')
+            """,
+            (key, value)
+        )
+        self.conn.commit()
+
+    def get_theme(self) -> dict[str, str]:
+        """Get theme settings with defaults."""
+        return {
+            "primary": self.get_setting("theme_primary", "#3b82f6"),
+        }
+
+    def set_theme(self, primary: str) -> None:
+        """Update theme settings."""
+        self.set_setting("theme_primary", primary)
 
 
 _db: DB | None = None

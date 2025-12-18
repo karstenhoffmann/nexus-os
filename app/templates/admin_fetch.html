@@ -294,9 +294,9 @@
   font-size: 0.8rem;
   opacity: 0.7;
 }
-.stat-success .stat-value { color: #2e7d32; }
-.stat-pending .stat-value { color: #1565c0; }
-.stat-error .stat-value { color: #c62828; }
+.stat-success .stat-value { color: var(--success); }
+.stat-pending .stat-value { color: var(--primary); }
+.stat-error .stat-value { color: var(--error); }
 
 .progress-bar {
   background: rgba(120,120,120,0.15);
@@ -305,7 +305,7 @@
   overflow: hidden;
 }
 .progress-fill {
-  background: #4a90d9;
+  background: var(--primary);
   height: 100%;
   transition: width 0.3s ease;
 }
@@ -321,26 +321,26 @@
   border-radius: 12px;
   font-size: 0.9rem;
 }
-.counter-success { background: rgba(46,125,50,0.15); color: #2e7d32; }
-.counter-error { background: rgba(198,40,40,0.15); color: #c62828; }
+.counter-success { background: var(--success-bg); color: var(--success); }
+.counter-error { background: var(--error-bg); color: var(--error); }
 .counter-skip { background: rgba(120,120,120,0.15); }
 
-.text-success { color: #2e7d32; }
-.text-error { color: #c62828; }
-.text-warning { color: #e6a700; }
+.text-success { color: var(--success); }
+.text-error { color: var(--error); }
+.text-warning { color: var(--warning); }
 
 .resume-banner {
-  background: rgba(230,167,0,0.1);
-  border-left: 4px solid #e6a700;
+  background: var(--warning-bg);
+  border-left: 4px solid var(--warning);
 }
 .running-banner {
-  background: rgba(74,144,217,0.1);
-  border-left: 4px solid #4a90d9;
+  background: rgba(59, 130, 246, 0.1);
+  border-left: 4px solid var(--primary);
 }
 .error-card {
-  background: rgba(198,40,40,0.1);
-  border-left: 4px solid #c62828;
-  color: #c62828;
+  background: var(--error-bg);
+  border-left: 4px solid var(--error);
+  color: var(--error);
 }
 
 .failure-grid {
@@ -390,14 +390,14 @@
 .log-icon {
   margin-right: 0.25rem;
 }
-.log-item_success { color: #2e7d32; }
-.log-item_failed { color: #c62828; }
+.log-item_success { color: var(--success); }
+.log-item_failed { color: var(--error); }
 .log-item_skipped { opacity: 0.6; }
-.log-progress { color: #1565c0; }
+.log-progress { color: var(--primary); }
 .log-started, .log-completed { font-weight: bold; }
-.log-completed { color: #2e7d32; }
-.log-failed, .log-error { color: #c62828; }
-.log-paused, .log-cancelled { color: #e6a700; }
+.log-completed { color: var(--success); }
+.log-failed, .log-error { color: var(--error); }
+.log-paused, .log-cancelled { color: var(--warning); }
 .log-empty {
   opacity: 0.5;
   text-align: center;
@@ -428,10 +428,10 @@
   padding: 0.1rem 0.5rem;
   border-radius: 4px;
 }
-.job-status-completed { background: rgba(46,125,50,0.2); color: #2e7d32; }
-.job-status-running { background: rgba(74,144,217,0.2); color: #1565c0; }
-.job-status-paused { background: rgba(230,167,0,0.2); color: #e6a700; }
-.job-status-failed { background: rgba(198,40,40,0.2); color: #c62828; }
+.job-status-completed { background: var(--success-bg); color: var(--success); }
+.job-status-running { background: rgba(59, 130, 246, 0.15); color: var(--primary); }
+.job-status-paused { background: var(--warning-bg); color: var(--warning); }
+.job-status-failed { background: var(--error-bg); color: var(--error); }
 .job-status-cancelled { background: rgba(120,120,120,0.2); }
 .job-status-pending { background: rgba(120,120,120,0.2); }
 .job-details {
@@ -449,8 +449,8 @@
 }
 
 .next-steps {
-  background: rgba(46,125,50,0.05);
-  border-left: 4px solid #2e7d32;
+  background: var(--success-bg);
+  border-left: 4px solid var(--success);
 }
 .hint-text {
   font-size: 0.9rem;
@@ -475,7 +475,7 @@
 .next-step-value {
   font-size: 1.5rem;
   font-weight: bold;
-  color: #2e7d32;
+  color: var(--success);
 }
 .next-step-label {
   font-size: 0.8rem;

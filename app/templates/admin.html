@@ -103,6 +103,30 @@
   </div>
 </div>
 
+<!-- Design Section -->
+<div class="card" style="margin-top: 1.5rem;" x-data="themeEditor()" x-init="loadTheme()">
+  <h2>Design</h2>
+  <p class="muted small">Passe das Erscheinungsbild der App an. Dark Mode wird automatisch vom System uebernommen.</p>
+
+  <div style="display: flex; align-items: center; gap: 1rem; margin-top: 1rem;">
+    <div>
+      <label style="font-size: 0.9rem; color: var(--text-secondary);">Primaerfarbe</label>
+      <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
+        <input type="color" x-model="primary" @change="saveTheme()"
+               style="width: 50px; height: 36px; border: none; border-radius: 6px; cursor: pointer;">
+        <span x-text="primary" style="font-family: monospace; font-size: 0.9rem;"></span>
+      </div>
+    </div>
+    <div style="margin-left: auto;">
+      <button class="btn btn-sm" @click="resetTheme()">Zuruecksetzen</button>
+    </div>
+  </div>
+
+  <div x-show="saved" x-transition style="margin-top: 0.75rem; color: var(--success); font-size: 0.85rem;">
+    ✓ Gespeichert
+  </div>
+</div>
+
 <!-- Tools Section -->
 <h2 style="margin-top: 2rem;">Werkzeuge</h2>
 <div class="grid">
@@ -251,6 +275,48 @@ function embeddingJob() {
     stopJob() {
       this.stopRequested = true;
       this.jobStatus = 'Wird abgebrochen...';
+    }
+  };
+}
+
+function themeEditor() {
+  return {
+    primary: '#3b82f6',
+    saved: false,
+
+    async loadTheme() {
+      try {
+        const res = await fetch('/api/admin/theme');
+        const theme = await res.json();
+        this.primary = theme.primary || '#3b82f6';
+      } catch (e) {
+        // Fallback bleibt
+      }
+    },
+
+    async saveTheme() {
+      try {
+        await fetch('/api/admin/theme?primary=' + encodeURIComponent(this.primary), { method: 'POST' });
+        // Sofort anwenden
+        document.documentElement.style.setProperty('--primary', this.primary);
+        // Hover-Farbe berechnen
+        const hex = this.primary.replace('#', '');
+        const r = parseInt(hex.substr(0,2), 16);
+        const g = parseInt(hex.substr(2,2), 16);
+        const b = parseInt(hex.substr(4,2), 16);
+        const hover = '#' + [r,g,b].map(c => Math.max(0, c - 30).toString(16).padStart(2,'0')).join('');
+        document.documentElement.style.setProperty('--primary-hover', hover);
+
+        this.saved = true;
+        setTimeout(() => this.saved = false, 2000);
+      } catch (e) {
+        console.error('Theme speichern fehlgeschlagen:', e);
+      }
+    },
+
+    async resetTheme() {
+      this.primary = '#3b82f6';
+      await this.saveTheme();
     }
   };
 }

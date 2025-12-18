@@ -1,42 +1,30 @@
 nexus-os Status
 
 Stand (kurz)
-- 69.338 Chunks bereit, davon 22.455 mit Embeddings (32%)
-- Neues SSE-Embedding-System komplett implementiert (alle 5 Sprints)
-- Bereit fuer Embedding-Generierung
+- Design-System mit CSS-Variablen und Dark Mode etabliert
+- Admin-konfigurierbarer Theme-Editor (Primaerfarbe)
+- Definition of Done fuer neue Features/Seiten eingefuehrt
 
 Aktuelles Ziel
-- Alle ~47k ausstehenden Chunks embedden
-- Geschaetzte Zeit: ~12 Minuten
-- Geschaetzte Kosten: ~$0.28
+- Semantische Suche testen und nutzen
+- Optional: Verwaiste Embeddings aufraeumen (~1.950 Orphans)
 
 Naechste Schritte (Claude Code, max 3)
-1) Im Browser /admin/embeddings oeffnen und Job starten
-2) Fortschritt beobachten (Pause/Resume moeglich)
-3) Nach Abschluss: Semantische Suche testen
+1) Semantische Suche testen (/library?mode=semantic)
+2) Optional: Orphan-Cleanup implementieren
+3) Weiteres Feature Development
 
 Handoff
-- Neues SSE-basiertes Embedding-System fertig
-- Neue Dateien:
-  - app/core/embed_job_v2.py (EmbedJob, EmbedJobStore, run_embed_job)
-  - app/templates/admin_embeddings.html (Admin UI mit EventSource)
-- Aenderungen:
-  - app/core/storage.py (embed_jobs Tabelle, Index, get_chunks_for_embedding)
-  - app/main.py (neue /api/embed/* Endpoints, /admin/embeddings Route)
-  - app/core/embedding_providers.py (Base64 Encoding fuer 75% kleinere Responses)
-  - app/templates/admin.html (Link zu neuem Embedding Generator)
-- Alle Tests laufen durch
-- Bereit fuer Commit + Push
-
-Features des neuen Systems
-- SSE-Streaming fuer Echtzeit-Updates
-- Pause/Resume mit DB-persistiertem Cursor
-- Batch-Commits (200 Chunks) - keine DB-Locks
-- Kosten-Tracking pro Job
-- Base64-Encoding fuer schnellere API-Responses
+- Design-System komplett implementiert (6 Sprints):
+  - app.css: CSS-Variablen in :root + Dark Mode (@media prefers-color-scheme)
+  - DEFINITION_OF_DONE.md: 6-Punkte-Checkliste fuer neue Features
+  - CLAUDE.md: Regel 11 (Definition of Done zwingend) hinzugefuegt
+  - Admin Theme-Editor: Primaerfarbe via DB speicherbar und live aenderbar
+  - Templates konsolidiert: hardcoded Farben durch CSS-Variablen ersetzt
+  - Validierung: Admin, Fetch, Library via Playwright geprueft
+- Commit empfohlen
 
 Status
 - Total Chunks: 69.338
-- Mit Embeddings: 22.455 (32%)
-- Ausstehend: 46.883
-- Geschaetzte Kosten: ~$0.28
+- Mit Embeddings: 69.338 (100%)
+- Verwaiste Embeddings: ~1.950 (geloeschte Chunks)

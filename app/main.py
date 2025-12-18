@@ -759,6 +759,29 @@ def api_clean_html_fulltext(limit: int = 100, rechunk: bool = True):
     }
 
 
+@app.get("/api/admin/theme")
+def api_get_theme():
+    """Get current theme settings."""
+    db = get_db()
+    return db.get_theme()
+
+
+@app.post("/api/admin/theme")
+def api_set_theme(primary: str = "#3b82f6"):
+    """Update theme primary color.
+
+    Args:
+        primary: Hex color code (e.g. #3b82f6)
+    """
+    # Validate hex color
+    if not primary.startswith("#") or len(primary) != 7:
+        return {"error": "Invalid color format. Use #RRGGBB"}
+
+    db = get_db()
+    db.set_theme(primary)
+    return {"success": True, "theme": db.get_theme()}
+
+
 @app.get("/api/usage/stats")
 def api_usage_stats(period: str = "today"):
     """Get API usage statistics.

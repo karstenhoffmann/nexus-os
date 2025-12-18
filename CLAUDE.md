@@ -68,3 +68,10 @@ Kurzregeln fuer Claude Code (unverhandelbar)
 - IMMER aktuelle API-Limits recherchieren (WebSearch + aktuelles Jahr)
 - Batch-Groessen aus echten Docs, nicht aus Annahmen
 - Kosten vorher schaetzen, Nutzer informieren
+
+11. Definition of Done (zwingend)
+
+- Vor Abschluss jeder neuen Seite/Route: DEFINITION_OF_DONE.md Checkliste pruefen
+- Keine hardcoded Farben - nur CSS-Variablen aus app.css
+- Dark-Mode-kompatibel (prefers-color-scheme wird automatisch unterstuetzt)
+- Referenz-Templates: admin_embeddings.html, admin_fetch.html

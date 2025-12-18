@@ -283,7 +283,7 @@
 /* Info Card */
 .info-card {
   background: rgba(59, 130, 246, 0.05);
-  border-left: 4px solid #3b82f6;
+  border-left: 4px solid var(--primary);
 }
 .info-card p {
   margin-bottom: 1rem;
@@ -322,7 +322,7 @@
   font-weight: bold;
 }
 .current .step-icon {
-  background: #3b82f6;
+  background: var(--primary);
   color: white;
 }
 .step-text {
@@ -349,7 +349,7 @@
   margin-bottom: 1rem;
 }
 .status-success {
-  background: rgba(34, 197, 94, 0.1);
+  background: var(--success-bg);
   border: 1px solid rgba(34, 197, 94, 0.3);
 }
 .status-pending {
@@ -363,8 +363,8 @@
 .status-icon {
   font-size: 1.5rem;
 }
-.status-success .status-icon { color: #22c55e; }
-.status-pending .status-icon { color: #3b82f6; }
+.status-success .status-icon { color: var(--success); }
+.status-pending .status-icon { color: var(--primary); }
 .status-text {
   display: flex;
   flex-direction: column;
@@ -397,17 +397,17 @@
   font-size: 0.8rem;
   opacity: 0.7;
 }
-.stat-success .stat-value { color: #22c55e; }
-.stat-pending .stat-value { color: #3b82f6; }
+.stat-success .stat-value { color: var(--success); }
+.stat-pending .stat-value { color: var(--primary); }
 
 /* Orphan Warning */
 .orphan-warning {
   margin-top: 1rem;
   padding: 0.5rem 0.75rem;
-  background: rgba(234, 179, 8, 0.1);
+  background: var(--warning-bg);
   border-radius: 6px;
   font-size: 0.85rem;
-  color: #a16207;
+  color: var(--warning);
 }
 .warning-icon {
   margin-right: 0.5rem;
@@ -446,13 +446,13 @@
   overflow: hidden;
 }
 .progress-fill {
-  background: #3b82f6;
+  background: var(--primary);
   height: 100%;
   transition: width 0.3s ease;
 }
-.progress-success { background: #22c55e; }
-.progress-error { background: #ef4444; }
-.progress-warning { background: #eab308; }
+.progress-success { background: var(--success); }
+.progress-error { background: var(--error); }
+.progress-warning { background: var(--warning); }
 .progress-details {
   display: flex;
   gap: 1.5rem;
@@ -465,7 +465,7 @@
   gap: 1.5rem;
   margin-top: 0.25rem;
   font-size: 0.85rem;
-  color: #3b82f6;
+  color: var(--primary);
 }
 
 /* Completion Summary */
@@ -474,13 +474,13 @@
   align-items: center;
   gap: 1rem;
   padding: 1rem;
-  background: rgba(34, 197, 94, 0.1);
+  background: var(--success-bg);
   border-radius: 8px;
   margin-top: 1rem;
 }
 .summary-icon {
   font-size: 1.5rem;
-  color: #22c55e;
+  color: var(--success);
 }
 .summary-text {
   display: flex;
@@ -494,9 +494,9 @@
 /* Error Banner */
 .error-banner {
   padding: 0.75rem;
-  background: rgba(239, 68, 68, 0.1);
+  background: var(--error-bg);
   border-radius: 6px;
-  color: #dc2626;
+  color: var(--error);
   margin-top: 1rem;
 }
 
@@ -508,18 +508,18 @@
   flex-wrap: wrap;
 }
 .btn-primary {
-  background: #3b82f6;
+  background: var(--primary);
   color: white;
 }
 .btn-primary:hover:not(:disabled) {
-  background: #2563eb;
+  background: var(--primary-hover);
 }
 .btn-warning {
-  background: #eab308;
+  background: var(--warning);
   color: white;
 }
 .btn-danger {
-  background: #ef4444;
+  background: var(--error);
   color: white;
 }
 .btn-secondary {
@@ -539,8 +539,8 @@
 
 /* Resume Card */
 .resume-card {
-  background: rgba(234, 179, 8, 0.08);
-  border-left: 4px solid #eab308;
+  background: var(--warning-bg);
+  border-left: 4px solid var(--warning);
 }
 .resume-details {
   display: flex;
@@ -567,11 +567,11 @@
   opacity: 0.5;
   margin-right: 0.5rem;
 }
-.log-batch_complete { color: #22c55e; }
+.log-batch_complete { color: var(--success); }
 .log-started, .log-completed { font-weight: bold; }
-.log-completed { color: #22c55e; }
-.log-failed, .log-error { color: #ef4444; }
-.log-paused, .log-cancelled { color: #eab308; }
+.log-completed { color: var(--success); }
+.log-failed, .log-error { color: var(--error); }
+.log-paused, .log-cancelled { color: var(--warning); }
 
 /* Job List */
 .job-list {
@@ -598,10 +598,10 @@
   padding: 0.1rem 0.5rem;
   border-radius: 4px;
 }
-.job-status-completed { background: rgba(34,197,94,0.2); color: #16a34a; }
-.job-status-running { background: rgba(59,130,246,0.2); color: #2563eb; }
-.job-status-paused { background: rgba(234,179,8,0.2); color: #ca8a04; }
-.job-status-failed { background: rgba(239,68,68,0.2); color: #dc2626; }
+.job-status-completed { background: var(--success-bg); color: var(--success); }
+.job-status-running { background: rgba(59,130,246,0.15); color: var(--primary); }
+.job-status-paused { background: var(--warning-bg); color: var(--warning); }
+.job-status-failed { background: var(--error-bg); color: var(--error); }
 .job-status-cancelled { background: rgba(120,120,120,0.2); }
 .job-status-pending { background: rgba(120,120,120,0.2); }
 .job-details {
@@ -625,9 +625,9 @@
 }
 
 /* Text colors */
-.text-success { color: #22c55e; }
-.text-error { color: #ef4444; }
-.text-warning { color: #eab308; }
+.text-success { color: var(--success); }
+.text-error { color: var(--error); }
+.text-warning { color: var(--warning); }
 </style>
 
 <script>

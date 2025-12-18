@@ -8,6 +8,24 @@
   <link rel="stylesheet" href="/static/app.css">
   <script defer src="/static/htmx.min.js"></script>
   <script defer src="/static/alpine.min.js"></script>
+  <script>
+    // Theme aus DB laden und anwenden
+    fetch('/api/admin/theme')
+      .then(r => r.json())
+      .then(theme => {
+        if (theme.primary) {
+          document.documentElement.style.setProperty('--primary', theme.primary);
+          // Berechne hover-Farbe (etwas dunkler)
+          const hex = theme.primary.replace('#', '');
+          const r = parseInt(hex.substr(0,2), 16);
+          const g = parseInt(hex.substr(2,2), 16);
+          const b = parseInt(hex.substr(4,2), 16);
+          const hover = '#' + [r,g,b].map(c => Math.max(0, c - 30).toString(16).padStart(2,'0')).join('');
+          document.documentElement.style.setProperty('--primary-hover', hover);
+        }
+      })
+      .catch(() => {}); // Ignoriere Fehler, Default-Farben greifen
+  </script>
 </head>
 <body>
   <header class="topbar">
