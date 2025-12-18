@@ -173,18 +173,8 @@ async def api_compare_search(q: str, provider: str = "openai", limit: int = 5):
         token_estimate = len(q) // 4
         cost_usd = embed_provider.estimate_cost(token_estimate)
 
-        # Track usage
-        db.log_api_usage(
-            provider=embed_provider.name.lower(),
-            model=embed_provider.model_id,
-            operation="compare_search",
-            tokens_input=token_estimate,
-            cost_usd=cost_usd,
-            latency_ms=total_latency,
-            success=True,
-        )
-
-        return {
+        # Build response first (before any more DB operations)
+        response = {
             "provider": embed_provider.name,
             "model": embed_provider.model_id,
             "results": results,
@@ -192,6 +182,24 @@ async def api_compare_search(q: str, provider: str = "openai", limit: int = 5):
             "cost_usd": cost_usd,
             "query": q,
         }
+
+        # Track usage (non-critical, wrapped in try/except)
+        try:
+            db.log_api_usage(
+                provider=embed_provider.name.lower(),
+                model=embed_provider.model_id,
+                operation="compare_search",
+                tokens_input=token_estimate,
+                cost_usd=cost_usd,
+                latency_ms=total_latency,
+                success=True,
+            )
+        except Exception as log_err:
+            # Don't fail the search if logging fails
+            import logging
+            logging.warning(f"Failed to log usage: {log_err}")
+
+        return response
 
     except EmbeddingError as e:
         return {
