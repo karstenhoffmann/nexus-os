@@ -64,9 +64,11 @@ Restore
 
 5.1 OpenAI API Fehler 429
 
+WICHTIG: Zwei verschiedene 429-Fehler unterscheiden!
+
 "Rate limit reached":
-- Ursache: Zu viele Requests pro Minute
-- Loesung: Warten, Batch-Groesse reduzieren
+- Ursache: Zu viele Requests pro Minute (selten bei Embeddings)
+- Loesung: Warten hilft hier
 
 "You exceeded your current quota":
 - Ursache: Keine Credits (OpenAI ist prepaid seit 2024!)
@@ -84,5 +86,10 @@ WO: Browser http://localhost:8000/admin
 WARUM: Embeddings fuer semantische Suche generieren
 Kosten: ca. $0.02 pro 1000 Dokumente (text-embedding-3-small)
 
-Oder via Script:
+Oder via Script (schneller):
 ./scripts/generate-all-embeddings.sh
+
+Rate Limits fuer text-embedding-3-small (Dezember 2025):
+- Tier 1 (nach $5 Zahlung): 3,000 RPM, 1,000,000 TPM
+- Tier 2 (nach $50): 5,000 RPM
+- Bei 2600 Dokumenten: ~30 Sekunden moeglich
