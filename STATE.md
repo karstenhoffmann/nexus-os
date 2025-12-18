@@ -4,35 +4,39 @@ Stand (kurz)
 - Semantische Suche funktioniert mit Chunk-Zitaten und Kontext.
 - 2637 Dokumente haben Embeddings (OpenAI text-embedding-3-small).
 - Provider-Abstraktion: OpenAI + Ollama Support mit Health-Checks.
-- Modell-Vergleich: /admin/compare fuer Side-by-Side Tests.
-- Chunking-System: 800 Zeichen, 20% Ueberlappung, Positionsdaten.
+- ContentFetcher: trafilatura fuer Fulltext-Extraktion von URLs.
+- 2605 URLs warten auf Fulltext-Fetching.
 
 Aktuelles Ziel
-- KI-Modell-Konfiguration und Hybrid-Chunking (Plan: glistening-seeking-snowglobe.md)
+- Fulltext-Fetching (Plan: glistening-seeking-snowglobe.md)
 
 Fertig (diese Session)
-1) Sprint 1: Provider-Abstraktion (embedding_providers.py)
-2) Sprint 2: DB-Schema (Chunks, Embeddings, Usage)
-3) Sprint 3: Chunking-System (chunking.py)
-4) Sprint 4: Modell-Vergleichs-UI (/admin/compare)
-5) Sprint 5: Zitierbarkeit und Kontext (library.html mit Chunk-Zitaten)
+1) Sprint F1: DB-Schema (fetch_jobs, fetch_failures Tabellen)
+2) Sprint F1: ContentFetcher mit trafilatura (content_fetcher.py)
+3) Sprint F1: Tests mit echten URLs (16/16 bestanden)
+4) Paywall/JS-Domain-Erkennung (medium.com, linkedin.com, etc.)
 
 Naechste Schritte (Claude Code, max 3)
-1) Sprint 6: Admin-UI mit Provider-Auswahl und Erklaerungen
-2) Sprint 7: Usage-Tracking Dashboard
-3) Sprint 8: Query-Caching
+1) Sprint F2: FetchJobStore + DomainRateLimiter (fetch_job.py)
+2) Sprint F3: API Endpoints + SSE Streaming
+3) Sprint F4: Admin Fetch UI (/admin/fetch)
 
 Offene Fragen (max 3)
 - (keine aktuell)
 
 Handoff
-- Provider-Vergleich: /admin/compare
-- Chunk-Suche: /library?mode=semantic (zeigt Zitate wenn Chunks existieren)
-- API Compare: GET /api/compare/search?q=...&provider=openai|ollama
-- Chunk-Kontext: db.get_chunk_context(chunk_id, context_chunks=2)
-- Alle Provider-Endpoints: /api/providers/*, /api/embeddings/*
+- ContentFetcher Test: docker compose exec app python -c "
+  import asyncio
+  from app.core.content_fetcher import fetch_url
+  result = asyncio.run(fetch_url('https://example.com'))
+  print(result)"
+- Fetch Stats: db.count_documents_for_fetch()
+  - 2605 URLs pending, 0 mit Fulltext, 0 failed
+- Domain-Erkennung:
+  - Paywall: medium.com, nytimes.com, wsj.com, etc.
+  - JS Required: twitter.com, linkedin.com, instagram.com, etc.
+- Neue DB-Tabellen: fetch_jobs, fetch_failures
+- Neue DB-Methoden: save_fulltext(), save_fetch_failure(), get_fetch_failures()
+- Alle Tests: docker compose exec app python -m pytest tests/ -v (32/32)
 
-Wichtig: Chunks muessen erst generiert werden!
-  POST /api/embeddings/generate-chunks?limit=300
-
-Danach funktioniert die Chunk-basierte Suche mit Zitaten.
+Wichtig: Sprint F2-F4 implementieren fuer vollstaendigen Fetch-Workflow!

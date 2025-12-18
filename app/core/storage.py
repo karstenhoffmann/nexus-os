@@ -211,6 +211,39 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
   content='document_chunks',
   content_rowid='id'
 );
+
+-- Fulltext Fetch Jobs
+CREATE TABLE IF NOT EXISTS fetch_jobs (
+  id TEXT PRIMARY KEY,
+  status TEXT NOT NULL,  -- pending, running, paused, cancelled, completed, failed
+  cursor_doc_id INTEGER,  -- Resume-Position
+  items_processed INTEGER DEFAULT 0,
+  items_succeeded INTEGER DEFAULT 0,
+  items_failed INTEGER DEFAULT 0,
+  items_skipped INTEGER DEFAULT 0,
+  items_total INTEGER,
+  started_at TEXT DEFAULT (datetime('now')),
+  last_activity TEXT DEFAULT (datetime('now')),
+  error TEXT
+);
+
+-- Fetch Failures mit Error-Klassifizierung
+CREATE TABLE IF NOT EXISTS fetch_failures (
+  id INTEGER PRIMARY KEY,
+  document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+  job_id TEXT REFERENCES fetch_jobs(id),
+  url TEXT NOT NULL,
+  error_type TEXT NOT NULL,  -- timeout, http_4xx, http_5xx, paywall, js_required, extraction_failed
+  error_message TEXT,
+  http_status INTEGER,
+  retry_count INTEGER DEFAULT 0,
+  last_attempt TEXT DEFAULT (datetime('now')),
+  next_retry_after TEXT,
+  UNIQUE(document_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fetch_failures_error_type ON fetch_failures(error_type);
+CREATE INDEX IF NOT EXISTS idx_fetch_failures_job_id ON fetch_failures(job_id);
 """
 
 def _run_migrations(conn: sqlite3.Connection) -> None:
@@ -287,6 +320,15 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
             )
             conn.execute("INSERT INTO documents_fts(documents_fts) VALUES('optimize')")
             conn.commit()
+
+    # Add fulltext tracking columns to documents (for fetch feature)
+    if "fulltext_fetched_at" not in columns:
+        conn.execute("ALTER TABLE documents ADD COLUMN fulltext_fetched_at TEXT")
+        conn.commit()
+
+    if "fulltext_source" not in columns:
+        conn.execute("ALTER TABLE documents ADD COLUMN fulltext_source TEXT")
+        conn.commit()
 
 VEC_SQL = """
 -- Legacy table (kept for backward compatibility)
@@ -1165,6 +1207,177 @@ class DB:
         except Exception:
             # Fallback if vec table doesn't exist or other error
             return self.semantic_search(query_embedding, limit)
+
+    # ==================== Fetch Job Methods ====================
+
+    def get_documents_for_fetch(
+        self, limit: int = 100, cursor_doc_id: int | None = None
+    ) -> list[dict[str, Any]]:
+        """Get documents that need fulltext fetching.
+
+        Returns documents with URL but no fulltext yet.
+        """
+        query = """
+            SELECT d.id, d.url_original, d.title
+            FROM documents d
+            LEFT JOIN fetch_failures f ON f.document_id = d.id
+            WHERE d.url_original IS NOT NULL
+              AND d.url_original != ''
+              AND (d.fulltext IS NULL OR d.fulltext = '')
+              AND f.id IS NULL  -- No previous failure
+        """
+        params: list[Any] = []
+
+        if cursor_doc_id is not None:
+            query += " AND d.id > ?"
+            params.append(cursor_doc_id)
+
+        query += " ORDER BY d.id LIMIT ?"
+        params.append(limit)
+
+        cur = self.conn.execute(query, params)
+        return [
+            {"id": row[0], "url": row[1], "title": row[2]}
+            for row in cur.fetchall()
+        ]
+
+    def count_documents_for_fetch(self) -> dict[str, int]:
+        """Count documents for fetch statistics."""
+        cur = self.conn.execute("SELECT COUNT(*) FROM documents")
+        total = cur.fetchone()[0]
+
+        cur = self.conn.execute(
+            """SELECT COUNT(*) FROM documents
+               WHERE url_original IS NOT NULL AND url_original != ''"""
+        )
+        with_url = cur.fetchone()[0]
+
+        cur = self.conn.execute(
+            """SELECT COUNT(*) FROM documents
+               WHERE fulltext IS NOT NULL AND fulltext != ''"""
+        )
+        with_fulltext = cur.fetchone()[0]
+
+        cur = self.conn.execute("SELECT COUNT(*) FROM fetch_failures")
+        failed = cur.fetchone()[0]
+
+        # Pending = with URL but no fulltext and no failure
+        cur = self.conn.execute(
+            """SELECT COUNT(*) FROM documents d
+               LEFT JOIN fetch_failures f ON f.document_id = d.id
+               WHERE d.url_original IS NOT NULL AND d.url_original != ''
+                 AND (d.fulltext IS NULL OR d.fulltext = '')
+                 AND f.id IS NULL"""
+        )
+        pending = cur.fetchone()[0]
+
+        return {
+            "total": total,
+            "with_url": with_url,
+            "with_fulltext": with_fulltext,
+            "failed": failed,
+            "pending": pending,
+        }
+
+    def save_fulltext(
+        self,
+        document_id: int,
+        fulltext: str,
+        source: str = "trafilatura",
+    ) -> None:
+        """Save fetched fulltext for a document."""
+        self.conn.execute(
+            """UPDATE documents SET
+                fulltext = ?,
+                fulltext_fetched_at = datetime('now'),
+                fulltext_source = ?,
+                updated_at = datetime('now')
+               WHERE id = ?""",
+            (fulltext, source, document_id),
+        )
+        self.conn.commit()
+
+    def save_fetch_failure(
+        self,
+        *,
+        document_id: int,
+        url: str,
+        error_type: str,
+        error_message: str | None = None,
+        http_status: int | None = None,
+        job_id: str | None = None,
+    ) -> None:
+        """Save a fetch failure for a document."""
+        self.conn.execute(
+            """INSERT INTO fetch_failures
+               (document_id, job_id, url, error_type, error_message, http_status)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(document_id) DO UPDATE SET
+                 job_id = excluded.job_id,
+                 error_type = excluded.error_type,
+                 error_message = excluded.error_message,
+                 http_status = excluded.http_status,
+                 retry_count = retry_count + 1,
+                 last_attempt = datetime('now')""",
+            (document_id, job_id, url, error_type, error_message, http_status),
+        )
+        self.conn.commit()
+
+    def get_fetch_failures(
+        self, error_type: str | None = None, limit: int = 100
+    ) -> list[dict[str, Any]]:
+        """Get fetch failures, optionally filtered by error type."""
+        query = """
+            SELECT f.id, f.document_id, d.title, f.url, f.error_type,
+                   f.error_message, f.http_status, f.retry_count, f.last_attempt
+            FROM fetch_failures f
+            JOIN documents d ON d.id = f.document_id
+        """
+        params: list[Any] = []
+
+        if error_type:
+            query += " WHERE f.error_type = ?"
+            params.append(error_type)
+
+        query += " ORDER BY f.last_attempt DESC LIMIT ?"
+        params.append(limit)
+
+        cur = self.conn.execute(query, params)
+        return [
+            {
+                "id": row[0],
+                "document_id": row[1],
+                "title": row[2],
+                "url": row[3],
+                "error_type": row[4],
+                "error_message": row[5],
+                "http_status": row[6],
+                "retry_count": row[7],
+                "last_attempt": row[8],
+            }
+            for row in cur.fetchall()
+        ]
+
+    def get_failure_summary(self) -> dict[str, int]:
+        """Get failure counts by error type."""
+        cur = self.conn.execute(
+            """SELECT error_type, COUNT(*) FROM fetch_failures GROUP BY error_type"""
+        )
+        return {row[0]: row[1] for row in cur.fetchall()}
+
+    def clear_retryable_failures(self) -> int:
+        """Clear failures that can be retried (timeout, http_5xx).
+
+        Returns number of cleared failures.
+        """
+        cur = self.conn.execute(
+            """DELETE FROM fetch_failures
+               WHERE error_type IN ('timeout', 'http_5xx')
+               RETURNING id"""
+        )
+        count = len(cur.fetchall())
+        self.conn.commit()
+        return count
 
     def get_usage_stats(self, period: str = "today") -> dict[str, Any]:
         """Get usage statistics for a time period.
