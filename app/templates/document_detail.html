@@ -2,7 +2,7 @@
 {% block content %}
 
 <div class="breadcrumb">
-  <a href="/library">&larr; Zurueck zur Bibliothek</a>
+  <a href="/library"><i data-feather="arrow-left"></i> Zurueck zur Bibliothek</a>
 </div>
 
 {% if error %}
@@ -20,7 +20,7 @@
     <p class="meta">{{ doc.published_at }}</p>
     {% endif %}
     {% if doc.url_original %}
-    <p class="meta"><a href="{{ doc.url_original }}" target="_blank">Originalquelle</a></p>
+    <p class="meta"><a href="{{ doc.url_original }}" target="_blank" class="external-link">Originalquelle <i data-feather="external-link"></i></a></p>
     {% endif %}
     <p class="meta">Quelle: {{ doc.source }}{% if doc.saved_at %} | Gespeichert: {{ doc.saved_at }}{% endif %}</p>
   </header>

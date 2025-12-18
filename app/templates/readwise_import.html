@@ -8,7 +8,7 @@
   <!-- Resume Banner (wenn resumable Job existiert) -->
   {% if resumable_job %}
   <div class="card resume-banner" x-show="!jobId || jobId !== '{{ resumable_job.id }}'">
-    <h2>⚠️ Unterbrochener Import gefunden</h2>
+    <h2><i data-feather="alert-triangle"></i> Unterbrochener Import gefunden</h2>
     <p>
       <strong>Status:</strong> {{ resumable_job.status.value }} |
       <strong>Items:</strong> {{ resumable_job.items_imported }} importiert |
@@ -18,7 +18,7 @@
     <p class="text-error"><strong>Fehler:</strong> {{ resumable_job.error }}</p>
     {% endif %}
     <button @click="resumePreviousJob('{{ resumable_job.id }}')" class="btn-resume">
-      Import fortsetzen
+      <i data-feather="play"></i> Import fortsetzen
     </button>
     <button @click="dismissResume()" class="btn-secondary">
       Ignorieren
@@ -69,15 +69,15 @@
     <!-- Controls -->
     <div style="margin-top: 1rem;">
       {% if token %}
-      <button @click="startImport()" :disabled="status === 'running'" x-show="status === 'idle' || status === 'completed' || status === 'error'">
-        Import starten
+      <button @click="startImport()" :disabled="status === 'running'" x-show="status === 'idle' || status === 'completed' || status === 'error'" class="btn">
+        <i data-feather="download"></i> Import starten
       </button>
       {% endif %}
-      <button @click="pauseImport()" :disabled="status !== 'running'" x-show="status === 'running'">
-        Pausieren
+      <button @click="pauseImport()" :disabled="status !== 'running'" x-show="status === 'running'" class="btn btn-warning">
+        <i data-feather="pause"></i> Pausieren
       </button>
-      <button @click="resumeImport()" x-show="status === 'paused'">
-        Fortsetzen
+      <button @click="resumeImport()" x-show="status === 'paused'" class="btn">
+        <i data-feather="play"></i> Fortsetzen
       </button>
     </div>
   </div>
@@ -87,7 +87,7 @@
 
   <!-- Completion Summary -->
   <div class="card summary-card" x-show="status === 'completed'" x-cloak>
-    <h2>✓ Import abgeschlossen</h2>
+    <h2><i data-feather="check-circle"></i> Import abgeschlossen</h2>
     <div class="summary-grid">
       <div class="summary-item summary-imported">
         <span class="summary-value" x-text="itemsImported"></span>

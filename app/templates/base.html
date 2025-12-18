@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/static/app.css">
   <script defer src="/static/htmx.min.js"></script>
   <script defer src="/static/alpine.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
   <script>
     // Theme-Presets mit CSS-Variable-Mappings
     const themePresets = {
@@ -163,8 +164,14 @@
       if (!btn) return;
       const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       const isDark = theme === 'dark' || (!theme && systemDark);
-      btn.textContent = isDark ? '☀️' : '🌙';
       btn.title = isDark ? 'Light Mode' : 'Dark Mode';
+      // Toggle icon visibility via classes
+      const moonIcon = btn.querySelector('.icon-moon');
+      const sunIcon = btn.querySelector('.icon-sun');
+      if (moonIcon && sunIcon) {
+        moonIcon.style.display = isDark ? 'none' : 'block';
+        sunIcon.style.display = isDark ? 'block' : 'none';
+      }
     };
 
     // Restore saved theme on load
@@ -173,6 +180,12 @@
       if (saved) {
         document.documentElement.setAttribute('data-theme', saved);
       }
+
+      // Initialize Feather Icons
+      if (typeof feather !== 'undefined') {
+        feather.replace();
+      }
+
       updateThemeIcon(saved);
 
       // Set active nav link
@@ -184,6 +197,13 @@
         }
       });
     });
+
+    // Re-initialize Feather Icons after HTMX swaps
+    document.addEventListener('htmx:afterSwap', () => {
+      if (typeof feather !== 'undefined') {
+        feather.replace();
+      }
+    });
   </script>
 </head>
 <body>
@@ -191,13 +211,16 @@
     <div class="container row">
       <div class="brand"><a href="/">nexus-os</a></div>
       <nav class="nav">
-        <a href="/library">Library</a>
-        <a href="/digests">Digests</a>
-        <a href="/drafts">Drafts</a>
-        <a href="/readwise/preview">Readwise</a>
-        <a href="/readwise/import">Import</a>
-        <a href="/admin">Admin</a>
-        <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">🌙</button>
+        <a href="/library"><i data-feather="book-open"></i> Library</a>
+        <a href="/digests"><i data-feather="layers"></i> Digests</a>
+        <a href="/drafts"><i data-feather="edit-3"></i> Drafts</a>
+        <a href="/readwise/preview"><i data-feather="bookmark"></i> Readwise</a>
+        <a href="/readwise/import"><i data-feather="download"></i> Import</a>
+        <a href="/admin"><i data-feather="settings"></i> Admin</a>
+        <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">
+          <i data-feather="moon" class="icon-moon"></i>
+          <i data-feather="sun" class="icon-sun"></i>
+        </button>
       </nav>
     </div>
   </header>

@@ -9,7 +9,7 @@
     <option value="fts" {% if mode != 'semantic' %}selected{% endif %}>Keyword (FTS)</option>
     <option value="semantic" {% if mode == 'semantic' %}selected{% endif %}>Semantic</option>
   </select>
-  <button class="btn" type="submit">Search</button>
+  <button class="btn" type="submit"><i data-feather="search"></i> Search</button>
 </form>
 
 {% if q and mode == 'semantic' %}
@@ -38,6 +38,8 @@
           {% endif %}
           {% if r.context_before or r.context_after %}
           <button class="btn btn-sm" @click="showContext = !showContext">
+            <i data-feather="chevron-down" x-show="!showContext"></i>
+            <i data-feather="chevron-up" x-show="showContext"></i>
             <span x-show="!showContext">Mehr Kontext</span>
             <span x-show="showContext">Weniger</span>
           </button>
@@ -60,7 +62,7 @@
         <span>{{ r.author or "" }}</span>
         <span>{{ r.saved_at or "" }}</span>
         {% if r.url %}
-          <a href="{{ r.url }}" target="_blank">Quelle</a>
+          <a href="{{ r.url }}" target="_blank" class="external-link">Quelle <i data-feather="external-link"></i></a>
         {% endif %}
       </div>
     </div>
@@ -115,6 +117,15 @@
 }
 .muted {
   opacity: 0.7;
+}
+.external-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.external-link svg {
+  width: 0.875rem;
+  height: 0.875rem;
 }
 </style>
 
