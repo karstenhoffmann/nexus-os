@@ -1,33 +1,28 @@
 nexus-os Status
 
 Stand (kurz)
-- Design-System mit OpenAI-inspirierten Styles erweitert
-- Theme-Editor: Primaerfarbe, Abstaende, Ecken, Schriftgroesse konfigurierbar
-- CSS mit Shadows, erweiterten Spacing-/Radius-/Typografie-Presets
+- Semantische Suche funktioniert (Bug in sqlite-vec Query behoben)
+- Design-System mit OpenAI-inspirierten Styles
+- 71.296 Chunk-Embeddings vorhanden (100%)
 
 Aktuelles Ziel
-- Semantische Suche testen und nutzen
+- Semantische Suche nutzen
 - Optional: Verwaiste Embeddings aufraeumen (~1.950 Orphans)
 
 Naechste Schritte (Claude Code, max 3)
-1) Semantische Suche testen (/library?mode=semantic)
-2) Optional: Orphan-Cleanup implementieren
-3) Weiteres Feature Development
+1) Optional: Orphan-Cleanup implementieren
+2) Weiteres Feature Development (Digests, Drafts, etc.)
+3) UX-Verbesserungen
 
 Handoff
-- Design-System Erweiterung (OpenAI-inspiriert):
-  - app.css: ~700 Zeilen mit Shadows, Spacing-Scale, Typography, Button-Varianten
-  - Theme-Editor erweitert: 4 konfigurierbare Einstellungen
-    - Primaerfarbe (Color Picker)
-    - Abstaende (Kompakt/Normal/Grosszuegig)
-    - Ecken (Eckig/Gerundet/Stark gerundet)
-    - Schriftgroesse (Klein/Normal/Gross)
-  - base.html: applyTheme() mit Preset-Mappings fuer CSS-Variablen
-  - storage.py + main.py: Theme-API erweitert mit Validierung
-  - Validierung: Live-Updates getestet via Playwright
+- Semantische Suche Bug-Fix:
+  - Problem: sqlite-vec KNN-Queries erlauben keine JOINs im gleichen Statement
+  - Loesung: Two-Step Query (erst KNN, dann Details per embedding_id)
+  - Datei: app/core/storage.py:1428-1480 (semantic_search_with_chunks)
+  - Getestet: "machine learning", "how to write better" - beide liefern relevante Ergebnisse
 - Commit empfohlen
 
 Status
 - Total Chunks: 69.338
-- Mit Embeddings: 69.338 (100%)
+- Mit Embeddings: 71.296 (100%)
 - Verwaiste Embeddings: ~1.950 (geloeschte Chunks)

@@ -1426,46 +1426,56 @@ class DB:
         vec_table = f"embeddings_{dimensions}"
 
         try:
+            # sqlite-vec KNN queries don't allow JOINs in the same query
+            # Step 1: Get nearest neighbors (embedding_id, distance)
             cur = self.conn.execute(
                 f"""
-                SELECT v.embedding_id, v.distance,
-                       e.chunk_id, c.chunk_text, c.char_start, c.char_end,
-                       c.chunk_index, c.document_id,
-                       d.title, d.author, d.url_original, d.saved_at
-                FROM {vec_table} v
-                JOIN embeddings e ON e.id = v.embedding_id
-                JOIN document_chunks c ON c.id = e.chunk_id
-                JOIN documents d ON d.id = c.document_id
-                WHERE v.embedding MATCH ? AND k = ?
-                  AND e.chunk_id IS NOT NULL
-                ORDER BY v.distance
+                SELECT embedding_id, distance
+                FROM {vec_table}
+                WHERE embedding MATCH ? AND k = ?
                 """,
                 (query_embedding, limit),
             )
+            knn_results = cur.fetchall()
 
+            # Step 2: Get details for each result
             results = []
-            for row in cur.fetchall():
-                result = {
-                    "id": row[7],  # document_id
-                    "distance": row[1],
-                    "chunk_id": row[2],
-                    "chunk_text": row[3],
-                    "char_start": row[4],
-                    "char_end": row[5],
-                    "chunk_index": row[6],
-                    "title": row[8],
-                    "author": row[9],
-                    "url": row[10],
-                    "saved_at": row[11],
-                }
+            for embedding_id, distance in knn_results:
+                cur = self.conn.execute(
+                    """
+                    SELECT e.chunk_id, c.chunk_text, c.char_start, c.char_end,
+                           c.chunk_index, c.document_id,
+                           d.title, d.author, d.url_original, d.saved_at
+                    FROM embeddings e
+                    JOIN document_chunks c ON c.id = e.chunk_id
+                    JOIN documents d ON d.id = c.document_id
+                    WHERE e.id = ?
+                    """,
+                    (embedding_id,),
+                )
+                row = cur.fetchone()
+                if row:
+                    result = {
+                        "id": row[5],  # document_id
+                        "distance": distance,
+                        "chunk_id": row[0],
+                        "chunk_text": row[1],
+                        "char_start": row[2],
+                        "char_end": row[3],
+                        "chunk_index": row[4],
+                        "title": row[6],
+                        "author": row[7],
+                        "url": row[8],
+                        "saved_at": row[9],
+                    }
 
-                # Get context if requested
-                if include_context:
-                    context = self.get_chunk_context(row[2], context_chunks=1)
-                    result["context_before"] = context.get("context_before", "")
-                    result["context_after"] = context.get("context_after", "")
+                    # Get context if requested
+                    if include_context:
+                        context = self.get_chunk_context(row[0], context_chunks=1)
+                        result["context_before"] = context.get("context_before", "")
+                        result["context_after"] = context.get("context_after", "")
 
-                results.append(result)
+                    results.append(result)
 
             return results
 
