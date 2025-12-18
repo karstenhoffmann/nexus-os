@@ -133,6 +133,69 @@
     </div>
   </div>
 
+  <!-- Next Steps Card (shows when fetch completed or docs with fulltext exist) -->
+  <div class="card next-steps" x-show="status === 'completed' || {{ stats.without_chunks }} > 0" x-data="{ chunkLoading: false, chunkResult: null, ftsLoading: false, ftsResult: null }">
+    <h2>Naechste Schritte</h2>
+    <p class="hint-text">Nach dem Fulltext-Fetch: Chunks erstellen und FTS-Index aktualisieren.</p>
+
+    <div class="next-steps-grid">
+      <div class="next-step-item">
+        <div class="next-step-stat">
+          <span class="next-step-value" x-text="withFulltext">{{ stats.with_fulltext }}</span>
+          <span class="next-step-label">Dokumente mit Fulltext</span>
+        </div>
+        <div class="next-step-stat">
+          <span class="next-step-value">{{ stats.without_chunks }}</span>
+          <span class="next-step-label">Ohne Chunks</span>
+        </div>
+      </div>
+
+      <div class="next-step-actions">
+        {% if stats.without_chunks > 0 %}
+        <button
+          class="btn"
+          :disabled="chunkLoading"
+          @click="
+            chunkLoading = true;
+            chunkResult = null;
+            fetch('/api/embeddings/generate-chunks?limit=500', { method: 'POST' })
+              .then(r => r.json())
+              .then(data => { chunkResult = data; chunkLoading = false; })
+              .catch(e => { chunkResult = { error: e.message }; chunkLoading = false; })
+          ">
+          <span x-show="!chunkLoading">Chunks + Embeddings generieren</span>
+          <span x-show="chunkLoading">Generiere...</span>
+        </button>
+        <p x-show="chunkResult && !chunkResult.error" class="success" style="margin-top: 0.5rem;">
+          Chunks: <span x-text="chunkResult?.chunks_created || 0"></span>,
+          Embeddings: <span x-text="chunkResult?.processed || 0"></span>
+        </p>
+        <p x-show="chunkResult?.error" class="error" style="margin-top: 0.5rem;" x-text="chunkResult?.error"></p>
+        {% else %}
+        <p class="success">Alle Dokumente haben Chunks.</p>
+        {% endif %}
+
+        <button
+          class="btn btn-secondary"
+          :disabled="ftsLoading"
+          @click="
+            ftsLoading = true;
+            ftsResult = null;
+            fetch('/admin/fts/rebuild', { method: 'POST' })
+              .then(r => r.json())
+              .then(data => { ftsResult = data; ftsLoading = false; })
+              .catch(e => { ftsResult = { error: e.message }; ftsLoading = false; })
+          "
+          style="margin-top: 0.5rem;">
+          <span x-show="!ftsLoading">FTS-Index neu aufbauen</span>
+          <span x-show="ftsLoading">Baue Index...</span>
+        </button>
+        <p x-show="ftsResult && !ftsResult.error" class="success" style="margin-top: 0.5rem;" x-text="ftsResult?.message"></p>
+        <p x-show="ftsResult?.error" class="error" style="margin-top: 0.5rem;" x-text="ftsResult?.error"></p>
+      </div>
+    </div>
+  </div>
+
   <!-- Error Display -->
   <div class="card error-card" x-show="errorMsg" x-cloak>
     <strong>Fehler:</strong> <span x-text="errorMsg"></span>
@@ -383,6 +446,53 @@
 }
 .job-progress {
   margin-top: 0.25rem;
+}
+
+.next-steps {
+  background: rgba(46,125,50,0.05);
+  border-left: 4px solid #2e7d32;
+}
+.hint-text {
+  font-size: 0.9rem;
+  opacity: 0.7;
+  margin-bottom: 1rem;
+}
+.next-steps-grid {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.next-step-item {
+  display: flex;
+  gap: 1.5rem;
+}
+.next-step-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.next-step-value {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #2e7d32;
+}
+.next-step-label {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+.next-step-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.btn-secondary {
+  background: rgba(120,120,120,0.1);
+  color: inherit;
+  border: 1px solid rgba(120,120,120,0.3);
+}
+.btn-secondary:hover {
+  background: rgba(120,120,120,0.2);
 }
 
 [x-cloak] { display: none !important; }

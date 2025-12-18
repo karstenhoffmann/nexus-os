@@ -22,6 +22,12 @@ from typing import TYPE_CHECKING, Any, AsyncIterator
 
 from app.core.content_fetcher import ContentFetcher, FetchResult, FetchErrorType
 
+# Optional trafilatura cache reset for memory optimization
+try:
+    from trafilatura.meta import reset_caches as reset_trafilatura_caches
+except ImportError:
+    reset_trafilatura_caches = None  # type: ignore
+
 if TYPE_CHECKING:
     from app.core.storage import DB
 
@@ -523,6 +529,10 @@ async def run_fetch_job(
                         job_id=job.id,
                         data=job.to_dict(),
                     )
+
+            # Clear trafilatura caches after each batch to prevent memory buildup
+            if reset_trafilatura_caches is not None:
+                reset_trafilatura_caches()
 
     except Exception as e:
         logger.exception(f"Fetch job {job.id} failed")

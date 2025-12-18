@@ -1271,12 +1271,22 @@ class DB:
         )
         pending = cur.fetchone()[0]
 
+        # Documents with fulltext but no chunks (ready for chunking)
+        cur = self.conn.execute(
+            """SELECT COUNT(*) FROM documents d
+               LEFT JOIN document_chunks c ON c.document_id = d.id
+               WHERE d.fulltext IS NOT NULL AND d.fulltext != ''
+                 AND c.id IS NULL"""
+        )
+        without_chunks = cur.fetchone()[0]
+
         return {
             "total": total,
             "with_url": with_url,
             "with_fulltext": with_fulltext,
             "failed": failed,
             "pending": pending,
+            "without_chunks": without_chunks,
         }
 
     def save_fulltext(

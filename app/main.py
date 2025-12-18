@@ -247,6 +247,20 @@ def admin_embedding_stats():
     return db.get_embedding_stats()
 
 
+@app.post("/admin/fts/rebuild")
+def admin_fts_rebuild():
+    """Rebuild the FTS index from documents table.
+
+    Should be called after fulltext fetch to update search.
+
+    Returns:
+        Dict with count of indexed documents
+    """
+    db = get_db()
+    count = db.rebuild_fts()
+    return {"indexed": count, "message": f"FTS Index rebuilt with {count} documents"}
+
+
 @app.get("/api/providers/health")
 async def api_providers_health():
     """Check health of all embedding providers.

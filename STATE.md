@@ -4,25 +4,29 @@ Stand (kurz)
 - Semantische Suche funktioniert mit Chunk-Zitaten und Kontext.
 - 2637 Dokumente haben Embeddings (OpenAI text-embedding-3-small).
 - Provider-Abstraktion: OpenAI + Ollama Support mit Health-Checks.
-- ContentFetcher: trafilatura fuer Fulltext-Extraktion von URLs.
-- FetchJobStore: Job-Management mit Pause/Resume/Cancel.
-- Fetch API: Alle Endpoints + SSE Streaming implementiert.
-- Admin Fetch UI: /admin/fetch mit Live-Fortschritt.
+- Fulltext-Fetching: Komplett implementiert (F1-F5).
+  - ContentFetcher mit trafilatura
+  - FetchJobStore mit Pause/Resume/Cancel
+  - API Endpoints + SSE Streaming
+  - Admin UI mit Live-Fortschritt
+  - Next Steps Card (Chunks + FTS Rebuild)
 
 Aktuelles Ziel
-- Fulltext-Fetching (Plan: glistening-seeking-snowglobe.md)
+- Fulltext-Fetching starten und testen
 
 Fertig (diese Session)
-1) Sprint F1: ContentFetcher mit trafilatura
-2) Sprint F2: FetchJobStore + DomainRateLimiter + run_fetch_job()
-3) Sprint F3: API Endpoints + SSE Streaming
-4) Sprint F4: Admin Fetch UI mit Alpine.js
-5) 55 Tests bestanden
+1) Sprint F1-F4: Fulltext Fetching System
+2) Sprint F5: Integration + Polish
+   - Fetch Stats erweitert (without_chunks)
+   - FTS Rebuild Endpoint
+   - Next Steps Card in Admin Fetch UI
+   - Memory Optimierung (trafilatura cache reset)
+3) 55 Tests bestanden
 
 Naechste Schritte (Claude Code, max 3)
-1) Sprint F5: Integration + Polish
-2) Fulltext-Fetching starten und testen
-3) Nach Fetch: Chunking + Chunk-Embeddings
+1) Fulltext-Fetching starten (/admin/fetch)
+2) Chunks + Embeddings generieren
+3) Semantische Suche mit Zitaten testen
 
 Offene Fragen (max 3)
 - (keine aktuell)
@@ -32,6 +36,7 @@ Handoff
   - Statistiken: Dokumente, mit URL, mit Fulltext, ausstehend, fehlgeschlagen
   - Controls: Start/Pause/Resume/Cancel Buttons
   - Live Log: SSE Event Streaming
+  - Next Steps: Chunks generieren + FTS Rebuild
   - Job-Liste: Vorherige Jobs mit Status
 
 - Fetch API Endpoints:
@@ -47,6 +52,9 @@ Handoff
   GET  /api/fetch/jobs            - Job-Liste
   DELETE /api/fetch/{id}          - Job loeschen
 
+- Neue Endpoints:
+  POST /admin/fts/rebuild         - FTS Index neu aufbauen
+
 - Alle Tests: docker compose exec app python -m pytest tests/ -v (55/55)
 
-Wichtig: Sprint F5 (Integration + Polish) als naechstes!
+Bereit: Fulltext-Fetching kann gestartet werden!
