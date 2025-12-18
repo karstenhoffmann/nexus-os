@@ -267,6 +267,27 @@ def admin_fts_rebuild():
     return {"indexed": count, "message": f"FTS Index rebuilt with {count} documents"}
 
 
+@app.post("/admin/embeddings/cleanup-orphans")
+def admin_embeddings_cleanup_orphans():
+    """Remove embeddings for chunks that no longer exist.
+
+    Orphan embeddings can accumulate when documents or chunks are deleted
+    but their embeddings remain in the database.
+
+    Returns:
+        Dict with counts of deleted embeddings
+    """
+    db = get_db()
+    result = db.cleanup_orphan_embeddings()
+    orphans_found = result.get("orphan_ids_found", 0)
+    return {
+        "deleted_embeddings": result["embeddings"],
+        "deleted_vec_entries": result["vec_tables"],
+        "orphans_found": orphans_found,
+        "message": f"Cleaned up {result['embeddings']} orphan embeddings",
+    }
+
+
 @app.get("/api/providers/health")
 async def api_providers_health():
     """Check health of all embedding providers.

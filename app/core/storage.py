@@ -1260,6 +1260,62 @@ class DB:
             "legacy_embeddings": legacy_count,
         }
 
+    def cleanup_orphan_embeddings(self) -> dict[str, int]:
+        """Remove embeddings for chunks that no longer exist.
+
+        Returns:
+            Dict with counts of deleted embeddings per table
+        """
+        # Find orphan embedding IDs (embeddings where chunk was deleted)
+        cur = self.conn.execute(
+            """
+            SELECT e.id FROM embeddings e
+            LEFT JOIN document_chunks c ON c.id = e.chunk_id
+            WHERE e.chunk_id IS NOT NULL AND c.id IS NULL
+            """
+        )
+        orphan_ids = [row[0] for row in cur.fetchall()]
+
+        if not orphan_ids:
+            return {"embeddings": 0, "vec_tables": 0}
+
+        # Delete from vec tables first (foreign key style)
+        vec_deleted = 0
+        for dimensions in [768, 1024, 1536, 3072]:
+            table = f"embeddings_{dimensions}"
+            try:
+                # Delete in batches to avoid huge IN clauses
+                for i in range(0, len(orphan_ids), 500):
+                    batch = orphan_ids[i : i + 500]
+                    placeholders = ",".join("?" * len(batch))
+                    cur = self.conn.execute(
+                        f"DELETE FROM {table} WHERE embedding_id IN ({placeholders})",
+                        batch,
+                    )
+                    vec_deleted += cur.rowcount
+            except Exception:
+                # Table might not exist
+                pass
+
+        # Delete from main embeddings table
+        embeddings_deleted = 0
+        for i in range(0, len(orphan_ids), 500):
+            batch = orphan_ids[i : i + 500]
+            placeholders = ",".join("?" * len(batch))
+            cur = self.conn.execute(
+                f"DELETE FROM embeddings WHERE id IN ({placeholders})",
+                batch,
+            )
+            embeddings_deleted += cur.rowcount
+
+        self.conn.commit()
+
+        return {
+            "embeddings": embeddings_deleted,
+            "vec_tables": vec_deleted,
+            "orphan_ids_found": len(orphan_ids),
+        }
+
     def get_chunks_for_embedding(
         self,
         limit: int = 200,
