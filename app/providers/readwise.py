@@ -401,7 +401,7 @@ class ReadwiseClient:
             summary=book.get("summary"),
             word_count=None,  # Export API doesn't provide word count
             published_date=published,
-            category=book.get("category", "articles"),
+            category=book.get("category", "article"),
             html_content=None,  # Export API doesn't provide full content
             image_url=book.get("cover_image_url"),
             provider=source,  # e.g. "snipd", "kindle", "instapaper"

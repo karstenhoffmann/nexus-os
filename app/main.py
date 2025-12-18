@@ -115,6 +115,8 @@ async def library(
             rows = db.search_library_semantic(
                 query_embedding=embedding_bytes,
                 dimensions=1536,
+                search_fulltext=fulltext,
+                search_highlights=highlights,
                 categories=cat_list,
                 sort_by=sort_by,
                 sort_dir=sort_dir,
@@ -185,6 +187,8 @@ async def library_results(
             rows = db.search_library_semantic(
                 query_embedding=embedding_bytes,
                 dimensions=1536,
+                search_fulltext=fulltext,
+                search_highlights=highlights,
                 categories=cat_list,
                 sort_by=sort_by,
                 sort_dir=sort_dir,

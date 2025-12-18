@@ -11,6 +11,7 @@ from urllib.parse import urlparse, urlunparse
 import sqlite_vec
 
 from app.core.settings import Settings
+from app.core.categories import normalize_category
 
 
 def normalize_url(url: str | None) -> str | None:
@@ -724,6 +725,20 @@ class DB:
             cat_filter = f" AND d.category IN ({placeholders})"
             cat_params = list(categories)
 
+        # Build content type filter (fulltext vs highlight-only documents)
+        content_conditions = []
+        if search_fulltext:
+            content_conditions.append("d.fulltext IS NOT NULL")
+        if search_highlights:
+            # Highlight-only: documents without fulltext but with highlights
+            content_conditions.append("(d.fulltext IS NULL AND EXISTS (SELECT 1 FROM highlights h WHERE h.document_id = d.id))")
+
+        if not content_conditions:
+            # Neither fulltext nor highlights selected - return empty
+            return []
+
+        content_filter = f" AND ({' OR '.join(content_conditions)})"
+
         q = (q or "").strip()
 
         # Common SELECT with highlight_count and effective_date
@@ -743,7 +758,7 @@ class DB:
             query = f"""
                 SELECT {select_cols}
                 FROM documents d
-                WHERE 1=1 {cat_filter}
+                WHERE 1=1 {content_filter} {cat_filter}
                 ORDER BY {sort_col} {sort_dir.upper()} NULLS LAST
                 LIMIT ?
             """
@@ -756,7 +771,7 @@ class DB:
                 SELECT {select_cols}
                 FROM documents_fts f
                 JOIN documents d ON d.id = f.rowid
-                WHERE documents_fts MATCH ? {cat_filter}
+                WHERE documents_fts MATCH ? {content_filter} {cat_filter}
                 ORDER BY {"rank" if sort_by == "distance" else sort_col} {sort_dir.upper()} NULLS LAST
                 LIMIT ?
             """
@@ -787,6 +802,8 @@ class DB:
         self,
         query_embedding: bytes,
         dimensions: int = 1536,
+        search_fulltext: bool = True,
+        search_highlights: bool = True,
         categories: list[str] | None = None,
         sort_by: str = "distance",
         sort_dir: str = "asc",
@@ -797,6 +814,8 @@ class DB:
         Args:
             query_embedding: Serialized embedding bytes
             dimensions: Vector dimensions
+            search_fulltext: Include fulltext documents (semantic search requires this)
+            search_highlights: Include highlight-only documents (not applicable for semantic)
             categories: Filter by document categories
             sort_by: Column to sort by (default: distance for semantic)
             sort_dir: 'asc' or 'desc' (default: asc for distance)
@@ -805,6 +824,11 @@ class DB:
         Returns:
             List of results with chunk_text, position data, and metadata
         """
+        # Semantic search only works on documents with embeddings (i.e., fulltext docs)
+        # Highlight-only documents have no chunks/embeddings, so they can't appear here
+        if not search_fulltext:
+            return []  # No fulltext docs requested, nothing to search
+
         vec_table = f"embeddings_{dimensions}"
 
         # Step 1: Get KNN results from vector table
@@ -941,6 +965,9 @@ class DB:
         Returns the document id (existing or new).
         """
         url_canonical = normalize_url(url_original)
+
+        # Normalize category (plural->singular, LinkedIn URL detection)
+        category = normalize_category(category, url_original)
 
         # 1. Try to find existing document by URL (within same source)
         existing_id = None
