@@ -10,6 +10,7 @@
   --primary: #3b82f6;
   --primary-hover: #2563eb;
   --primary-light: rgba(59, 130, 246, 0.1);
+  --primary-bg: rgba(59, 130, 246, 0.1);
 
   /* Sekundaerfarbe (fuer Akzente, sekundaere Aktionen) */
   --secondary: #6b7280;

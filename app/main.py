@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
@@ -63,38 +64,151 @@ def home(request: Request):
 
 
 @app.get("/library", response_class=HTMLResponse)
-async def library(request: Request, q: str = "", mode: str = "fts"):
-    """Library search with FTS or semantic mode.
+async def library(
+    request: Request,
+    q: str = "",
+    mode: str = "semantic",  # Default to semantic search
+    fulltext: bool = True,
+    highlights: bool = True,
+    categories: str = "",  # Comma-separated
+    sort_by: str = "saved_at",
+    sort_dir: str = "desc",
+):
+    """Library search with FTS or semantic mode, filters, and sorting.
 
     Args:
         q: Search query
         mode: 'fts' for full-text search, 'semantic' for vector similarity
+        fulltext: Include fulltext in search
+        highlights: Include highlights in search (TODO)
+        categories: Comma-separated category filter
+        sort_by: Column to sort by
+        sort_dir: 'asc' or 'desc'
     """
     db = get_db()
 
-    if not q or not q.strip():
-        rows = db.search_documents("")
-        return render("library.html", request=request, q=q, rows=rows, mode=mode)
+    # Parse categories
+    cat_list = [c.strip() for c in categories.split(",") if c.strip()] if categories else None
 
-    if mode == "semantic":
+    # Get all categories for filter UI
+    all_categories = db.get_distinct_categories()
+    category_counts = db.get_category_counts()
+
+    q_stripped = (q or "").strip()
+
+    if mode == "semantic" and q_stripped:
         try:
-            query_embedding = await get_embedding(q.strip())
+            query_embedding = await get_embedding(q_stripped)
             embedding_bytes = serialize_f32(query_embedding)
-            # Try chunk-based search first (includes citations and context)
-            rows = db.semantic_search_with_chunks(
-                embedding_bytes,
-                dimensions=1536,  # OpenAI text-embedding-3-small
-                limit=50,
-                include_context=True,
+            rows = db.search_library_semantic(
+                query_embedding=embedding_bytes,
+                dimensions=1536,
+                categories=cat_list,
+                sort_by=sort_by,
+                sort_dir=sort_dir,
+                limit=100,
             )
-        except Exception as e:
+        except Exception:
             # Fallback to FTS on error
-            rows = db.search_documents(q)
+            rows = db.search_library(
+                q=q_stripped,
+                mode="fts",
+                search_fulltext=fulltext,
+                search_highlights=highlights,
+                categories=cat_list,
+                sort_by=sort_by,
+                sort_dir=sort_dir,
+            )
             mode = "fts"
     else:
-        rows = db.search_documents(q)
+        # FTS or no query
+        rows = db.search_library(
+            q=q_stripped,
+            mode="fts",
+            search_fulltext=fulltext,
+            search_highlights=highlights,
+            categories=cat_list,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
+        )
 
-    return render("library.html", request=request, q=q, rows=rows, mode=mode)
+    return render(
+        "library.html",
+        request=request,
+        q=q,
+        mode=mode,
+        fulltext=fulltext,
+        highlights=highlights,
+        categories_json=json.dumps(cat_list or []),
+        all_categories_json=json.dumps(all_categories),
+        category_counts=category_counts,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+        rows=rows,
+        total=len(rows),
+    )
+
+
+@app.get("/api/library/results", response_class=HTMLResponse)
+async def library_results(
+    request: Request,
+    q: str = "",
+    mode: str = "semantic",
+    fulltext: bool = True,
+    highlights: bool = True,
+    categories: str = "",
+    sort_by: str = "saved_at",
+    sort_dir: str = "desc",
+):
+    """HTMX partial endpoint for library table body only."""
+    db = get_db()
+
+    cat_list = [c.strip() for c in categories.split(",") if c.strip()] if categories else None
+    q_stripped = (q or "").strip()
+
+    if mode == "semantic" and q_stripped:
+        try:
+            query_embedding = await get_embedding(q_stripped)
+            embedding_bytes = serialize_f32(query_embedding)
+            rows = db.search_library_semantic(
+                query_embedding=embedding_bytes,
+                dimensions=1536,
+                categories=cat_list,
+                sort_by=sort_by,
+                sort_dir=sort_dir,
+                limit=100,
+            )
+        except Exception:
+            rows = db.search_library(
+                q=q_stripped,
+                mode="fts",
+                search_fulltext=fulltext,
+                search_highlights=highlights,
+                categories=cat_list,
+                sort_by=sort_by,
+                sort_dir=sort_dir,
+            )
+            mode = "fts"
+    else:
+        rows = db.search_library(
+            q=q_stripped,
+            mode="fts",
+            search_fulltext=fulltext,
+            search_highlights=highlights,
+            categories=cat_list,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
+        )
+
+    return render(
+        "partials/library_results.html",
+        request=request,
+        rows=rows,
+        mode=mode,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+        total=len(rows),
+    )
 
 
 @app.get("/documents/{doc_id}", response_class=HTMLResponse)

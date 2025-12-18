@@ -273,6 +273,43 @@ CREATE TABLE IF NOT EXISTS app_settings (
 );
 """
 
+def _backfill_document_metadata(conn: sqlite3.Connection) -> None:
+    """Backfill category and word_count from raw_json for existing documents."""
+    import json
+    import logging
+    log = logging.getLogger(__name__)
+
+    cur = conn.execute("""
+        SELECT id, raw_json FROM documents
+        WHERE raw_json IS NOT NULL
+          AND (category IS NULL OR word_count IS NULL)
+    """)
+    rows = cur.fetchall()
+
+    if not rows:
+        return
+
+    updated = 0
+    for row in rows:
+        try:
+            data = json.loads(row[1])
+            category = data.get("category", "article")
+            word_count = data.get("word_count")
+            conn.execute("""
+                UPDATE documents
+                SET category = COALESCE(category, ?),
+                    word_count = COALESCE(word_count, ?)
+                WHERE id = ?
+            """, (category, word_count, row[0]))
+            updated += 1
+        except json.JSONDecodeError:
+            continue
+
+    if updated > 0:
+        conn.commit()
+        log.info(f"Backfilled category/word_count for {updated} documents")
+
+
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Run schema migrations for existing DBs."""
     # Check if provider_id column exists in documents table
@@ -414,6 +451,18 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     if "mode" not in digest_columns:
         conn.execute("ALTER TABLE digests ADD COLUMN mode TEXT DEFAULT 'fts'")
         conn.commit()
+
+    # Add category and word_count columns to documents table
+    if "category" not in columns:
+        conn.execute("ALTER TABLE documents ADD COLUMN category TEXT DEFAULT 'article'")
+        conn.commit()
+
+    if "word_count" not in columns:
+        conn.execute("ALTER TABLE documents ADD COLUMN word_count INTEGER")
+        conn.commit()
+
+    # Backfill category and word_count from raw_json
+    _backfill_document_metadata(conn)
 
 
 VEC_SQL = """
@@ -621,6 +670,212 @@ class DB:
             return self.search_documents(query, limit=limit)
         # Semantic mode requires embedding - return empty, caller handles
         return []
+
+    # ==================== Library Search (Enhanced) ====================
+
+    def search_library(
+        self,
+        q: str = "",
+        mode: str = "semantic",
+        search_fulltext: bool = True,
+        search_highlights: bool = True,
+        categories: list[str] | None = None,
+        sort_by: str = "saved_at",
+        sort_dir: str = "desc",
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Unified library search with filtering and sorting.
+
+        Args:
+            q: Search query (empty = list all)
+            mode: 'semantic' or 'fts'
+            search_fulltext: Include document fulltext in search
+            search_highlights: Include highlights in search (TODO)
+            categories: Filter by document categories
+            sort_by: Column to sort by
+            sort_dir: 'asc' or 'desc'
+            limit: Max results
+
+        Returns:
+            List of documents with metadata
+        """
+        # Validate sort column to prevent SQL injection
+        valid_sort_cols = {"title", "author", "category", "saved_at", "word_count", "distance", "id"}
+        if sort_by not in valid_sort_cols:
+            sort_by = "saved_at"
+        if sort_dir not in ("asc", "desc"):
+            sort_dir = "desc"
+
+        # Build category filter
+        cat_filter = ""
+        cat_params: list[Any] = []
+        if categories:
+            placeholders = ",".join("?" * len(categories))
+            cat_filter = f" AND d.category IN ({placeholders})"
+            cat_params = list(categories)
+
+        q = (q or "").strip()
+
+        if not q:
+            # No query - list all documents with filters
+            query = f"""
+                SELECT d.id, d.title, d.author, d.url_original, d.saved_at,
+                       d.category, d.word_count, NULL as distance
+                FROM documents d
+                WHERE 1=1 {cat_filter}
+                ORDER BY d.{sort_by} {sort_dir.upper()} NULLS LAST
+                LIMIT ?
+            """
+            params = cat_params + [limit]
+            cur = self.conn.execute(query, params)
+
+        elif mode == "fts":
+            # FTS search
+            query = f"""
+                SELECT d.id, d.title, d.author, d.url_original, d.saved_at,
+                       d.category, d.word_count, NULL as distance
+                FROM documents_fts f
+                JOIN documents d ON d.id = f.rowid
+                WHERE documents_fts MATCH ? {cat_filter}
+                ORDER BY {"rank" if sort_by == "distance" else f"d.{sort_by}"} {sort_dir.upper()} NULLS LAST
+                LIMIT ?
+            """
+            params = [q] + cat_params + [limit]
+            cur = self.conn.execute(query, params)
+
+        else:
+            # Semantic search - return empty, caller handles embedding
+            # This method is for non-semantic or when embedding is done externally
+            return []
+
+        rows = []
+        for r in cur.fetchall():
+            rows.append({
+                "id": r[0],
+                "title": r[1],
+                "author": r[2],
+                "url": r[3],
+                "saved_at": r[4],
+                "category": r[5] or "article",
+                "word_count": r[6],
+                "distance": r[7],
+            })
+        return rows
+
+    def search_library_semantic(
+        self,
+        query_embedding: bytes,
+        dimensions: int = 1536,
+        categories: list[str] | None = None,
+        sort_by: str = "distance",
+        sort_dir: str = "asc",
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Semantic search with chunk context and category filtering.
+
+        Args:
+            query_embedding: Serialized embedding bytes
+            dimensions: Vector dimensions
+            categories: Filter by document categories
+            sort_by: Column to sort by (default: distance for semantic)
+            sort_dir: 'asc' or 'desc' (default: asc for distance)
+            limit: Max results
+
+        Returns:
+            List of results with chunk_text, position data, and metadata
+        """
+        vec_table = f"embeddings_{dimensions}"
+
+        # Step 1: Get KNN results from vector table
+        try:
+            cur = self.conn.execute(
+                f"""
+                SELECT embedding_id, distance
+                FROM {vec_table}
+                WHERE embedding MATCH ? AND k = ?
+                """,
+                (query_embedding, limit * 2),  # Get more to filter
+            )
+            knn_results = cur.fetchall()
+        except Exception:
+            return []
+
+        # Step 2: Get details and filter by category
+        results = []
+        for embedding_id, distance in knn_results:
+            cur = self.conn.execute(
+                """
+                SELECT e.chunk_id, c.chunk_text, c.char_start, c.char_end,
+                       c.chunk_index, c.document_id,
+                       d.title, d.author, d.url_original, d.saved_at,
+                       d.category, d.word_count
+                FROM embeddings e
+                JOIN document_chunks c ON c.id = e.chunk_id
+                JOIN documents d ON d.id = c.document_id
+                WHERE e.id = ?
+                """,
+                (embedding_id,),
+            )
+            row = cur.fetchone()
+            if row:
+                # Apply category filter
+                if categories and row[10] not in categories:
+                    continue
+
+                result = {
+                    "id": row[5],  # document_id
+                    "distance": distance,
+                    "chunk_id": row[0],
+                    "chunk_text": row[1],
+                    "char_start": row[2],
+                    "char_end": row[3],
+                    "chunk_index": row[4],
+                    "title": row[6],
+                    "author": row[7],
+                    "url": row[8],
+                    "saved_at": row[9],
+                    "category": row[10] or "article",
+                    "word_count": row[11],
+                }
+
+                # Get context
+                context = self.get_chunk_context(row[0], context_chunks=1)
+                result["context_before"] = context.get("context_before", "")
+                result["context_after"] = context.get("context_after", "")
+
+                results.append(result)
+
+                if len(results) >= limit:
+                    break
+
+        # Apply sorting (distance is already sorted by KNN for semantic)
+        if sort_by != "distance":
+            reverse = sort_dir == "desc"
+            results.sort(
+                key=lambda x: (x.get(sort_by) is None, x.get(sort_by, "")),
+                reverse=reverse,
+            )
+
+        return results
+
+    def get_distinct_categories(self) -> list[str]:
+        """Get all distinct categories in the documents table."""
+        cur = self.conn.execute("""
+            SELECT DISTINCT category FROM documents
+            WHERE category IS NOT NULL
+            ORDER BY category
+        """)
+        return [r[0] for r in cur.fetchall()]
+
+    def get_category_counts(self) -> dict[str, int]:
+        """Get document count per category."""
+        cur = self.conn.execute("""
+            SELECT COALESCE(category, 'article') as cat, COUNT(*) as cnt
+            FROM documents
+            GROUP BY cat
+            ORDER BY cnt DESC
+        """)
+        return {r[0]: r[1] for r in cur.fetchall()}
 
     def list_drafts(self) -> list[dict[str, Any]]:
         cur = self.conn.execute("select id, status, kind, title, updated_at from drafts order by id desc")
