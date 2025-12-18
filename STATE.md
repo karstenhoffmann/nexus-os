@@ -4,21 +4,22 @@ Stand (kurz)
 - FTS5-Volltextsuche funktioniert. /library?q=suchbegriff durchsucht Titel, Autor, Volltext, Summary.
 - 2637 Dokumente, 1457 Highlights in DB - keine Duplikate.
 - sqlite-vec funktioniert - Tests bestaetigen Insert/Query mit 1536 Dimensionen.
+- Embedding-Generierung implementiert und getestet.
 
 Aktuelles Ziel
 - Semantische Suche (Epic C) - in Arbeit
 
 Naechste Schritte (Claude Code, max 3)
-1) Embedding-Funktion mit OpenAI API schreiben
-2) Embeddings fuer bestehende Dokumente generieren
-3) Aehnlichkeitssuche implementieren und in UI einbauen
+1) Embeddings fuer bestehende Dokumente generieren (API-Aufruf)
+2) Aehnlichkeitssuche implementieren (semantic_search in storage.py)
+3) Semantische Suche in UI einbauen
 
 Offene Fragen (max 3)
 - (keine aktuell)
 
 Handoff
-- Embedding-Modul app/core/embeddings.py fertig mit get_embedding() und get_embeddings_batch()
-- Tests in tests/test_embeddings.py - 6 Tests bestanden
-- serialize_f32() Funktion in embeddings.py serialisiert Vektoren fuer sqlite-vec
-- doc_embeddings Tabelle existiert bereits (storage.py:232) mit float[1536]
-- pytest-asyncio konfiguriert in pytest.ini
+- app/core/embed_job.py: generate_embeddings_batch() und generate_all_embeddings()
+- storage.py: get_documents_without_embedding(), save_embedding(), get_embedding_stats()
+- tests/test_embed_job.py: 7 Tests bestanden
+- Embedding-Workflow: Dokumente ohne Embedding holen -> Batch-API -> serialize_f32 -> save_embedding
+- Naechster Schritt: Admin-Endpoint oder CLI zum Starten der Embedding-Generierung

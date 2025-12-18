@@ -502,6 +502,69 @@ class DB:
             for r in cur.fetchall()
         ]
 
+    def get_documents_without_embedding(self, limit: int = 100) -> list[dict[str, Any]]:
+        """Get documents that don't have embeddings yet.
+
+        Returns documents with id, title, and text content for embedding.
+        Text is built from: title + author + summary + fulltext (truncated).
+        """
+        cur = self.conn.execute(
+            """
+            SELECT d.id, d.title, d.author, d.summary, d.fulltext
+            FROM documents d
+            LEFT JOIN doc_embeddings e ON e.document_id = d.id
+            WHERE e.document_id IS NULL
+            ORDER BY d.id
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        docs = []
+        for row in cur.fetchall():
+            # Build text for embedding: title + author + summary + fulltext
+            parts = []
+            if row[1]:  # title
+                parts.append(row[1])
+            if row[2]:  # author
+                parts.append(f"by {row[2]}")
+            if row[3]:  # summary
+                parts.append(row[3])
+            if row[4]:  # fulltext
+                parts.append(row[4])
+            text = "\n\n".join(parts)
+            docs.append({"id": row[0], "title": row[1], "text": text})
+        return docs
+
+    def save_embedding(self, document_id: int, embedding: bytes) -> None:
+        """Save an embedding for a document.
+
+        Args:
+            document_id: The document ID
+            embedding: Serialized embedding bytes (from serialize_f32)
+        """
+        # Delete existing embedding if any (for re-embedding)
+        self.conn.execute(
+            "DELETE FROM doc_embeddings WHERE document_id = ?",
+            (document_id,),
+        )
+        self.conn.execute(
+            "INSERT INTO doc_embeddings (embedding, document_id) VALUES (?, ?)",
+            (embedding, document_id),
+        )
+        self.conn.commit()
+
+    def get_embedding_stats(self) -> dict[str, int]:
+        """Get embedding statistics."""
+        cur = self.conn.execute("SELECT COUNT(*) FROM documents")
+        total_docs = cur.fetchone()[0]
+        cur = self.conn.execute("SELECT COUNT(*) FROM doc_embeddings")
+        embedded_docs = cur.fetchone()[0]
+        return {
+            "total_documents": total_docs,
+            "embedded_documents": embedded_docs,
+            "pending": total_docs - embedded_docs,
+        }
+
 
 _db: DB | None = None
 
