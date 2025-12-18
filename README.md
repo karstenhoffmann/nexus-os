@@ -59,3 +59,30 @@ Restore
 
 - Node nur in tools/
 - App-Runtime ohne Node
+
+5. Troubleshooting
+
+5.1 OpenAI API Fehler 429
+
+"Rate limit reached":
+- Ursache: Zu viele Requests pro Minute
+- Loesung: Warten, Batch-Groesse reduzieren
+
+"You exceeded your current quota":
+- Ursache: Keine Credits (OpenAI ist prepaid seit 2024!)
+- Loesung: Credits kaufen auf platform.openai.com
+- WICHTIG: Warten hilft hier NICHT!
+
+Billing pruefen:
+1. https://platform.openai.com/settings/organization/billing/overview
+2. "Credit balance" muss > $0 sein
+3. Nach Kauf: Ggf. neuen API Key erstellen
+
+5.2 Embeddings generieren
+
+WO: Browser http://localhost:8000/admin
+WARUM: Embeddings fuer semantische Suche generieren
+Kosten: ca. $0.02 pro 1000 Dokumente (text-embedding-3-small)
+
+Oder via Script:
+./scripts/generate-all-embeddings.sh

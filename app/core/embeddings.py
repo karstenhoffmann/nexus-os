@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
 import struct
 
 import httpx
+
+logger = logging.getLogger(__name__)
+
+# Retry settings for rate limits
+MAX_RETRIES = 5
+INITIAL_DELAY = 2.0  # seconds
+MAX_DELAY = 60.0  # seconds
 
 
 def serialize_f32(vector: list[float]) -> bytes:
@@ -87,23 +96,45 @@ async def get_embeddings_batch(texts: list[str]) -> list[list[float]]:
     truncated = [t[:max_chars] if len(t) > max_chars else t for t in texts]
 
     async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            "https://api.openai.com/v1/embeddings",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": model,
-                "input": truncated,
-            },
-        )
-        response.raise_for_status()
-        data = response.json()
+        delay = INITIAL_DELAY
+        last_error = None
 
-    # API returns embeddings in order, but let's be safe
-    embeddings = [None] * len(texts)
-    for item in data["data"]:
-        embeddings[item["index"]] = item["embedding"]
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = await client.post(
+                    "https://api.openai.com/v1/embeddings",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": model,
+                        "input": truncated,
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
 
-    return embeddings
+                # API returns embeddings in order, but let's be safe
+                embeddings = [None] * len(texts)
+                for item in data["data"]:
+                    embeddings[item["index"]] = item["embedding"]
+
+                return embeddings
+
+            except httpx.HTTPStatusError as e:
+                last_error = e
+                if e.response.status_code == 429:
+                    # Rate limit - retry with backoff
+                    logger.warning(
+                        f"Rate limit hit, attempt {attempt + 1}/{MAX_RETRIES}. "
+                        f"Waiting {delay:.1f}s..."
+                    )
+                    await asyncio.sleep(delay)
+                    delay = min(delay * 2, MAX_DELAY)
+                else:
+                    # Other HTTP error - don't retry
+                    raise
+
+        # All retries exhausted
+        raise last_error

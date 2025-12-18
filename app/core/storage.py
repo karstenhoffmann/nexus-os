@@ -565,6 +565,43 @@ class DB:
             "pending": total_docs - embedded_docs,
         }
 
+    def semantic_search(
+        self, query_embedding: bytes, limit: int = 10
+    ) -> list[dict[str, Any]]:
+        """Search documents by semantic similarity.
+
+        Args:
+            query_embedding: Serialized embedding bytes (from serialize_f32)
+            limit: Maximum number of results to return
+
+        Returns:
+            List of documents with id, title, author, url, saved_at, and distance
+        """
+        # sqlite-vec requires k=? syntax for KNN queries
+        cur = self.conn.execute(
+            """
+            SELECT e.document_id, e.distance, d.title, d.author, d.url_original, d.saved_at
+            FROM doc_embeddings e
+            JOIN documents d ON d.id = e.document_id
+            WHERE e.embedding MATCH ? AND k = ?
+            ORDER BY e.distance
+            """,
+            (query_embedding, limit),
+        )
+        results = []
+        for row in cur.fetchall():
+            results.append(
+                {
+                    "id": row[0],
+                    "distance": row[1],
+                    "title": row[2],
+                    "author": row[3],
+                    "url": row[4],
+                    "saved_at": row[5],
+                }
+            )
+        return results
+
 
 _db: DB | None = None
 

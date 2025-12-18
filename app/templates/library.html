@@ -4,14 +4,27 @@
 <h1>Library</h1>
 
 <form method="get" action="/library" class="row gap">
-  <input class="input" type="text" name="q" value="{{ q }}" placeholder="Keyword Suche (FTS)">
+  <input class="input" type="text" name="q" value="{{ q }}" placeholder="Suche...">
+  <select name="mode" class="input" style="width: auto;">
+    <option value="fts" {% if mode != 'semantic' %}selected{% endif %}>Keyword (FTS)</option>
+    <option value="semantic" {% if mode == 'semantic' %}selected{% endif %}>Semantic</option>
+  </select>
   <button class="btn" type="submit">Search</button>
 </form>
+
+{% if q and mode == 'semantic' %}
+<p class="muted" style="margin: 0.5rem 0;">Semantische Suche: Findet konzeptuell aehnliche Dokumente</p>
+{% endif %}
 
 <div class="list">
   {% for r in rows %}
     <div class="item">
-      <div class="title"><a href="/documents/{{ r.id }}">{{ r.title or ("Doc #" ~ r.id) }}</a></div>
+      <div class="title">
+        <a href="/documents/{{ r.id }}">{{ r.title or ("Doc #" ~ r.id) }}</a>
+        {% if r.distance is defined %}
+          <span class="badge" title="Distanz (kleiner = aehnlicher)">{{ "%.3f"|format(r.distance) }}</span>
+        {% endif %}
+      </div>
       <div class="meta">
         <span>{{ r.author or "" }}</span>
         <span>{{ r.saved_at or "" }}</span>

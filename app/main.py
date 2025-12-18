@@ -11,6 +11,7 @@ from app.core.settings import Settings
 from app.core.storage import get_db, init_db
 from app.core.import_job import ImportStatus, get_import_store
 from app.core.embed_job import generate_embeddings_batch
+from app.core.embeddings import get_embedding, serialize_f32
 from app.providers.readwise import ImportEventType, ReadwiseAuthError, ReadwiseClient
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -43,10 +44,32 @@ def home(request: Request):
 
 
 @app.get("/library", response_class=HTMLResponse)
-def library(request: Request, q: str = ""):
+async def library(request: Request, q: str = "", mode: str = "fts"):
+    """Library search with FTS or semantic mode.
+
+    Args:
+        q: Search query
+        mode: 'fts' for full-text search, 'semantic' for vector similarity
+    """
     db = get_db()
-    rows = db.search_documents(q)
-    return render("library.html", request=request, q=q, rows=rows)
+
+    if not q or not q.strip():
+        rows = db.search_documents("")
+        return render("library.html", request=request, q=q, rows=rows, mode=mode)
+
+    if mode == "semantic":
+        try:
+            query_embedding = await get_embedding(q.strip())
+            embedding_bytes = serialize_f32(query_embedding)
+            rows = db.semantic_search(embedding_bytes, limit=50)
+        except Exception as e:
+            # Fallback to FTS on error
+            rows = db.search_documents(q)
+            mode = "fts"
+    else:
+        rows = db.search_documents(q)
+
+    return render("library.html", request=request, q=q, rows=rows, mode=mode)
 
 
 @app.get("/documents/{doc_id}", response_class=HTMLResponse)
@@ -108,6 +131,34 @@ def admin_embedding_stats():
     """Get current embedding statistics."""
     db = get_db()
     return db.get_embedding_stats()
+
+
+@app.get("/api/semantic-search")
+async def api_semantic_search(q: str, limit: int = 10):
+    """Search documents by semantic similarity.
+
+    Args:
+        q: Search query text
+        limit: Maximum results (default 10)
+
+    Returns:
+        List of documents with similarity scores
+    """
+    if not q or not q.strip():
+        return {"results": [], "error": "Query is required"}
+
+    try:
+        # Get embedding for query
+        query_embedding = await get_embedding(q.strip())
+        embedding_bytes = serialize_f32(query_embedding)
+
+        # Search
+        db = get_db()
+        results = db.semantic_search(embedding_bytes, limit=limit)
+
+        return {"results": results, "query": q}
+    except Exception as e:
+        return {"results": [], "error": str(e)}
 
 
 @app.get("/readwise/preview", response_class=HTMLResponse)

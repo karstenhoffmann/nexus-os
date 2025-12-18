@@ -59,3 +59,17 @@ Kurzregeln fuer Claude Code (unverhandelbar)
 - Keine neuen Plan-Dateien erstellen.
 - Wenn etwas dokumentiert werden muss: README oder PROJECT_BRIEF oder STATE.
 - STATE bleibt kurz. Alte Details kuerzen.
+
+10. Externe APIs (OpenAI, etc.)
+
+- Vor API-Nutzung: Billing/Credits pruefen (OpenAI ist prepaid seit 2024!)
+- Bei 429-Fehlern: Fehlertyp unterscheiden:
+  - "Rate limit reached" = zu schnell, warten hilft
+  - "quota exceeded" = Billing-Problem, warten hilft NICHT
+- Minimale Tests vor grossen Batch-Jobs (1 Doc, dann 5, dann 50, dann alle)
+- Context7 MCP fuer aktuelle API-Dokumentation nutzen
+- Kosten vorher schaetzen, Nutzer informieren
+- OpenAI URLs (Dez 2025):
+  - Billing: https://platform.openai.com/settings/organization/billing/overview
+  - Limits: https://platform.openai.com/settings/organization/limits
+  - Status: https://status.openai.com/
