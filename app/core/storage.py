@@ -1455,6 +1455,7 @@ _db: DB | None = None
 def init_db() -> None:
     global _db
     from app.core.import_job import init_import_store
+    from app.core.fetch_job import init_fetch_store
 
     s = Settings.from_env()
     os.makedirs(os.path.dirname(s.db_path), exist_ok=True)
@@ -1468,8 +1469,9 @@ def init_db() -> None:
     _db = DB(conn=conn)
     _db.init()
 
-    # Initialize import job store with same connection
+    # Initialize job stores with same connection
     init_import_store(conn)
+    init_fetch_store(conn)
 
 
 def get_db() -> DB:
