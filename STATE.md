@@ -1,48 +1,42 @@
 nexus-os Status
 
 Stand (kurz)
-- Duale Speicherung: fulltext (sauber) + fulltext_html (Original mit Bildern)
-- Migration abgeschlossen: 1686 Dokumente HTML bereinigt, Original gesichert
-- 69.338 Chunks bereit fuer Embeddings
-- 55 Tests bestanden
+- 69.338 Chunks bereit, davon 22.455 mit Embeddings (32%)
+- Neues SSE-Embedding-System komplett implementiert (alle 5 Sprints)
+- Bereit fuer Embedding-Generierung
 
 Aktuelles Ziel
-- Embeddings fuer alle Chunks generieren (~69k)
-
-Fertig (diese Session)
-1) fulltext_html Spalte hinzugefuegt (Original-HTML mit Bildern)
-2) extract_text_from_html() mit Fallback fuer HTML-Fragmente
-3) save_article() aktualisiert fuer Dual-Speicherung
-4) Migration-Endpoint aktualisiert (/api/admin/clean-html-fulltext)
-5) 1686 Dokumente migriert (HTML -> fulltext_html, bereinigt -> fulltext)
-6) 8 reine Bild-Dokumente behandelt (nur fulltext_html, kein Text)
+- Alle ~47k ausstehenden Chunks embedden
+- Geschaetzte Zeit: ~12 Minuten
+- Geschaetzte Kosten: ~$0.28
 
 Naechste Schritte (Claude Code, max 3)
-1) Embeddings generieren: curl -X POST "http://localhost:8000/api/embeddings/generate-chunks?limit=500"
-2) Semantische Suche testen nach Embedding-Generierung
-3) Optional: Commit + Push der Aenderungen
-
-Offene Fragen (max 3)
-- (keine aktuell)
+1) Im Browser /admin/embeddings oeffnen und Job starten
+2) Fortschritt beobachten (Pause/Resume moeglich)
+3) Nach Abschluss: Semantische Suche testen
 
 Handoff
-- Architektur-Entscheidung: Duale Speicherung
-  - fulltext: Sauberer Text fuer Suche, Chunks, Embeddings
-  - fulltext_html: Original HTML mit Bildern fuer zukuenftige Anzeige
+- Neues SSE-basiertes Embedding-System fertig
+- Neue Dateien:
+  - app/core/embed_job_v2.py (EmbedJob, EmbedJobStore, run_embed_job)
+  - app/templates/admin_embeddings.html (Admin UI mit EventSource)
+- Aenderungen:
+  - app/core/storage.py (embed_jobs Tabelle, Index, get_chunks_for_embedding)
+  - app/main.py (neue /api/embed/* Endpoints, /admin/embeddings Route)
+  - app/core/embedding_providers.py (Base64 Encoding fuer 75% kleinere Responses)
+  - app/templates/admin.html (Link zu neuem Embedding Generator)
+- Alle Tests laufen durch
+- Bereit fuer Commit + Push
 
-- Neue/geaenderte Dateien:
-  - content_fetcher.py:350-412 - extract_text_from_html() mit Fallback
-  - storage.py:560-584 - INSERT mit fulltext_html
-  - storage.py:508-555 - UPDATE mit fulltext_html
-  - main.py:1023-1037 - Import mit Dual-Speicherung
-  - main.py:560-631 - Migration-Endpoint aktualisiert
+Features des neuen Systems
+- SSE-Streaming fuer Echtzeit-Updates
+- Pause/Resume mit DB-persistiertem Cursor
+- Batch-Commits (200 Chunks) - keine DB-Locks
+- Kosten-Tracking pro Job
+- Base64-Encoding fuer schnellere API-Responses
 
-- Status nach Migration:
-  - Total Dokumente: 2638
-  - Mit sauberem Fulltext: 2159
-  - Mit HTML-Backup: 1686
-  - Total Chunks: 69.338
-  - Chunks ohne Embeddings: 69.338
-
-- Tests: docker compose exec app python -m pytest tests/ -v (55/55)
-- Preflight: ./scripts/preflight-fast.sh (gruen)
+Status
+- Total Chunks: 69.338
+- Mit Embeddings: 22.455 (32%)
+- Ausstehend: 46.883
+- Geschaetzte Kosten: ~$0.28

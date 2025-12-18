@@ -184,6 +184,8 @@ CREATE TABLE IF NOT EXISTS embeddings (
 CREATE INDEX IF NOT EXISTS idx_embeddings_document_id ON embeddings(document_id);
 CREATE INDEX IF NOT EXISTS idx_embeddings_chunk_id ON embeddings(chunk_id);
 CREATE INDEX IF NOT EXISTS idx_embeddings_provider_model ON embeddings(provider, model);
+-- Combined index for efficient "chunks without embedding" queries
+CREATE INDEX IF NOT EXISTS idx_embeddings_chunk_provider_model ON embeddings(chunk_id, provider, model);
 
 -- API Usage Tracking (fuer Kosten-Dashboard)
 CREATE TABLE IF NOT EXISTS api_usage (
@@ -244,6 +246,24 @@ CREATE TABLE IF NOT EXISTS fetch_failures (
 
 CREATE INDEX IF NOT EXISTS idx_fetch_failures_error_type ON fetch_failures(error_type);
 CREATE INDEX IF NOT EXISTS idx_fetch_failures_job_id ON fetch_failures(job_id);
+
+-- Embedding Jobs (SSE-basiertes System)
+CREATE TABLE IF NOT EXISTS embed_jobs (
+  id TEXT PRIMARY KEY,
+  status TEXT NOT NULL,  -- pending, running, paused, cancelled, completed, failed
+  cursor_chunk_id INTEGER,  -- Resume-Position (letzter verarbeiteter Chunk)
+  items_processed INTEGER DEFAULT 0,
+  items_succeeded INTEGER DEFAULT 0,
+  items_failed INTEGER DEFAULT 0,
+  items_total INTEGER,
+  tokens_used INTEGER DEFAULT 0,
+  cost_usd REAL DEFAULT 0,
+  provider TEXT DEFAULT 'openai',
+  model TEXT DEFAULT 'text-embedding-3-small',
+  started_at TEXT DEFAULT (datetime('now')),
+  last_activity TEXT DEFAULT (datetime('now')),
+  error TEXT
+);
 """
 
 def _run_migrations(conn: sqlite3.Connection) -> None:
@@ -334,6 +354,39 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     if "fulltext_html" not in columns:
         conn.execute("ALTER TABLE documents ADD COLUMN fulltext_html TEXT")
         conn.commit()
+
+    # Add combined index for efficient "chunks without embedding" queries
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_embeddings_chunk_provider_model
+        ON embeddings(chunk_id, provider, model)
+    """)
+    conn.commit()
+
+    # Create embed_jobs table if not exists (for SSE-based embedding system)
+    cur = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='embed_jobs'"
+    )
+    if cur.fetchone() is None:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS embed_jobs (
+                id TEXT PRIMARY KEY,
+                status TEXT NOT NULL,
+                cursor_chunk_id INTEGER,
+                items_processed INTEGER DEFAULT 0,
+                items_succeeded INTEGER DEFAULT 0,
+                items_failed INTEGER DEFAULT 0,
+                items_total INTEGER,
+                tokens_used INTEGER DEFAULT 0,
+                cost_usd REAL DEFAULT 0,
+                provider TEXT DEFAULT 'openai',
+                model TEXT DEFAULT 'text-embedding-3-small',
+                started_at TEXT DEFAULT (datetime('now')),
+                last_activity TEXT DEFAULT (datetime('now')),
+                error TEXT
+            )
+        """)
+        conn.commit()
+
 
 VEC_SQL = """
 -- Legacy table (kept for backward compatibility)
@@ -1185,6 +1238,77 @@ class DB:
             "legacy_embeddings": legacy_count,
         }
 
+    def get_chunks_for_embedding(
+        self,
+        limit: int = 200,
+        cursor_chunk_id: int | None = None,
+        provider: str = "openai",
+        model: str = "text-embedding-3-small",
+    ) -> list[dict[str, Any]]:
+        """Get chunks without embeddings (cursor-based for resume).
+
+        Returns chunks that don't have an embedding for the given provider/model.
+        Results are ordered by chunk id for consistent cursor-based pagination.
+        Uses NOT EXISTS (faster than LEFT JOIN for this pattern).
+        """
+        cursor_id = cursor_chunk_id or 0
+        cur = self.conn.execute(
+            """
+            SELECT c.id, c.document_id, c.chunk_text, c.token_count
+            FROM document_chunks c
+            WHERE c.id > ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM embeddings e
+                  WHERE e.chunk_id = c.id
+                    AND e.provider = ?
+                    AND e.model = ?
+              )
+            ORDER BY c.id
+            LIMIT ?
+            """,
+            (cursor_id, provider, model, limit),
+        )
+        return [
+            {
+                "id": row[0],
+                "document_id": row[1],
+                "chunk_text": row[2],
+                "token_count": row[3] or 0,
+            }
+            for row in cur.fetchall()
+        ]
+
+    def count_chunks_for_embedding(
+        self,
+        provider: str = "openai",
+        model: str = "text-embedding-3-small",
+    ) -> dict[str, int]:
+        """Get stats for embedding generation.
+
+        Returns:
+            total_chunks: All chunks in DB
+            embedded_chunks: Chunks with embedding for this provider/model
+            pending_chunks: Chunks without embedding
+        """
+        cur = self.conn.execute("SELECT COUNT(*) FROM document_chunks")
+        total = cur.fetchone()[0]
+
+        cur = self.conn.execute(
+            """
+            SELECT COUNT(DISTINCT chunk_id)
+            FROM embeddings
+            WHERE provider = ? AND model = ?
+            """,
+            (provider, model),
+        )
+        embedded = cur.fetchone()[0]
+
+        return {
+            "total_chunks": total,
+            "embedded_chunks": embedded,
+            "pending_chunks": total - embedded,
+        }
+
     # ==================== Usage Tracking ====================
 
     def log_api_usage(
@@ -1569,6 +1693,7 @@ def init_db() -> None:
     global _db
     from app.core.import_job import init_import_store
     from app.core.fetch_job import init_fetch_store
+    from app.core.embed_job_v2 import init_embed_store
 
     s = Settings.from_env()
     os.makedirs(os.path.dirname(s.db_path), exist_ok=True)
@@ -1585,6 +1710,7 @@ def init_db() -> None:
     # Initialize job stores with same connection
     init_import_store(conn)
     init_fetch_store(conn)
+    init_embed_store(conn)
 
 
 def get_db() -> DB:

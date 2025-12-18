@@ -2,74 +2,257 @@
 {% block content %}
 
 <h1>Admin</h1>
+<p class="muted">System-Konfiguration und Hintergrund-Jobs verwalten</p>
 
 <div class="grid">
   <div class="card">
-    <h2>Settings (read-only)</h2>
-    <div class="kv"><div>ENV</div><div>{{ settings.app_env }}</div></div>
-    <div class="kv"><div>DB</div><div>{{ settings.db_path }}</div></div>
-    <div class="kv"><div>LLM_PROVIDER</div><div>{{ settings.llm_provider }}</div></div>
-    <div class="kv"><div>Confirm costly</div><div>{{ settings.require_confirm_for_costly_runs }}</div></div>
-    <div class="kv"><div>Max LLM/day</div><div>{{ settings.max_llm_calls_per_day }}</div></div>
-    <div class="kv"><div>Max Embed/day</div><div>{{ settings.max_embed_calls_per_day }}</div></div>
+    <h2>Umgebung</h2>
+    <p class="muted small">Aktuelle Systemkonfiguration aus Umgebungsvariablen (nur lesbar)</p>
+    <div class="kv"><div>Modus</div><div>{{ settings.app_env }}</div></div>
+    <div class="kv"><div>Datenbank</div><div>{{ settings.db_path }}</div></div>
+    <div class="kv"><div>LLM-Anbieter</div><div>{{ settings.llm_provider }}</div></div>
   </div>
 
   <div class="card">
-    <h2>Stats</h2>
-    <div class="kv"><div>Documents</div><div>{{ stats.documents }}</div></div>
+    <h2>Datenbestand</h2>
+    <p class="muted small">Anzahl der gespeicherten Inhalte in der Datenbank</p>
+    <div class="kv"><div>Dokumente</div><div>{{ stats.documents }}</div></div>
     <div class="kv"><div>Highlights</div><div>{{ stats.highlights }}</div></div>
-    <div class="kv"><div>Drafts</div><div>{{ stats.drafts }}</div></div>
-  </div>
-
-  <div class="card" x-data="{ loading: false, result: null, error: null, pending: {{ embedding_stats.pending }} }">
-    <h2>Embeddings</h2>
-    <div class="kv"><div>Mit Embedding</div><div>{{ embedding_stats.embedded_documents }}</div></div>
-    <div class="kv"><div>Ausstehend</div><div x-text="pending">{{ embedding_stats.pending }}</div></div>
-    <div class="kv"><div>Gesamt</div><div>{{ embedding_stats.total_documents }}</div></div>
-
-    {% if embedding_stats.pending > 0 %}
-    <div style="margin-top: 1rem;">
-      <button
-        class="btn"
-        :disabled="loading"
-        @click="
-          loading = true;
-          error = null;
-          result = null;
-          fetch('/admin/embeddings/generate?limit=100', { method: 'POST' })
-            .then(r => r.json())
-            .then(data => {
-              result = data;
-              pending = data.remaining;
-              loading = false;
-            })
-            .catch(e => { error = e.message; loading = false; })
-        ">
-        <span x-show="!loading">Embeddings generieren (100 Dokumente)</span>
-        <span x-show="loading">Generiere...</span>
-      </button>
-      <p x-show="result" class="success" style="margin-top: 0.5rem;">
-        Verarbeitet: <span x-text="result?.processed"></span>,
-        Fehlgeschlagen: <span x-text="result?.failed"></span>,
-        Verbleibend: <span x-text="result?.remaining"></span>
-      </p>
-      <p x-show="error" class="error" style="margin-top: 0.5rem;" x-text="error"></p>
-    </div>
-    {% else %}
-    <p style="margin-top: 0.5rem; color: green;">Alle Dokumente haben Embeddings.</p>
-    {% endif %}
+    <div class="kv"><div>Entwuerfe</div><div>{{ stats.drafts }}</div></div>
   </div>
 </div>
 
-<div class="grid" style="margin-top: 2rem;">
+<!-- Embedding Job Card -->
+<div class="card" style="margin-top: 1.5rem;" x-data="embeddingJob()" x-init="init()">
+  <h2>Semantische Suche</h2>
+  <p class="muted small">
+    Embeddings wandeln Text in Vektoren um, damit die Suche nach Bedeutung statt nur nach Worten funktioniert.
+    Jedes Dokument wird in Chunks (~800 Zeichen) aufgeteilt, die einzeln durchsuchbar sind.
+  </p>
+
+  <!-- Status Overview -->
+  <div style="margin: 1.5rem 0;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+      <span style="font-size: 1.1rem; font-weight: 500;" x-text="statusText"></span>
+      <span style="font-size: 1.5rem; font-weight: 600;" x-text="progress + '%'"></span>
+    </div>
+
+    <!-- Progress Bar -->
+    <div style="background: var(--bg-secondary, #e5e5e5); border-radius: 8px; height: 12px; overflow: hidden;">
+      <div style="background: var(--accent, #3b82f6); height: 100%; transition: width 0.5s ease;"
+           :style="'width: ' + progress + '%'"></div>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary, #666);">
+      <span x-text="totalEmbedded.toLocaleString() + ' von ' + stats.total_chunks.toLocaleString() + ' Chunks'"></span>
+      <span x-show="pending > 0" x-text="pending.toLocaleString() + ' ausstehend'"></span>
+    </div>
+  </div>
+
+  <!-- Provider Info -->
+  <template x-if="stats.by_provider && stats.by_provider.length > 0">
+    <div style="padding: 0.75rem; background: var(--bg-secondary, #f5f5f5); border-radius: 6px; margin-bottom: 1rem;">
+      <div style="font-size: 0.8rem; color: var(--text-secondary, #666); margin-bottom: 0.25rem;">Aktiver Anbieter</div>
+      <template x-for="p in stats.by_provider" :key="p.provider + p.model">
+        <div style="font-weight: 500;" x-text="p.provider + ' / ' + p.model"></div>
+      </template>
+    </div>
+  </template>
+
+  <!-- Job Controls -->
+  <div x-show="pending > 0">
+    <!-- Not Running State -->
+    <div x-show="!jobRunning">
+      <button class="btn" @click="startJob()">
+        Embeddings generieren starten
+      </button>
+      <p class="muted small" style="margin-top: 0.5rem;">
+        Verarbeitet 1000 Chunks pro Welle (~15-20 Sek.). Fortschritt nach jeder Welle sichtbar.
+      </p>
+    </div>
+
+    <!-- Running State -->
+    <div x-show="jobRunning">
+      <div style="display: flex; align-items: center; gap: 1rem;">
+        <div class="spinner"></div>
+        <div>
+          <div style="font-weight: 500;" x-text="jobStatus"></div>
+          <div class="muted small" x-text="'Welle ' + currentBatch + ' von ~' + Math.ceil(pending / 1000)"></div>
+        </div>
+      </div>
+      <button class="btn btn-secondary" style="margin-top: 1rem;" @click="stopJob()">
+        Nach dieser Welle stoppen
+      </button>
+    </div>
+
+    <!-- Result Message -->
+    <div x-show="lastResult" style="margin-top: 1rem; padding: 0.75rem; background: var(--success-bg, #dcfce7); border-radius: 6px;">
+      <span x-text="lastResult"></span>
+    </div>
+
+    <!-- Error Message -->
+    <div x-show="error" style="margin-top: 1rem; padding: 0.75rem; background: var(--error-bg, #fef2f2); color: var(--error, #dc2626); border-radius: 6px;">
+      <span x-text="error"></span>
+    </div>
+  </div>
+
+  <!-- All Done State -->
+  <div x-show="pending === 0 && stats.total_chunks > 0" style="padding: 1rem; background: var(--success-bg, #dcfce7); border-radius: 6px; text-align: center;">
+    <span style="font-size: 1.5rem;">✓</span>
+    <span style="font-weight: 500; margin-left: 0.5rem;">Alle Chunks haben Embeddings - Semantische Suche ist bereit!</span>
+  </div>
+</div>
+
+<!-- Tools Section -->
+<h2 style="margin-top: 2rem;">Werkzeuge</h2>
+<div class="grid">
+  <a href="/admin/embeddings" class="card" style="text-decoration: none;">
+    <h3>Embedding Generator (v2)</h3>
+    <p class="muted small">SSE-basiertes System mit Pause/Resume, Echtzeit-Fortschritt und Kosten-Tracking.</p>
+  </a>
+
   <a href="/admin/compare" class="card" style="text-decoration: none;">
-    <h2>Modell-Vergleich</h2>
-    <p>Teste OpenAI vs Ollama mit der gleichen Suchanfrage und vergleiche Ergebnisse.</p>
+    <h3>Modell-Vergleich</h3>
+    <p class="muted small">Vergleiche Suchergebnisse von verschiedenen Embedding-Modellen (OpenAI vs Ollama) nebeneinander.</p>
   </a>
 
   <a href="/admin/fetch" class="card" style="text-decoration: none;">
-    <h2>Fulltext Fetching</h2>
-    <p>Hole Artikel-Volltexte von Original-URLs fuer bessere semantische Suche.</p>
+    <h3>Fulltext Fetching</h3>
+    <p class="muted small">Hole Artikel-Volltexte von Original-URLs. Notwendig wenn nur Titel/Summary vorhanden sind.</p>
   </a>
 </div>
+
+<style>
+.muted { color: var(--text-secondary, #666); }
+.small { font-size: 0.85rem; }
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--bg-secondary, #e5e5e5);
+  border-top-color: var(--accent, #3b82f6);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.btn-secondary { background: var(--bg-secondary, #e5e5e5); color: var(--text, #333); }
+</style>
+
+<script>
+function embeddingJob() {
+  return {
+    stats: { total_documents: 0, total_chunks: 0, by_provider: [], legacy_embeddings: 0 },
+    jobRunning: false,
+    jobStatus: '',
+    currentBatch: 0,
+    lastResult: null,
+    error: null,
+    stopRequested: false,
+
+    get totalEmbedded() {
+      if (!this.stats.by_provider) return 0;
+      return this.stats.by_provider.reduce((sum, p) => sum + (p.chunk_embeddings || 0), 0);
+    },
+    get pending() {
+      return Math.max(0, this.stats.total_chunks - this.totalEmbedded);
+    },
+    get progress() {
+      if (this.stats.total_chunks === 0) return 0;
+      return Math.round(this.totalEmbedded / this.stats.total_chunks * 100);
+    },
+    get statusText() {
+      if (this.pending === 0) return 'Vollstaendig';
+      if (this.jobRunning) return 'Generiere...';
+      return 'Bereit';
+    },
+
+    init() {
+      this.refreshStats();
+      // Poll every 2 seconds for live updates
+      setInterval(() => this.refreshStats(), 2000);
+    },
+
+    async refreshStats() {
+      try {
+        const res = await fetch('/api/embeddings/stats');
+        if (res.ok) {
+          this.stats = await res.json();
+        }
+      } catch (e) {
+        // Ignore fetch errors during job
+      }
+    },
+
+    async startJob() {
+      this.jobRunning = true;
+      this.error = null;
+      this.lastResult = null;
+      this.stopRequested = false;
+      this.currentBatch = 0;
+
+      // Process 1000 chunks per wave with 2 concurrent API calls of 500 chunks each
+      // This balances speed with responsiveness (each wave ~15-20 seconds)
+      const CHUNKS_PER_CALL = 1000;
+      let totalProcessed = 0;
+      let totalCost = 0;
+      let totalDuration = 0;
+
+      while (this.pending > 0 && !this.stopRequested) {
+        this.currentBatch++;
+        this.jobStatus = `Welle ${this.currentBatch}: ${Math.min(CHUNKS_PER_CALL, this.pending).toLocaleString()} Chunks...`;
+
+        try {
+          const startTime = Date.now();
+          const res = await fetch(`/api/embeddings/generate-fast?limit=${CHUNKS_PER_CALL}&batch_size=500&max_concurrent=2`, {
+            method: 'POST'
+          });
+
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+          }
+
+          const data = await res.json();
+          totalProcessed += data.processed || 0;
+          totalCost += data.cost_usd || 0;
+          totalDuration += data.duration_seconds || 0;
+
+          // Refresh stats to show progress
+          await this.refreshStats();
+
+          // Update status with speed info
+          if (data.chunks_per_second) {
+            this.jobStatus = `${data.chunks_per_second} Chunks/Sek`;
+          }
+
+          // Stop if nothing was processed (error or done)
+          if (data.processed === 0) {
+            if (data.error) {
+              this.error = data.error;
+            }
+            break;
+          }
+
+          // Small pause between waves
+          await new Promise(r => setTimeout(r, 200));
+        } catch (e) {
+          this.error = `Fehler bei Welle ${this.currentBatch}: ${e.message}`;
+          break;
+        }
+      }
+
+      this.jobRunning = false;
+      if (!this.error && totalProcessed > 0) {
+        const avgSpeed = totalDuration > 0 ? Math.round(totalProcessed / totalDuration) : 0;
+        this.lastResult = `${totalProcessed.toLocaleString()} Chunks in ${totalDuration.toFixed(1)}s (${avgSpeed} Chunks/Sek), Kosten: $${totalCost.toFixed(4)}`;
+      } else if (this.stopRequested) {
+        this.lastResult = `Abgebrochen nach ${totalProcessed.toLocaleString()} Chunks`;
+      }
+    },
+
+    stopJob() {
+      this.stopRequested = true;
+      this.jobStatus = 'Wird abgebrochen...';
+    }
+  };
+}
+</script>
 {% endblock %}

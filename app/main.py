@@ -15,6 +15,11 @@ from app.core.fetch_job import (
     get_fetch_store,
     run_fetch_job,
 )
+from app.core.embed_job_v2 import (
+    EmbedStatus,
+    get_embed_store,
+    run_embed_job,
+)
 from app.core.content_fetcher import extract_text_from_html
 from app.core.embed_job import generate_embeddings_batch, generate_embeddings_v2, generate_chunk_embeddings_v2
 from app.core.chunking import get_chunking_info, chunk_document
@@ -129,7 +134,7 @@ def admin(request: Request):
     s = Settings.from_env()
     db = get_db()
     stats = db.get_stats()
-    embedding_stats = db.get_embedding_stats()
+    embedding_stats = db.get_embedding_stats_v2()  # Use v2 for chunk-based stats
     return render("admin.html", request=request, settings=s, stats=stats, embedding_stats=embedding_stats)
 
 
@@ -420,6 +425,128 @@ async def api_generate_chunk_embeddings(
     return result
 
 
+@app.post("/api/embeddings/generate-fast")
+async def api_generate_embeddings_fast(
+    limit: int = 10000,
+    batch_size: int = 500,
+    max_concurrent: int = 5,
+):
+    """High-speed parallel embedding generation.
+
+    Uses parallel API calls to maximize throughput within OpenAI rate limits.
+    OpenAI Tier 1: 3000 RPM, 1M TPM, up to 2048 inputs/request.
+
+    With default settings (5 concurrent, 500 per batch):
+    - ~2500 chunks per wave
+    - Each wave takes ~10-15 seconds
+    - 69k chunks in ~28 waves = ~5-7 minutes
+
+    Args:
+        limit: Maximum chunks to process (default 10000)
+        batch_size: Chunks per API request (default 500, max 2048)
+        max_concurrent: Parallel requests (default 5, safe for rate limits)
+
+    Returns:
+        Dict with processed, failed, cost_usd, duration_seconds
+    """
+    import time
+    from app.core.embedding_providers import OpenAIProvider, EmbeddingError
+    from app.core.embeddings import serialize_f32
+
+    db = get_db()
+    settings = Settings.from_env()
+    start_time = time.monotonic()
+
+    # Get provider
+    provider = OpenAIProvider(model=settings.embedding_model or "text-embedding-3-small")
+
+    # Get chunks without embeddings
+    cur = db.conn.execute(
+        """
+        SELECT c.id, c.chunk_text
+        FROM document_chunks c
+        LEFT JOIN embeddings e ON e.chunk_id = c.id
+            AND e.provider = ? AND e.model = ?
+        WHERE e.id IS NULL
+        LIMIT ?
+        """,
+        (provider.name.lower(), provider.model_id, limit),
+    )
+    chunks = cur.fetchall()
+
+    if not chunks:
+        return {
+            "processed": 0,
+            "failed": 0,
+            "cost_usd": 0.0,
+            "duration_seconds": 0,
+            "message": "Keine ausstehenden Chunks",
+        }
+
+    chunk_ids = [row[0] for row in chunks]
+    texts = [row[1][:20000] if len(row[1]) > 20000 else row[1] for row in chunks]  # Truncate
+
+    # Generate embeddings in parallel
+    processed = 0
+    failed = 0
+
+    try:
+        embeddings = await provider.embed_parallel(
+            texts,
+            batch_size=batch_size,
+            max_concurrent=max_concurrent,
+        )
+
+        # Save embeddings in batches to avoid long transactions
+        SAVE_BATCH = 500
+        for i in range(0, len(embeddings), SAVE_BATCH):
+            batch_embeddings = embeddings[i : i + SAVE_BATCH]
+            batch_ids = chunk_ids[i : i + SAVE_BATCH]
+
+            embeddings_data = []
+            for chunk_id, emb in zip(batch_ids, batch_embeddings):
+                if emb:
+                    embeddings_data.append({
+                        "embedding": serialize_f32(emb),
+                        "chunk_id": chunk_id,
+                    })
+
+            if embeddings_data:
+                try:
+                    saved = db.save_embeddings_batch(
+                        embeddings_data=embeddings_data,
+                        dimensions=provider.dimensions,
+                        provider=provider.name.lower(),
+                        model=provider.model_id,
+                    )
+                    processed += saved
+                except Exception as e:
+                    logger.error(f"Batch save error: {e}")
+                    failed += len(embeddings_data)
+
+    except EmbeddingError as e:
+        return {
+            "processed": processed,
+            "failed": len(chunks) - processed,
+            "error": str(e),
+            "duration_seconds": round(time.monotonic() - start_time, 1),
+        }
+
+    # Calculate cost
+    total_tokens = sum(len(t) // 4 for t in texts)
+    cost_usd = provider.estimate_cost(total_tokens)
+    duration = round(time.monotonic() - start_time, 1)
+
+    return {
+        "processed": processed,
+        "failed": failed,
+        "cost_usd": round(cost_usd, 4),
+        "tokens": total_tokens,
+        "duration_seconds": duration,
+        "chunks_per_second": round(processed / duration, 1) if duration > 0 else 0,
+    }
+
+
 @app.get("/api/embeddings/stats")
 def api_embedding_stats_v2():
     """Get detailed embedding statistics by provider/model."""
@@ -697,6 +824,27 @@ def admin_fetch(request: Request):
     )
 
 
+@app.get("/admin/embeddings", response_class=HTMLResponse)
+def admin_embeddings(request: Request):
+    """Embedding generation management page (v2 with SSE)."""
+    db = get_db()
+    store = get_embed_store()
+
+    stats = db.count_chunks_for_embedding()
+    jobs = store.list_recent(limit=10)
+    running_job = store.get_running()
+    resumable_job = store.get_resumable()
+
+    return render(
+        "admin_embeddings.html",
+        request=request,
+        stats=stats,
+        jobs=jobs,
+        running_job=running_job,
+        resumable_job=resumable_job,
+    )
+
+
 @app.post("/api/fetch/start")
 def api_fetch_start():
     """Start a new fulltext fetch job.
@@ -871,6 +1019,178 @@ def api_fetch_delete(job_id: str):
     job = store.get(job_id)
 
     if job and job.status == FetchStatus.RUNNING:
+        return {"error": "Cannot delete a running job"}
+
+    deleted = store.delete(job_id)
+
+    return {"deleted": deleted}
+
+
+# ==================== Embedding Routes (SSE-based v2) ====================
+
+
+@app.post("/api/embed/start")
+def api_embed_start(
+    provider: str = "openai",
+    model: str = "text-embedding-3-small",
+):
+    """Start a new embedding job.
+
+    Returns job ID for SSE stream connection.
+    """
+    db = get_db()
+    store = get_embed_store()
+
+    # Check if a job is already running
+    running = store.get_running()
+    if running:
+        return {"error": "An embedding job is already running", "job_id": running.id}
+
+    # Get total count for progress tracking
+    stats = db.count_chunks_for_embedding(provider=provider, model=model)
+    if stats["pending_chunks"] == 0:
+        return {"error": "No chunks pending for embedding", "stats": stats}
+
+    job = store.create(
+        items_total=stats["pending_chunks"],
+        provider=provider,
+        model=model,
+    )
+
+    return {
+        "job_id": job.id,
+        "items_total": stats["pending_chunks"],
+        "provider": provider,
+        "model": model,
+    }
+
+
+@app.post("/api/embed/{job_id}/pause")
+def api_embed_pause(job_id: str):
+    """Pause a running embedding job."""
+    store = get_embed_store()
+    job = store.pause(job_id)
+
+    if not job:
+        return {"error": "Job not found or not running"}
+
+    return {"status": job.status.value, "job": job.to_dict()}
+
+
+@app.post("/api/embed/{job_id}/resume")
+def api_embed_resume(job_id: str):
+    """Resume a paused embedding job.
+
+    Client should reconnect to SSE stream after calling this.
+    """
+    store = get_embed_store()
+    job = store.get(job_id)
+
+    if not job:
+        return {"error": "Job not found"}
+
+    if job.status not in (EmbedStatus.PAUSED, EmbedStatus.FAILED):
+        return {"error": f"Job cannot be resumed (status: {job.status.value})"}
+
+    # Set to pending, will become running when stream starts
+    job.status = EmbedStatus.PENDING
+    store.update(job)
+
+    return {"status": job.status.value, "job": job.to_dict()}
+
+
+@app.post("/api/embed/{job_id}/cancel")
+def api_embed_cancel(job_id: str):
+    """Cancel an embedding job."""
+    store = get_embed_store()
+    job = store.cancel(job_id)
+
+    if not job:
+        return {"error": "Job not found or cannot be cancelled"}
+
+    return {"status": job.status.value, "job": job.to_dict()}
+
+
+@app.get("/api/embed/{job_id}/status")
+def api_embed_status(job_id: str):
+    """Get current status of an embedding job."""
+    store = get_embed_store()
+    job = store.get(job_id)
+
+    if not job:
+        return {"error": "Job not found"}
+
+    return job.to_dict()
+
+
+@app.get("/api/embed/{job_id}/stream")
+async def api_embed_stream(job_id: str):
+    """SSE stream for embedding progress.
+
+    Connect after starting or resuming a job to receive live updates.
+    """
+    store = get_embed_store()
+    job = store.get(job_id)
+
+    if not job:
+        return {"error": "Job not found"}
+
+    if job.status not in (EmbedStatus.PENDING, EmbedStatus.RUNNING):
+        return {"error": f"Job is not active (status: {job.status.value})"}
+
+    db = get_db()
+
+    async def event_generator():
+        """Generate SSE events from embedding job."""
+        try:
+            async for event in run_embed_job(job, db, store):
+                yield event.to_sse()
+        except Exception as e:
+            import json
+            yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.get("/api/embed/stats")
+def api_embed_stats(
+    provider: str = "openai",
+    model: str = "text-embedding-3-small",
+):
+    """Get embedding statistics.
+
+    Returns counts of chunks with/without embeddings.
+    """
+    db = get_db()
+    stats = db.count_chunks_for_embedding(provider=provider, model=model)
+
+    return stats
+
+
+@app.get("/api/embed/jobs")
+def api_embed_jobs(limit: int = 10):
+    """Get recent embedding jobs."""
+    store = get_embed_store()
+    jobs = store.list_recent(limit=limit)
+
+    return {"jobs": [j.to_dict() for j in jobs]}
+
+
+@app.delete("/api/embed/{job_id}")
+def api_embed_delete(job_id: str):
+    """Delete an embedding job (only if not running)."""
+    store = get_embed_store()
+    job = store.get(job_id)
+
+    if job and job.status == EmbedStatus.RUNNING:
         return {"error": "Cannot delete a running job"}
 
     deleted = store.delete(job_id)

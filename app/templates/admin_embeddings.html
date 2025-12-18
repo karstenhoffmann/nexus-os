@@ -1,0 +1,562 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Embedding Generator (v2)</h1>
+
+<div x-data="embedApp()" x-init="init()">
+
+  <!-- Stats Overview -->
+  <div class="card">
+    <h2>Statistiken</h2>
+    <div class="stats-grid">
+      <div class="stat-item">
+        <span class="stat-value">{{ stats.total_chunks }}</span>
+        <span class="stat-label">Chunks gesamt</span>
+      </div>
+      <div class="stat-item stat-success">
+        <span class="stat-value" x-text="embeddedChunks">{{ stats.embedded_chunks }}</span>
+        <span class="stat-label">Mit Embedding</span>
+      </div>
+      <div class="stat-item stat-pending">
+        <span class="stat-value" x-text="pendingChunks">{{ stats.pending_chunks }}</span>
+        <span class="stat-label">Ausstehend</span>
+      </div>
+    </div>
+    <div style="margin-top: 1rem; font-size: 0.9rem; opacity: 0.7;">
+      Geschaetzte Kosten: <span x-text="'$' + (pendingChunks * 200 * 0.02 / 1000000).toFixed(2)"></span>
+      ({{ stats.pending_chunks }} Chunks x ~200 Tokens x $0.02/1M)
+    </div>
+  </div>
+
+  <!-- Resume Banner -->
+  {% if resumable_job %}
+  <div class="card resume-banner" x-show="!jobId || jobId !== '{{ resumable_job.id }}'">
+    <h2>Unterbrochener Job gefunden</h2>
+    <p>
+      <strong>Status:</strong> {{ resumable_job.status.value }} |
+      <strong>Verarbeitet:</strong> {{ resumable_job.items_processed }} von {{ resumable_job.items_total or '?' }} |
+      <strong>Kosten:</strong> ${{ "%.4f"|format(resumable_job.cost_usd) }}
+    </p>
+    <button @click="resumeJob('{{ resumable_job.id }}')" class="btn">
+      Job fortsetzen
+    </button>
+  </div>
+  {% endif %}
+
+  <!-- Running Job Status -->
+  {% if running_job %}
+  <div class="card running-banner">
+    <h2>Job laeuft</h2>
+    <p>
+      <strong>ID:</strong> {{ running_job.id[:8] }} |
+      <strong>Fortschritt:</strong> {{ running_job.items_processed }} von {{ running_job.items_total or '?' }} |
+      <strong>Kosten:</strong> ${{ "%.4f"|format(running_job.cost_usd) }}
+    </p>
+    <div class="progress-bar">
+      <div class="progress-fill" style="width: {{ running_job.progress_percent }}%"></div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Control Card -->
+  <div class="card">
+    <h2>Steuerung</h2>
+
+    <div class="row gap" style="align-items: center; flex-wrap: wrap;">
+      <div>
+        <strong>Status:</strong>
+        <span x-text="status" :class="{
+          'text-success': status === 'completed',
+          'text-error': status === 'failed' || status === 'error',
+          'text-warning': status === 'paused'
+        }"></span>
+      </div>
+      <div x-show="itemsTotal > 0">
+        <strong>Fortschritt:</strong>
+        <span x-text="itemsProcessed + ' / ' + itemsTotal"></span>
+        (<span x-text="Math.round(progressPercent)"></span>%)
+      </div>
+      <div x-show="costUsd > 0">
+        <strong>Kosten:</strong>
+        $<span x-text="costUsd.toFixed(4)"></span>
+      </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-bar" style="margin: 1rem 0;">
+      <div class="progress-fill" :style="'width: ' + progressPercent + '%'"></div>
+    </div>
+
+    <!-- Counters -->
+    <div class="row gap" style="margin-bottom: 1rem; flex-wrap: wrap;">
+      <div class="counter counter-success">
+        <span x-text="itemsSucceeded"></span> Erfolg
+      </div>
+      <div class="counter counter-error">
+        <span x-text="itemsFailed"></span> Fehler
+      </div>
+      <div class="counter">
+        <span x-text="tokensUsed.toLocaleString()"></span> Tokens
+      </div>
+    </div>
+
+    <!-- Speed Display -->
+    <div x-show="speed > 0" style="margin-bottom: 1rem; font-size: 0.9rem;">
+      Geschwindigkeit: <span x-text="speed.toFixed(1)"></span> Chunks/Sek |
+      Verbleibend: ~<span x-text="Math.round((itemsTotal - itemsProcessed) / speed / 60)"></span> Min
+    </div>
+
+    <!-- Buttons -->
+    <div class="row gap">
+      <button
+        @click="startEmbed()"
+        class="btn"
+        :disabled="status === 'running'"
+        x-show="status !== 'running' && status !== 'paused'">
+        Embeddings generieren
+      </button>
+      <button
+        @click="pauseEmbed()"
+        class="btn btn-warning"
+        x-show="status === 'running'">
+        Pausieren
+      </button>
+      <button
+        @click="resumeEmbed()"
+        class="btn"
+        x-show="status === 'paused'">
+        Fortsetzen
+      </button>
+      <button
+        @click="cancelEmbed()"
+        class="btn btn-danger"
+        x-show="status === 'running' || status === 'paused'">
+        Abbrechen
+      </button>
+    </div>
+  </div>
+
+  <!-- Error Display -->
+  <div class="card error-card" x-show="errorMsg" x-cloak>
+    <strong>Fehler:</strong> <span x-text="errorMsg"></span>
+  </div>
+
+  <!-- Live Log -->
+  <div class="card">
+    <h2>Live Log</h2>
+    <div class="log-container" x-ref="logContainer">
+      <template x-for="(entry, index) in log" :key="index">
+        <div class="log-entry" :class="'log-' + entry.type">
+          <span class="log-time" x-text="entry.time"></span>
+          <span x-text="entry.msg"></span>
+        </div>
+      </template>
+      <div x-show="log.length === 0" class="log-empty">
+        Noch keine Aktivitaet. Starte einen Embedding-Job.
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Jobs -->
+  <div class="card">
+    <h2>Vorherige Jobs</h2>
+    {% if jobs %}
+    <div class="job-list">
+      {% for job in jobs %}
+      <div class="job-item">
+        <div class="job-header">
+          <span class="job-id">{{ job.id[:8] }}</span>
+          <span class="job-status job-status-{{ job.status.value }}">{{ job.status.value }}</span>
+        </div>
+        <div class="job-details">
+          <span>{{ job.items_succeeded }} Erfolg</span>
+          <span>{{ job.items_failed }} Fehler</span>
+          <span>${{ "%.4f"|format(job.cost_usd) }}</span>
+          <span class="job-time">{{ job.last_activity.strftime('%d.%m. %H:%M') }}</span>
+        </div>
+        <div class="job-progress">
+          <div class="progress-bar-small">
+            <div class="progress-fill" style="width: {{ job.progress_percent }}%"></div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p>Keine Jobs vorhanden.</p>
+    {% endif %}
+  </div>
+
+</div>
+
+<style>
+.stats-grid {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
+  background: rgba(120,120,120,0.05);
+  border-radius: 8px;
+  min-width: 100px;
+}
+.stat-value {
+  font-size: 1.8rem;
+  font-weight: bold;
+}
+.stat-label {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+.stat-success .stat-value { color: #2e7d32; }
+.stat-pending .stat-value { color: #1565c0; }
+.stat-error .stat-value { color: #c62828; }
+
+.progress-bar {
+  background: rgba(120,120,120,0.15);
+  border-radius: 4px;
+  height: 8px;
+  overflow: hidden;
+}
+.progress-fill {
+  background: #4a90d9;
+  height: 100%;
+  transition: width 0.3s ease;
+}
+.progress-bar-small {
+  background: rgba(120,120,120,0.15);
+  border-radius: 2px;
+  height: 4px;
+  overflow: hidden;
+}
+
+.counter {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  background: rgba(120,120,120,0.15);
+}
+.counter-success { background: rgba(46,125,50,0.15); color: #2e7d32; }
+.counter-error { background: rgba(198,40,40,0.15); color: #c62828; }
+
+.text-success { color: #2e7d32; }
+.text-error { color: #c62828; }
+.text-warning { color: #e6a700; }
+
+.resume-banner {
+  background: rgba(230,167,0,0.1);
+  border-left: 4px solid #e6a700;
+}
+.running-banner {
+  background: rgba(74,144,217,0.1);
+  border-left: 4px solid #4a90d9;
+}
+.error-card {
+  background: rgba(198,40,40,0.1);
+  border-left: 4px solid #c62828;
+  color: #c62828;
+}
+
+.log-container {
+  max-height: 300px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 0.85rem;
+  background: rgba(120,120,120,0.05);
+  padding: 0.5rem;
+  border-radius: 8px;
+}
+.log-entry {
+  padding: 0.25rem 0;
+  border-bottom: 1px solid rgba(120,120,120,0.1);
+}
+.log-time {
+  opacity: 0.5;
+  margin-right: 0.5rem;
+}
+.log-batch_complete { color: #2e7d32; }
+.log-started, .log-completed { font-weight: bold; }
+.log-completed { color: #2e7d32; }
+.log-failed, .log-error { color: #c62828; }
+.log-paused, .log-cancelled { color: #e6a700; }
+.log-empty {
+  opacity: 0.5;
+  text-align: center;
+  padding: 2rem;
+}
+
+.job-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.job-item {
+  padding: 0.75rem;
+  background: rgba(120,120,120,0.05);
+  border-radius: 8px;
+}
+.job-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.job-id {
+  font-family: monospace;
+  font-weight: bold;
+}
+.job-status {
+  font-size: 0.8rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+}
+.job-status-completed { background: rgba(46,125,50,0.2); color: #2e7d32; }
+.job-status-running { background: rgba(74,144,217,0.2); color: #1565c0; }
+.job-status-paused { background: rgba(230,167,0,0.2); color: #e6a700; }
+.job-status-failed { background: rgba(198,40,40,0.2); color: #c62828; }
+.job-status-cancelled { background: rgba(120,120,120,0.2); }
+.job-status-pending { background: rgba(120,120,120,0.2); }
+.job-details {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.85rem;
+  opacity: 0.8;
+  margin-bottom: 0.5rem;
+}
+.job-time {
+  margin-left: auto;
+}
+.job-progress {
+  margin-top: 0.25rem;
+}
+
+[x-cloak] { display: none !important; }
+</style>
+
+<script>
+function embedApp() {
+  return {
+    jobId: null,
+    status: 'idle',
+    itemsProcessed: 0,
+    itemsSucceeded: 0,
+    itemsFailed: 0,
+    itemsTotal: {{ stats.pending_chunks }},
+    progressPercent: 0,
+    tokensUsed: 0,
+    costUsd: 0,
+    errorMsg: '',
+    log: [],
+    eventSource: null,
+    startTime: null,
+    speed: 0,
+    // Live stats
+    embeddedChunks: {{ stats.embedded_chunks }},
+    pendingChunks: {{ stats.pending_chunks }},
+
+    init() {
+      // Check for running job
+      {% if running_job %}
+      this.jobId = '{{ running_job.id }}';
+      this.status = 'running';
+      this.itemsProcessed = {{ running_job.items_processed }};
+      this.itemsSucceeded = {{ running_job.items_succeeded }};
+      this.itemsFailed = {{ running_job.items_failed }};
+      this.itemsTotal = {{ running_job.items_total or 0 }};
+      this.progressPercent = {{ running_job.progress_percent }};
+      this.tokensUsed = {{ running_job.tokens_used }};
+      this.costUsd = {{ running_job.cost_usd }};
+      this.startTime = Date.now();
+      this.connectStream();
+      {% endif %}
+    },
+
+    addLog(type, msg) {
+      const now = new Date();
+      const time = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      this.log.unshift({ type, msg, time });
+      if (this.log.length > 100) {
+        this.log = this.log.slice(0, 100);
+      }
+    },
+
+    updateSpeed() {
+      if (this.startTime && this.itemsProcessed > 0) {
+        const elapsed = (Date.now() - this.startTime) / 1000;
+        this.speed = this.itemsProcessed / elapsed;
+      }
+    },
+
+    async startEmbed() {
+      this.status = 'starting';
+      this.errorMsg = '';
+      this.log = [];
+      this.itemsProcessed = 0;
+      this.itemsSucceeded = 0;
+      this.itemsFailed = 0;
+      this.tokensUsed = 0;
+      this.costUsd = 0;
+      this.startTime = Date.now();
+
+      try {
+        const resp = await fetch('/api/embed/start', { method: 'POST' });
+        const data = await resp.json();
+
+        if (data.error) {
+          this.errorMsg = data.error;
+          this.status = 'error';
+          return;
+        }
+
+        this.jobId = data.job_id;
+        this.itemsTotal = data.items_total;
+        this.addLog('started', 'Job gestartet: ' + this.jobId.substring(0, 8));
+        this.connectStream();
+
+      } catch (e) {
+        this.status = 'error';
+        this.errorMsg = 'Fehler beim Starten: ' + e.message;
+      }
+    },
+
+    connectStream() {
+      if (this.eventSource) {
+        this.eventSource.close();
+      }
+
+      const url = '/api/embed/' + this.jobId + '/stream';
+      this.eventSource = new EventSource(url);
+      this.status = 'running';
+
+      this.eventSource.addEventListener('started', (e) => {
+        const data = JSON.parse(e.data);
+        this.addLog('started', 'Embedding-Generierung gestartet');
+      });
+
+      this.eventSource.addEventListener('batch_complete', (e) => {
+        const data = JSON.parse(e.data);
+        this.updateFromData(data);
+        this.updateSpeed();
+        this.addLog('batch_complete', data.batch_size + ' Chunks verarbeitet (' + data.batch_tokens + ' Tokens)');
+        this.embeddedChunks += data.batch_size;
+        this.pendingChunks -= data.batch_size;
+      });
+
+      this.eventSource.addEventListener('paused', (e) => {
+        const data = JSON.parse(e.data);
+        this.updateFromData(data);
+        this.status = 'paused';
+        this.addLog('paused', 'Job pausiert');
+        this.eventSource.close();
+      });
+
+      this.eventSource.addEventListener('completed', (e) => {
+        const data = JSON.parse(e.data);
+        this.updateFromData(data);
+        this.status = 'completed';
+        this.addLog('completed', 'Fertig: ' + this.itemsSucceeded + ' Chunks, $' + this.costUsd.toFixed(4));
+        this.eventSource.close();
+      });
+
+      this.eventSource.addEventListener('failed', (e) => {
+        const data = JSON.parse(e.data);
+        this.status = 'failed';
+        this.errorMsg = data.error || 'Unbekannter Fehler';
+        this.addLog('failed', 'Job fehlgeschlagen: ' + this.errorMsg);
+        this.eventSource.close();
+      });
+
+      this.eventSource.addEventListener('cancelled', (e) => {
+        this.status = 'cancelled';
+        this.addLog('cancelled', 'Job abgebrochen');
+        this.eventSource.close();
+      });
+
+      this.eventSource.addEventListener('error', (e) => {
+        if (e.data) {
+          const data = JSON.parse(e.data);
+          this.errorMsg = data.error;
+          this.addLog('error', 'Fehler: ' + data.error);
+        }
+        this.status = 'error';
+        this.eventSource.close();
+      });
+
+      this.eventSource.onerror = () => {
+        if (this.status === 'running') {
+          this.status = 'error';
+          this.addLog('error', 'Verbindung verloren');
+        }
+        this.eventSource.close();
+      };
+    },
+
+    updateFromData(data) {
+      this.itemsProcessed = data.items_processed || this.itemsProcessed;
+      this.itemsSucceeded = data.items_succeeded || this.itemsSucceeded;
+      this.itemsFailed = data.items_failed || this.itemsFailed;
+      this.progressPercent = data.progress_percent || this.progressPercent;
+      this.tokensUsed = data.tokens_used || this.tokensUsed;
+      this.costUsd = data.cost_usd || this.costUsd;
+    },
+
+    async pauseEmbed() {
+      if (!this.jobId) return;
+      try {
+        await fetch('/api/embed/' + this.jobId + '/pause', { method: 'POST' });
+        this.addLog('paused', 'Pause angefordert...');
+      } catch (e) {
+        this.errorMsg = 'Fehler beim Pausieren: ' + e.message;
+      }
+    },
+
+    async resumeEmbed() {
+      if (!this.jobId) return;
+      try {
+        await fetch('/api/embed/' + this.jobId + '/resume', { method: 'POST' });
+        this.addLog('started', 'Fortsetzen...');
+        this.startTime = Date.now() - (this.itemsProcessed / this.speed * 1000);
+        this.connectStream();
+      } catch (e) {
+        this.errorMsg = 'Fehler beim Fortsetzen: ' + e.message;
+      }
+    },
+
+    async resumeJob(previousJobId) {
+      this.jobId = previousJobId;
+      this.status = 'resuming';
+      this.errorMsg = '';
+      this.log = [];
+      this.startTime = Date.now();
+
+      try {
+        await fetch('/api/embed/' + previousJobId + '/resume', { method: 'POST' });
+        this.addLog('started', 'Fortsetzen von Job ' + previousJobId.substring(0, 8) + '...');
+        this.connectStream();
+      } catch (e) {
+        this.errorMsg = 'Fehler beim Fortsetzen: ' + e.message;
+        this.status = 'error';
+      }
+    },
+
+    async cancelEmbed() {
+      if (!this.jobId) return;
+      try {
+        await fetch('/api/embed/' + this.jobId + '/cancel', { method: 'POST' });
+        this.status = 'cancelled';
+        this.addLog('cancelled', 'Job abgebrochen');
+        if (this.eventSource) {
+          this.eventSource.close();
+        }
+      } catch (e) {
+        this.errorMsg = 'Fehler beim Abbrechen: ' + e.message;
+      }
+    }
+  };
+}
+</script>
+
+{% endblock %}

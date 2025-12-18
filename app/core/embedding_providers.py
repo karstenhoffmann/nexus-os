@@ -198,8 +198,15 @@ class OpenAIProvider(EmbeddingProvider):
     def cost_per_1m_tokens(self) -> float:
         return self._model_info.cost_per_1m_tokens
 
-    async def embed(self, texts: list[str]) -> list[list[float]]:
-        """Get embeddings for multiple texts in a single API call."""
+    async def embed(self, texts: list[str], use_base64: bool = True) -> list[list[float]]:
+        """Get embeddings for multiple texts in a single API call.
+
+        Args:
+            texts: List of texts to embed.
+            use_base64: Use base64 encoding for ~75% smaller responses (faster).
+        """
+        import base64
+
         if not texts:
             return []
 
@@ -213,22 +220,26 @@ class OpenAIProvider(EmbeddingProvider):
         # Truncate texts if too long
         truncated = [t[: self._max_chars] if len(t) > self._max_chars else t for t in texts]
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=120.0) as client:
             delay = INITIAL_DELAY
             last_error: Exception | None = None
 
             for attempt in range(MAX_RETRIES):
                 try:
+                    request_body = {
+                        "model": self._model,
+                        "input": truncated,
+                    }
+                    if use_base64:
+                        request_body["encoding_format"] = "base64"
+
                     response = await client.post(
                         "https://api.openai.com/v1/embeddings",
                         headers={
                             "Authorization": f"Bearer {self._api_key}",
                             "Content-Type": "application/json",
                         },
-                        json={
-                            "model": self._model,
-                            "input": truncated,
-                        },
+                        json=request_body,
                     )
                     response.raise_for_status()
                     data = response.json()
@@ -236,7 +247,13 @@ class OpenAIProvider(EmbeddingProvider):
                     # API returns embeddings in order, but let's be safe
                     embeddings: list[list[float] | None] = [None] * len(texts)
                     for item in data["data"]:
-                        embeddings[item["index"]] = item["embedding"]
+                        embedding = item["embedding"]
+                        # Decode base64 if needed
+                        if use_base64 and isinstance(embedding, str):
+                            b64_bytes = base64.b64decode(embedding)
+                            # Each float32 is 4 bytes
+                            embedding = list(struct.unpack(f'{len(b64_bytes)//4}f', b64_bytes))
+                        embeddings[item["index"]] = embedding
 
                     return embeddings  # type: ignore
 
@@ -277,6 +294,66 @@ class OpenAIProvider(EmbeddingProvider):
                 provider=self.name,
                 retriable=True,
             ) from last_error
+
+    async def embed_parallel(
+        self,
+        texts: list[str],
+        batch_size: int = 1000,
+        max_concurrent: int = 10,
+        on_batch_complete: callable = None,
+    ) -> list[list[float]]:
+        """Get embeddings with parallel API calls for maximum throughput.
+
+        OpenAI Limits (Tier 1): 3000 RPM, 1M TPM, up to 2048 inputs/request.
+        With 10 concurrent requests of 1000 texts each, we can process
+        ~10,000 texts per batch cycle, completing 69k chunks in ~7 cycles.
+
+        Args:
+            texts: List of texts to embed.
+            batch_size: Texts per API request (max 2048, recommended 1000).
+            max_concurrent: Max parallel requests (recommended 10).
+            on_batch_complete: Optional callback(processed_count, total_count).
+
+        Returns:
+            List of embedding vectors in the same order as input.
+        """
+        if not texts:
+            return []
+
+        if not self._api_key:
+            raise EmbeddingError(
+                "OPENAI_API_KEY nicht gesetzt. Bitte in .env konfigurieren.",
+                provider=self.name,
+                retriable=False,
+            )
+
+        # Split into batches
+        batches = [texts[i : i + batch_size] for i in range(0, len(texts), batch_size)]
+        all_embeddings: list[list[float] | None] = [None] * len(texts)
+        processed = 0
+
+        # Process batches in parallel waves
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def process_batch(batch_idx: int, batch_texts: list[str]) -> None:
+            nonlocal processed
+            async with semaphore:
+                start_idx = batch_idx * batch_size
+                try:
+                    embeddings = await self.embed(batch_texts)
+                    for i, emb in enumerate(embeddings):
+                        all_embeddings[start_idx + i] = emb
+                    processed += len(batch_texts)
+                    if on_batch_complete:
+                        on_batch_complete(processed, len(texts))
+                except EmbeddingError:
+                    raise  # Don't catch embedding errors
+
+        # Run all batches
+        tasks = [process_batch(i, batch) for i, batch in enumerate(batches)]
+        await asyncio.gather(*tasks)
+
+        return all_embeddings  # type: ignore
 
     async def embed_single(self, text: str) -> list[float]:
         """Get embedding for a single text."""
