@@ -707,10 +707,10 @@ class DB:
             limit: Max results
 
         Returns:
-            List of documents with metadata
+            List of documents with metadata including highlight_count
         """
         # Validate sort column to prevent SQL injection
-        valid_sort_cols = {"title", "author", "category", "saved_at", "word_count", "distance", "id"}
+        valid_sort_cols = {"title", "author", "category", "saved_at", "word_count", "distance", "id", "highlight_count"}
         if sort_by not in valid_sort_cols:
             sort_by = "saved_at"
         if sort_dir not in ("asc", "desc"):
@@ -726,14 +726,25 @@ class DB:
 
         q = (q or "").strip()
 
+        # Common SELECT with highlight_count and effective_date
+        # effective_date: saved_at, or first highlight date as fallback
+        select_cols = """
+            d.id, d.title, d.author, d.url_original,
+            COALESCE(d.saved_at, (SELECT MIN(highlighted_at) FROM highlights h WHERE h.document_id = d.id)) as effective_date,
+            d.category, d.word_count, NULL as distance,
+            (SELECT COUNT(*) FROM highlights h WHERE h.document_id = d.id) as highlight_count
+        """
+
+        # For sorting by saved_at, use effective_date
+        sort_col = "effective_date" if sort_by == "saved_at" else f"d.{sort_by}" if sort_by not in ("distance", "highlight_count") else sort_by
+
         if not q:
             # No query - list all documents with filters
             query = f"""
-                SELECT d.id, d.title, d.author, d.url_original, d.saved_at,
-                       d.category, d.word_count, NULL as distance
+                SELECT {select_cols}
                 FROM documents d
                 WHERE 1=1 {cat_filter}
-                ORDER BY d.{sort_by} {sort_dir.upper()} NULLS LAST
+                ORDER BY {sort_col} {sort_dir.upper()} NULLS LAST
                 LIMIT ?
             """
             params = cat_params + [limit]
@@ -742,12 +753,11 @@ class DB:
         elif mode == "fts":
             # FTS search
             query = f"""
-                SELECT d.id, d.title, d.author, d.url_original, d.saved_at,
-                       d.category, d.word_count, NULL as distance
+                SELECT {select_cols}
                 FROM documents_fts f
                 JOIN documents d ON d.id = f.rowid
                 WHERE documents_fts MATCH ? {cat_filter}
-                ORDER BY {"rank" if sort_by == "distance" else f"d.{sort_by}"} {sort_dir.upper()} NULLS LAST
+                ORDER BY {"rank" if sort_by == "distance" else sort_col} {sort_dir.upper()} NULLS LAST
                 LIMIT ?
             """
             params = [q] + cat_params + [limit]
@@ -765,10 +775,11 @@ class DB:
                 "title": r[1],
                 "author": r[2],
                 "url": r[3],
-                "saved_at": r[4],
+                "saved_at": r[4],  # This is now effective_date
                 "category": r[5] or "article",
                 "word_count": r[6],
                 "distance": r[7],
+                "highlight_count": r[8] or 0,
             })
         return rows
 
@@ -817,8 +828,10 @@ class DB:
                 """
                 SELECT e.chunk_id, c.chunk_text, c.char_start, c.char_end,
                        c.chunk_index, c.document_id,
-                       d.title, d.author, d.url_original, d.saved_at,
-                       d.category, d.word_count
+                       d.title, d.author, d.url_original,
+                       COALESCE(d.saved_at, (SELECT MIN(highlighted_at) FROM highlights h WHERE h.document_id = d.id)) as effective_date,
+                       d.category, d.word_count,
+                       (SELECT COUNT(*) FROM highlights h WHERE h.document_id = d.id) as highlight_count
                 FROM embeddings e
                 JOIN document_chunks c ON c.id = e.chunk_id
                 JOIN documents d ON d.id = c.document_id
@@ -843,9 +856,10 @@ class DB:
                     "title": row[6],
                     "author": row[7],
                     "url": row[8],
-                    "saved_at": row[9],
+                    "saved_at": row[9],  # effective_date
                     "category": row[10] or "article",
                     "word_count": row[11],
+                    "highlight_count": row[12] or 0,
                 }
 
                 # Get context

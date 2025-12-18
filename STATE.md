@@ -14,19 +14,21 @@ Naechste Schritte (Claude Code, max 3)
 3) Optional: Doppelte Embeddings pruefen (8 Stueck)
 
 Handoff
-- Library & Detail-Seite Verbesserungen (2025-12-18):
-  - Bug gefixt: category/word_count wurden bei Import nicht gespeichert
-  - save_article() um category/word_count Parameter erweitert
-  - Readwise Events um word_count/saved_at erweitert
-  - Backfill-Migration: alle Docs ohne category auf 'article' gesetzt
-  - Neue Dependency: markdown2 fuer Markdown-Rendering
-  - Detail-Seite komplett redesigned:
-    - Metadata-Grid mit category, word_count, saved_at, published_at
-    - Highlights mit Copy-Buttons (roher Markdown in Zwischenablage)
-    - Fulltext mit Markdown-Rendering und Copy-Button
-    - CSS-Variablen fuer Dark Mode Kompatibilitaet
-  - WICHTIG: Nach Container-Neustart werden alle categories automatisch auf 'article' gesetzt
-  - Testen: docker compose up --build, dann /library und /documents/{id} pruefen
+- Library-Ansicht komplett ueberarbeitet (2025-12-18):
+  - Neue Spalte "Highlights" mit Anzahl pro Dokument (sortierbar)
+  - Datum zeigt jetzt: saved_at ODER erstes Highlight-Datum als Fallback
+  - highlight_count in search_library() und search_library_semantic()
+  - 464 highlight-only Dokumente werden korrekt mit Datum angezeigt
+  - word_count ist NULL fuer bestehende Docs (wird bei Re-Import gefuellt)
+
+- Detail-Seite redesigned (2025-12-18):
+  - Markdown-Rendering via markdown2
+  - Copy-Buttons fuer Highlights und Fulltext
+  - Metadata-Grid mit category, word_count, dates
+
+- Import-Pipeline gefixt:
+  - category/word_count/saved_at werden jetzt bei Import gespeichert
+  - Backfill-Migration setzt category='article' fuer alle bestehenden Docs
 
 Status
 - Total Chunks: 69.338
