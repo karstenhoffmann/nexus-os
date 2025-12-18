@@ -1288,25 +1288,42 @@ class DB:
         Returns:
             total_chunks: All chunks in DB
             embedded_chunks: Chunks with embedding for this provider/model
-            pending_chunks: Chunks without embedding
+            pending_chunks: Chunks without embedding (always >= 0)
+            orphaned_embeddings: Embeddings for deleted chunks (cleanup candidate)
         """
         cur = self.conn.execute("SELECT COUNT(*) FROM document_chunks")
         total = cur.fetchone()[0]
 
+        # Count chunks that HAVE an embedding (only existing chunks)
         cur = self.conn.execute(
             """
-            SELECT COUNT(DISTINCT chunk_id)
-            FROM embeddings
-            WHERE provider = ? AND model = ?
+            SELECT COUNT(DISTINCT c.id)
+            FROM document_chunks c
+            JOIN embeddings e ON e.chunk_id = c.id
+            WHERE e.provider = ? AND e.model = ?
             """,
             (provider, model),
         )
         embedded = cur.fetchone()[0]
 
+        # Count orphaned embeddings (embeddings for deleted chunks)
+        cur = self.conn.execute(
+            """
+            SELECT COUNT(DISTINCT e.chunk_id)
+            FROM embeddings e
+            LEFT JOIN document_chunks c ON c.id = e.chunk_id
+            WHERE c.id IS NULL
+              AND e.provider = ? AND e.model = ?
+            """,
+            (provider, model),
+        )
+        orphaned = cur.fetchone()[0]
+
         return {
             "total_chunks": total,
             "embedded_chunks": embedded,
-            "pending_chunks": total - embedded,
+            "pending_chunks": total - embedded,  # Now always >= 0
+            "orphaned_embeddings": orphaned,
         }
 
     # ==================== Usage Tracking ====================

@@ -15,8 +15,11 @@ from app.core.settings import Settings
 
 logger = logging.getLogger(__name__)
 
-BATCH_SIZE = 10  # OpenAI embedding limit is 8192 tokens per input
-MAX_EMBED_CHARS = 20000  # ~5000 tokens, safe for 8192 limit with variable tokenization
+# OpenAI Embeddings Rate Limits (Dec 2025): 1M TPM, 3000 RPM, max 2048 inputs/request
+# With ~200 tokens/chunk, batch of 200 = ~40k tokens, well under 1M TPM limit
+# Increased from 10->50->200 based on actual API limits research
+BATCH_SIZE = 200
+MAX_EMBED_CHARS = 20000  # ~5000 tokens, safety limit per single input
 
 
 def truncate_for_embedding(text: str, max_chars: int = MAX_EMBED_CHARS) -> str:
