@@ -767,18 +767,42 @@ def api_get_theme():
 
 
 @app.post("/api/admin/theme")
-def api_set_theme(primary: str = "#3b82f6"):
-    """Update theme primary color.
+def api_set_theme(
+    primary: str | None = None,
+    spacing: str | None = None,
+    radius: str | None = None,
+    fontSize: str | None = None
+):
+    """Update theme settings.
 
     Args:
         primary: Hex color code (e.g. #3b82f6)
+        spacing: "compact" | "normal" | "spacious"
+        radius: "sharp" | "rounded" | "pill"
+        fontSize: "small" | "medium" | "large"
     """
-    # Validate hex color
-    if not primary.startswith("#") or len(primary) != 7:
-        return {"error": "Invalid color format. Use #RRGGBB"}
+    # Validate hex color if provided
+    if primary is not None:
+        if not primary.startswith("#") or len(primary) != 7:
+            return {"error": "Invalid color format. Use #RRGGBB"}
+
+    # Validate spacing
+    valid_spacing = ["compact", "normal", "spacious"]
+    if spacing is not None and spacing not in valid_spacing:
+        return {"error": f"Invalid spacing. Use: {', '.join(valid_spacing)}"}
+
+    # Validate radius
+    valid_radius = ["sharp", "rounded", "pill"]
+    if radius is not None and radius not in valid_radius:
+        return {"error": f"Invalid radius. Use: {', '.join(valid_radius)}"}
+
+    # Validate fontSize
+    valid_font_size = ["small", "medium", "large"]
+    if fontSize is not None and fontSize not in valid_font_size:
+        return {"error": f"Invalid fontSize. Use: {', '.join(valid_font_size)}"}
 
     db = get_db()
-    db.set_theme(primary)
+    db.set_theme(primary=primary, spacing=spacing, radius=radius, fontSize=fontSize)
     return {"success": True, "theme": db.get_theme()}
 
 

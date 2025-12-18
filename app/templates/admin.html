@@ -108,22 +108,50 @@
   <h2>Design</h2>
   <p class="muted small">Passe das Erscheinungsbild der App an. Dark Mode wird automatisch vom System uebernommen.</p>
 
-  <div style="display: flex; align-items: center; gap: 1rem; margin-top: 1rem;">
-    <div>
-      <label style="font-size: 0.9rem; color: var(--text-secondary);">Primaerfarbe</label>
-      <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
-        <input type="color" x-model="primary" @change="saveTheme()"
-               style="width: 50px; height: 36px; border: none; border-radius: 6px; cursor: pointer;">
-        <span x-text="primary" style="font-family: monospace; font-size: 0.9rem;"></span>
+  <div class="theme-grid">
+    <!-- Primaerfarbe -->
+    <div class="theme-option">
+      <label>Primaerfarbe</label>
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <input type="color" x-model="primary" @change="saveTheme()">
+        <span x-text="primary" style="font-family: monospace; font-size: 0.85rem;"></span>
       </div>
     </div>
-    <div style="margin-left: auto;">
-      <button class="btn btn-sm" @click="resetTheme()">Zuruecksetzen</button>
+
+    <!-- Spacing -->
+    <div class="theme-option">
+      <label>Abstaende</label>
+      <select x-model="spacing" @change="saveTheme()">
+        <option value="compact">Kompakt</option>
+        <option value="normal">Normal</option>
+        <option value="spacious">Grosszuegig</option>
+      </select>
+    </div>
+
+    <!-- Border Radius -->
+    <div class="theme-option">
+      <label>Ecken</label>
+      <select x-model="radius" @change="saveTheme()">
+        <option value="sharp">Eckig</option>
+        <option value="rounded">Gerundet</option>
+        <option value="pill">Stark gerundet</option>
+      </select>
+    </div>
+
+    <!-- Font Size -->
+    <div class="theme-option">
+      <label>Schriftgroesse</label>
+      <select x-model="fontSize" @change="saveTheme()">
+        <option value="small">Klein</option>
+        <option value="medium">Normal</option>
+        <option value="large">Gross</option>
+      </select>
     </div>
   </div>
 
-  <div x-show="saved" x-transition style="margin-top: 0.75rem; color: var(--success); font-size: 0.85rem;">
-    ✓ Gespeichert
+  <div style="display: flex; align-items: center; gap: 1rem; margin-top: 1rem;">
+    <button class="btn btn-secondary btn-sm" @click="resetTheme()">Zuruecksetzen</button>
+    <span x-show="saved" x-transition style="color: var(--success); font-size: 0.85rem;">Gespeichert</span>
   </div>
 </div>
 
@@ -153,12 +181,37 @@
   width: 20px;
   height: 20px;
   border: 2px solid var(--bg-secondary, #e5e5e5);
-  border-top-color: var(--accent, #3b82f6);
+  border-top-color: var(--primary, #3b82f6);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-.btn-secondary { background: var(--bg-secondary, #e5e5e5); color: var(--text, #333); }
+
+/* Theme Editor Grid */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1.25rem;
+  margin-top: 1rem;
+}
+.theme-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.theme-option label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.theme-option select {
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border-strong, rgba(0,0,0,0.15));
+  background: var(--bg-card, #fff);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
 </style>
 
 <script>
@@ -282,6 +335,9 @@ function embeddingJob() {
 function themeEditor() {
   return {
     primary: '#3b82f6',
+    spacing: 'normal',
+    radius: 'rounded',
+    fontSize: 'medium',
     saved: false,
 
     async loadTheme() {
@@ -289,6 +345,9 @@ function themeEditor() {
         const res = await fetch('/api/admin/theme');
         const theme = await res.json();
         this.primary = theme.primary || '#3b82f6';
+        this.spacing = theme.spacing || 'normal';
+        this.radius = theme.radius || 'rounded';
+        this.fontSize = theme.fontSize || 'medium';
       } catch (e) {
         // Fallback bleibt
       }
@@ -296,16 +355,21 @@ function themeEditor() {
 
     async saveTheme() {
       try {
-        await fetch('/api/admin/theme?primary=' + encodeURIComponent(this.primary), { method: 'POST' });
+        const params = new URLSearchParams({
+          primary: this.primary,
+          spacing: this.spacing,
+          radius: this.radius,
+          fontSize: this.fontSize
+        });
+        await fetch('/api/admin/theme?' + params.toString(), { method: 'POST' });
+
         // Sofort anwenden
-        document.documentElement.style.setProperty('--primary', this.primary);
-        // Hover-Farbe berechnen
-        const hex = this.primary.replace('#', '');
-        const r = parseInt(hex.substr(0,2), 16);
-        const g = parseInt(hex.substr(2,2), 16);
-        const b = parseInt(hex.substr(4,2), 16);
-        const hover = '#' + [r,g,b].map(c => Math.max(0, c - 30).toString(16).padStart(2,'0')).join('');
-        document.documentElement.style.setProperty('--primary-hover', hover);
+        window.applyTheme({
+          primary: this.primary,
+          spacing: this.spacing,
+          radius: this.radius,
+          fontSize: this.fontSize
+        });
 
         this.saved = true;
         setTimeout(() => this.saved = false, 2000);
@@ -316,6 +380,9 @@ function themeEditor() {
 
     async resetTheme() {
       this.primary = '#3b82f6';
+      this.spacing = 'normal';
+      this.radius = 'rounded';
+      this.fontSize = 'medium';
       await this.saveTheme();
     }
   };

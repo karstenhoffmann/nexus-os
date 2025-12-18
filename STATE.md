@@ -1,9 +1,9 @@
 nexus-os Status
 
 Stand (kurz)
-- Design-System mit CSS-Variablen und Dark Mode etabliert
-- Admin-konfigurierbarer Theme-Editor (Primaerfarbe)
-- Definition of Done fuer neue Features/Seiten eingefuehrt
+- Design-System mit OpenAI-inspirierten Styles erweitert
+- Theme-Editor: Primaerfarbe, Abstaende, Ecken, Schriftgroesse konfigurierbar
+- CSS mit Shadows, erweiterten Spacing-/Radius-/Typografie-Presets
 
 Aktuelles Ziel
 - Semantische Suche testen und nutzen
@@ -15,13 +15,16 @@ Naechste Schritte (Claude Code, max 3)
 3) Weiteres Feature Development
 
 Handoff
-- Design-System komplett implementiert (6 Sprints):
-  - app.css: CSS-Variablen in :root + Dark Mode (@media prefers-color-scheme)
-  - DEFINITION_OF_DONE.md: 6-Punkte-Checkliste fuer neue Features
-  - CLAUDE.md: Regel 11 (Definition of Done zwingend) hinzugefuegt
-  - Admin Theme-Editor: Primaerfarbe via DB speicherbar und live aenderbar
-  - Templates konsolidiert: hardcoded Farben durch CSS-Variablen ersetzt
-  - Validierung: Admin, Fetch, Library via Playwright geprueft
+- Design-System Erweiterung (OpenAI-inspiriert):
+  - app.css: ~700 Zeilen mit Shadows, Spacing-Scale, Typography, Button-Varianten
+  - Theme-Editor erweitert: 4 konfigurierbare Einstellungen
+    - Primaerfarbe (Color Picker)
+    - Abstaende (Kompakt/Normal/Grosszuegig)
+    - Ecken (Eckig/Gerundet/Stark gerundet)
+    - Schriftgroesse (Klein/Normal/Gross)
+  - base.html: applyTheme() mit Preset-Mappings fuer CSS-Variablen
+  - storage.py + main.py: Theme-API erweitert mit Validierung
+  - Validierung: Live-Updates getestet via Playwright
 - Commit empfohlen
 
 Status

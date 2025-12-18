@@ -1752,11 +1752,27 @@ class DB:
         """Get theme settings with defaults."""
         return {
             "primary": self.get_setting("theme_primary", "#3b82f6"),
+            "spacing": self.get_setting("theme_spacing", "normal"),
+            "radius": self.get_setting("theme_radius", "rounded"),
+            "fontSize": self.get_setting("theme_font_size", "medium"),
         }
 
-    def set_theme(self, primary: str) -> None:
-        """Update theme settings."""
-        self.set_setting("theme_primary", primary)
+    def set_theme(
+        self,
+        primary: str | None = None,
+        spacing: str | None = None,
+        radius: str | None = None,
+        fontSize: str | None = None
+    ) -> None:
+        """Update theme settings. Only updates provided values."""
+        if primary is not None:
+            self.set_setting("theme_primary", primary)
+        if spacing is not None:
+            self.set_setting("theme_spacing", spacing)
+        if radius is not None:
+            self.set_setting("theme_radius", radius)
+        if fontSize is not None:
+            self.set_setting("theme_font_size", fontSize)
 
 
 _db: DB | None = None
