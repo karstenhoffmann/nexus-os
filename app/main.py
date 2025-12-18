@@ -109,17 +109,114 @@ def document_detail(request: Request, doc_id: int):
 
 
 @app.get("/digests", response_class=HTMLResponse)
-def digests(request: Request):
+def digests_page(request: Request):
+    """Digests page with saved queries and recent highlights."""
     db = get_db()
-    digests = db.list_digests()
-    return render("digests.html", request=request, digests=digests)
+    digests_list = db.list_digests()
+    highlights = db.get_recent_highlights(limit=10)
+    return render("digests.html", request=request, digests=digests_list, highlights=highlights)
 
 
 @app.post("/digests/create")
-def digests_create(name: str = Form(...), query: str = Form(...)):
+def digests_create(
+    name: str = Form(...),
+    query: str = Form(...),
+    mode: str = Form("fts"),
+):
+    """Create a new saved digest/query."""
     db = get_db()
-    db.create_digest(name=name, query=query)
+    db.create_digest(name=name, query=query, mode=mode)
     return RedirectResponse(url="/digests", status_code=303)
+
+
+@app.post("/digests/{digest_id}/update")
+def digests_update(
+    digest_id: int,
+    name: str = Form(...),
+    query: str = Form(...),
+    mode: str = Form("fts"),
+):
+    """Update an existing digest."""
+    db = get_db()
+    db.update_digest(digest_id, name=name, query=query, mode=mode)
+    return RedirectResponse(url="/digests", status_code=303)
+
+
+@app.post("/digests/{digest_id}/delete")
+def digests_delete(digest_id: int):
+    """Delete a digest."""
+    db = get_db()
+    db.delete_digest(digest_id)
+    return RedirectResponse(url="/digests", status_code=303)
+
+
+@app.get("/api/digests/{digest_id}/results", response_class=HTMLResponse)
+async def api_digest_results(digest_id: int, limit: int = 10):
+    """HTMX endpoint: Get search results for a digest."""
+    db = get_db()
+    digest = db.get_digest(digest_id)
+    if not digest:
+        return HTMLResponse("<div class='error'>Digest nicht gefunden</div>")
+
+    if digest["mode"] == "semantic":
+        # Generate embedding and search
+        try:
+            query_embedding = await get_embedding(digest["query"])
+            embedding_bytes = serialize_f32(query_embedding)
+            results = db.semantic_search_with_chunks(
+                embedding_bytes, dimensions=1536, limit=limit, include_context=False
+            )
+        except Exception:
+            results = db.search_documents(digest["query"], limit=limit)
+    else:
+        results = db.search_documents(digest["query"], limit=limit)
+
+    # Render results as HTML fragment
+    html = '<div class="digest-results-list">'
+    if not results:
+        html += '<div class="empty-state">Keine Treffer</div>'
+    else:
+        for r in results:
+            title = r.get("title") or "Ohne Titel"
+            author = r.get("author") or ""
+            # For semantic results, show chunk_text; for FTS show snippet or summary
+            snippet = r.get("chunk_text") or r.get("snippet") or r.get("summary") or ""
+            if len(snippet) > 200:
+                snippet = snippet[:200] + "..."
+            doc_id = r.get("id") or r.get("document_id")
+            html += f'''
+            <div class="digest-result-item">
+                <a href="/documents/{doc_id}" class="result-title">{title}</a>
+                {f'<span class="result-author"> - {author}</span>' if author else ''}
+                <div class="result-snippet">{snippet}</div>
+            </div>
+            '''
+    html += "</div>"
+    return HTMLResponse(html)
+
+
+@app.get("/api/digests/{digest_id}/count", response_class=HTMLResponse)
+async def api_digest_count(digest_id: int):
+    """HTMX endpoint: Get result count for a digest badge."""
+    db = get_db()
+    digest = db.get_digest(digest_id)
+    if not digest:
+        return HTMLResponse("0")
+
+    if digest["mode"] == "semantic":
+        try:
+            query_embedding = await get_embedding(digest["query"])
+            embedding_bytes = serialize_f32(query_embedding)
+            results = db.semantic_search_with_chunks(
+                embedding_bytes, dimensions=1536, limit=100, include_context=False
+            )
+            return HTMLResponse(str(len(results)))
+        except Exception:
+            results = db.search_documents(digest["query"], limit=100)
+            return HTMLResponse(str(len(results)))
+    else:
+        results = db.search_documents(digest["query"], limit=100)
+        return HTMLResponse(str(len(results)))
 
 
 @app.get("/drafts", response_class=HTMLResponse)

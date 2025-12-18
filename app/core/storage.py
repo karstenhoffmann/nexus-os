@@ -408,6 +408,13 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         """)
         conn.commit()
 
+    # Add mode column to digests table
+    cur = conn.execute("PRAGMA table_info(digests)")
+    digest_columns = {row[1] for row in cur.fetchall()}
+    if "mode" not in digest_columns:
+        conn.execute("ALTER TABLE digests ADD COLUMN mode TEXT DEFAULT 'fts'")
+        conn.commit()
+
 
 VEC_SQL = """
 -- Legacy table (kept for backward compatibility)
@@ -463,23 +470,24 @@ class DB:
         highlights = cur.fetchone()[0]
         return {"documents": docs, "drafts": drafts, "highlights": highlights}
 
-    def search_documents(self, q: str) -> list[dict[str, Any]]:
+    def search_documents(self, q: str, limit: int = 50) -> list[dict[str, Any]]:
         q = (q or "").strip()
         if not q:
             cur = self.conn.execute(
-                "select id, title, author, url_original, saved_at from documents order by id desc limit 50"
+                "SELECT id, title, author, url_original, saved_at FROM documents ORDER BY id DESC LIMIT ?",
+                (limit,),
             )
         else:
             cur = self.conn.execute(
                 """
-                select d.id, d.title, d.author, d.url_original, d.saved_at
-                from documents_fts f
-                join documents d on d.id = f.rowid
-                where documents_fts match ?
-                order by rank
-                limit 50
+                SELECT d.id, d.title, d.author, d.url_original, d.saved_at
+                FROM documents_fts f
+                JOIN documents d ON d.id = f.rowid
+                WHERE documents_fts MATCH ?
+                ORDER BY rank
+                LIMIT ?
                 """,
-                (q,),
+                (q, limit),
             )
         rows = []
         for r in cur.fetchall():
@@ -522,12 +530,97 @@ class DB:
         }
 
     def list_digests(self) -> list[dict[str, Any]]:
-        cur = self.conn.execute("select id, name, query, created_at from digests order by id desc")
-        return [{"id": r[0], "name": r[1], "query": r[2], "created_at": r[3]} for r in cur.fetchall()]
+        """List all saved digests/queries."""
+        cur = self.conn.execute(
+            "SELECT id, name, query, mode, created_at FROM digests ORDER BY id DESC"
+        )
+        return [
+            {"id": r[0], "name": r[1], "query": r[2], "mode": r[3] or "fts", "created_at": r[4]}
+            for r in cur.fetchall()
+        ]
 
-    def create_digest(self, name: str, query: str) -> None:
-        self.conn.execute("insert into digests(name, query) values(?, ?)", (name.strip(), query.strip()))
+    def create_digest(self, name: str, query: str, mode: str = "fts") -> int:
+        """Create a new digest/saved query. Returns the new ID."""
+        cur = self.conn.execute(
+            "INSERT INTO digests(name, query, mode) VALUES(?, ?, ?) RETURNING id",
+            (name.strip(), query.strip(), mode),
+        )
+        digest_id = cur.fetchone()[0]
         self.conn.commit()
+        return digest_id
+
+    def get_digest(self, digest_id: int) -> dict[str, Any] | None:
+        """Get a single digest by ID."""
+        cur = self.conn.execute(
+            "SELECT id, name, query, mode, created_at FROM digests WHERE id = ?",
+            (digest_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "name": row[1],
+            "query": row[2],
+            "mode": row[3] or "fts",
+            "created_at": row[4],
+        }
+
+    def update_digest(self, digest_id: int, name: str, query: str, mode: str) -> bool:
+        """Update an existing digest. Returns True if found and updated."""
+        cur = self.conn.execute(
+            "UPDATE digests SET name = ?, query = ?, mode = ? WHERE id = ?",
+            (name.strip(), query.strip(), mode, digest_id),
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def delete_digest(self, digest_id: int) -> bool:
+        """Delete a digest. Returns True if found and deleted."""
+        cur = self.conn.execute("DELETE FROM digests WHERE id = ?", (digest_id,))
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def get_recent_highlights(self, limit: int = 10) -> list[dict[str, Any]]:
+        """Get the most recent highlights with document info."""
+        cur = self.conn.execute(
+            """
+            SELECT h.id, h.text, h.note, h.highlighted_at, h.created_at,
+                   d.id as doc_id, d.title, d.author, d.url_original
+            FROM highlights h
+            JOIN documents d ON d.id = h.document_id
+            ORDER BY COALESCE(h.highlighted_at, h.created_at) DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        return [
+            {
+                "id": r[0],
+                "text": r[1],
+                "note": r[2],
+                "highlighted_at": r[3],
+                "created_at": r[4],
+                "document_id": r[5],
+                "title": r[6],
+                "author": r[7],
+                "url": r[8],
+            }
+            for r in cur.fetchall()
+        ]
+
+    def execute_digest_query(
+        self, query: str, mode: str = "fts", limit: int = 10
+    ) -> list[dict[str, Any]]:
+        """Execute a digest query and return results.
+
+        For FTS mode, uses full-text search.
+        For semantic mode, caller must provide embedding bytes.
+        """
+        if mode == "fts":
+            return self.search_documents(query, limit=limit)
+        # Semantic mode requires embedding - return empty, caller handles
+        return []
 
     def list_drafts(self) -> list[dict[str, Any]]:
         cur = self.conn.execute("select id, status, kind, title, updated_at from drafts order by id desc")
