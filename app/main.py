@@ -822,6 +822,7 @@ def readwise_import_stream(job_id: str, token: str | None = None):
                     if event.type == ImportEventType.ITEM:
                         article_data = event.data.get("article", {})
                         if article_data.get("provider_id"):
+                            html_content = article_data.get("html_content")
                             doc_id = db.save_article(
                                 source=article_data.get("provider", "unknown"),
                                 provider_id=article_data.get("provider_id", ""),
@@ -829,7 +830,8 @@ def readwise_import_stream(job_id: str, token: str | None = None):
                                 title=article_data.get("title"),
                                 author=article_data.get("author"),
                                 published_at=article_data.get("published_date"),
-                                fulltext=article_data.get("html_content"),
+                                fulltext=html_content,
+                                fulltext_source="readwise" if html_content else None,
                                 summary=article_data.get("summary"),
                             )
 

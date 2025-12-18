@@ -515,7 +515,8 @@ class ReadwiseClient:
         """Stream items from Reader API."""
         from app.core.import_job import ImportStatus
 
-        params: dict[str, str] = {}
+        # Request full HTML content from Readwise Reader
+        params: dict[str, str] = {"withHtmlContent": "true"}
         if job.reader_cursor:
             params["pageCursor"] = job.reader_cursor
 

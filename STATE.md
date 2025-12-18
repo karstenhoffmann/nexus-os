@@ -1,60 +1,41 @@
 nexus-os Status
 
 Stand (kurz)
-- Semantische Suche funktioniert mit Chunk-Zitaten und Kontext.
-- 2637 Dokumente haben Embeddings (OpenAI text-embedding-3-small).
-- Provider-Abstraktion: OpenAI + Ollama Support mit Health-Checks.
-- Fulltext-Fetching: Komplett implementiert (F1-F5).
-  - ContentFetcher mit trafilatura
-  - FetchJobStore mit Pause/Resume/Cancel
-  - API Endpoints + SSE Streaming
-  - Admin UI mit Live-Fortschritt
-  - Next Steps Card (Chunks + FTS Rebuild)
+- Readwise Import mit withHtmlContent aktiviert (fulltext direkt von Readwise)
+- fulltext_source Tracking implementiert ('readwise', 'trafilatura', 'manual')
+- trafilatura Fallback fuer Dokumente ohne Readwise-Fulltext
+- Provider-Abstraktion: OpenAI + Ollama Support
 
 Aktuelles Ziel
-- Fulltext-Fetching starten und testen
+- Sauberer Neuimport von Readwise mit Fulltext
 
 Fertig (diese Session)
-1) Sprint F1-F4: Fulltext Fetching System
-2) Sprint F5: Integration + Polish
-   - Fetch Stats erweitert (without_chunks)
-   - FTS Rebuild Endpoint
-   - Next Steps Card in Admin Fetch UI
-   - Memory Optimierung (trafilatura cache reset)
+1) withHtmlContent=true im Reader API Import
+2) fulltext_source Tracking in save_article()
 3) 55 Tests bestanden
 
 Naechste Schritte (Claude Code, max 3)
-1) Fulltext-Fetching starten (/admin/fetch)
-2) Chunks + Embeddings generieren
-3) Semantische Suche mit Zitaten testen
+1) Datenbank-Reset durchfuehren
+2) Readwise neu importieren (mit Fulltext)
+3) Chunking + Embeddings generieren
 
 Offene Fragen (max 3)
 - (keine aktuell)
 
 Handoff
-- Admin Fetch UI: /admin/fetch
-  - Statistiken: Dokumente, mit URL, mit Fulltext, ausstehend, fehlgeschlagen
-  - Controls: Start/Pause/Resume/Cancel Buttons
-  - Live Log: SSE Event Streaming
-  - Next Steps: Chunks generieren + FTS Rebuild
-  - Job-Liste: Vorherige Jobs mit Status
+- Aenderungen:
+  - readwise.py:519 - withHtmlContent=true aktiviert
+  - storage.py:468 - fulltext_source Parameter hinzugefuegt
+  - storage.py:503-544 - fulltext_source wird bei Update gesetzt
+  - storage.py:547-579 - fulltext_source wird bei Insert gesetzt
+  - main.py:825-834 - fulltext_source='readwise' beim Import
 
-- Fetch API Endpoints:
-  POST /api/fetch/start           - Job starten
-  POST /api/fetch/{id}/pause      - Job pausieren
-  POST /api/fetch/{id}/resume     - Job fortsetzen
-  POST /api/fetch/{id}/cancel     - Job abbrechen
-  GET  /api/fetch/{id}/status     - Job Status
-  GET  /api/fetch/{id}/stream     - SSE Stream
-  GET  /api/fetch/stats           - Statistiken
-  GET  /api/fetch/failures        - Fehler-Liste
-  POST /api/fetch/retry-failed    - Retryable Fehler loeschen
-  GET  /api/fetch/jobs            - Job-Liste
-  DELETE /api/fetch/{id}          - Job loeschen
-
-- Neue Endpoints:
-  POST /admin/fts/rebuild         - FTS Index neu aufbauen
+- Reset-Anleitung (manuell):
+  1) Container stoppen: docker compose down
+  2) DB loeschen: rm _local/data/app.db
+  3) Container starten: docker compose up -d
+  4) Readwise importieren: /readwise/import
+  5) Nach Import: /admin/fetch fuer Luecken (optional)
+  6) Chunks generieren: /admin/fetch -> Next Steps
 
 - Alle Tests: docker compose exec app python -m pytest tests/ -v (55/55)
-
-Bereit: Fulltext-Fetching kann gestartet werden!

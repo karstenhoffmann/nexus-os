@@ -465,6 +465,7 @@ class DB:
         published_at: str | None = None,
         saved_at: str | None = None,
         fulltext: str | None = None,
+        fulltext_source: str | None = None,
         summary: str | None = None,
         raw_json: str | None = None,
     ) -> int:
@@ -477,6 +478,9 @@ class DB:
 
         This prevents duplicates when the same content has different provider_ids
         but the same URL (common with Snipd/Readwise).
+
+        Args:
+            fulltext_source: Source of fulltext ('readwise', 'trafilatura', 'manual')
 
         Returns the document id (existing or new).
         """
@@ -495,33 +499,61 @@ class DB:
 
         if existing_id:
             # 2. Update existing document (found by URL)
-            self.conn.execute(
-                """
-                UPDATE documents SET
-                    provider_id = ?,
-                    url_original = COALESCE(?, url_original),
-                    url_canonical = ?,
-                    title = COALESCE(?, title),
-                    author = COALESCE(?, author),
-                    published_at = COALESCE(?, published_at),
-                    saved_at = COALESCE(?, saved_at),
-                    fulltext = COALESCE(?, fulltext),
-                    summary = COALESCE(?, summary),
-                    raw_json = COALESCE(?, raw_json),
-                    updated_at = datetime('now')
-                WHERE id = ?
-                """,
-                (provider_id, url_original, url_canonical, title, author,
-                 published_at, saved_at, fulltext, summary, raw_json, existing_id),
-            )
+            # Only update fulltext_source and fulltext_fetched_at if new fulltext is provided
+            if fulltext:
+                self.conn.execute(
+                    """
+                    UPDATE documents SET
+                        provider_id = ?,
+                        url_original = COALESCE(?, url_original),
+                        url_canonical = ?,
+                        title = COALESCE(?, title),
+                        author = COALESCE(?, author),
+                        published_at = COALESCE(?, published_at),
+                        saved_at = COALESCE(?, saved_at),
+                        fulltext = ?,
+                        fulltext_source = ?,
+                        fulltext_fetched_at = datetime('now'),
+                        summary = COALESCE(?, summary),
+                        raw_json = COALESCE(?, raw_json),
+                        updated_at = datetime('now')
+                    WHERE id = ?
+                    """,
+                    (provider_id, url_original, url_canonical, title, author,
+                     published_at, saved_at, fulltext, fulltext_source, summary, raw_json, existing_id),
+                )
+            else:
+                self.conn.execute(
+                    """
+                    UPDATE documents SET
+                        provider_id = ?,
+                        url_original = COALESCE(?, url_original),
+                        url_canonical = ?,
+                        title = COALESCE(?, title),
+                        author = COALESCE(?, author),
+                        published_at = COALESCE(?, published_at),
+                        saved_at = COALESCE(?, saved_at),
+                        summary = COALESCE(?, summary),
+                        raw_json = COALESCE(?, raw_json),
+                        updated_at = datetime('now')
+                    WHERE id = ?
+                    """,
+                    (provider_id, url_original, url_canonical, title, author,
+                     published_at, saved_at, summary, raw_json, existing_id),
+                )
             self.conn.commit()
             return existing_id
 
         # 3. No URL match - UPSERT by provider_id (fallback for docs without URL)
+        # Set fulltext_fetched_at only if fulltext is provided
+        fulltext_fetched_at = "datetime('now')" if fulltext else None
         cur = self.conn.execute(
             """
-            INSERT INTO documents (source, provider_id, url_original, url_canonical, title, author, published_at, saved_at, fulltext, summary, raw_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO documents (
+                source, provider_id, url_original, url_canonical, title, author,
+                published_at, saved_at, fulltext, fulltext_source, fulltext_fetched_at, summary, raw_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? IS NOT NULL THEN datetime('now') END, ?, ?)
             ON CONFLICT(source, provider_id) DO UPDATE SET
                 url_original = COALESCE(excluded.url_original, url_original),
                 url_canonical = COALESCE(excluded.url_canonical, url_canonical),
@@ -530,13 +562,15 @@ class DB:
                 published_at = COALESCE(excluded.published_at, published_at),
                 saved_at = COALESCE(excluded.saved_at, saved_at),
                 fulltext = COALESCE(excluded.fulltext, fulltext),
+                fulltext_source = CASE WHEN excluded.fulltext IS NOT NULL THEN excluded.fulltext_source ELSE fulltext_source END,
+                fulltext_fetched_at = CASE WHEN excluded.fulltext IS NOT NULL THEN datetime('now') ELSE fulltext_fetched_at END,
                 summary = COALESCE(excluded.summary, summary),
                 raw_json = COALESCE(excluded.raw_json, raw_json),
                 updated_at = datetime('now')
             RETURNING id
             """,
             (source, provider_id, url_original, url_canonical, title, author,
-             published_at, saved_at, fulltext, summary, raw_json),
+             published_at, saved_at, fulltext, fulltext_source, fulltext, summary, raw_json),
         )
         row = cur.fetchone()
         self.conn.commit()
