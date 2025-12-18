@@ -10,6 +10,11 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from app.core.settings import Settings
 from app.core.storage import get_db, init_db
 from app.core.import_job import ImportStatus, get_import_store
+from app.core.fetch_job import (
+    FetchStatus,
+    get_fetch_store,
+    run_fetch_job,
+)
 from app.core.embed_job import generate_embeddings_batch, generate_embeddings_v2, generate_chunk_embeddings_v2
 from app.core.chunking import get_chunking_info
 from app.core.embeddings import get_embedding, serialize_f32
@@ -450,6 +455,216 @@ async def api_semantic_search(q: str, limit: int = 10):
         return {"results": results, "query": q}
     except Exception as e:
         return {"results": [], "error": str(e)}
+
+
+# ==================== Fetch API Endpoints ====================
+
+
+@app.get("/admin/fetch", response_class=HTMLResponse)
+def admin_fetch(request: Request):
+    """Fulltext fetch management page."""
+    db = get_db()
+    store = get_fetch_store()
+
+    stats = db.count_documents_for_fetch()
+    jobs = store.list_recent(limit=10)
+    running_job = store.get_running()
+    resumable_job = store.get_resumable()
+    failure_summary = db.get_failure_summary()
+
+    return render(
+        "admin_fetch.html",
+        request=request,
+        stats=stats,
+        jobs=jobs,
+        running_job=running_job,
+        resumable_job=resumable_job,
+        failure_summary=failure_summary,
+    )
+
+
+@app.post("/api/fetch/start")
+def api_fetch_start():
+    """Start a new fulltext fetch job.
+
+    Returns job ID for SSE stream connection.
+    """
+    db = get_db()
+    store = get_fetch_store()
+
+    # Check if a job is already running
+    running = store.get_running()
+    if running:
+        return {"error": "A fetch job is already running", "job_id": running.id}
+
+    # Get total count for progress tracking
+    stats = db.count_documents_for_fetch()
+    job = store.create(items_total=stats["pending"])
+
+    return {"job_id": job.id, "items_total": stats["pending"]}
+
+
+@app.post("/api/fetch/{job_id}/pause")
+def api_fetch_pause(job_id: str):
+    """Pause a running fetch job."""
+    store = get_fetch_store()
+    job = store.pause(job_id)
+
+    if not job:
+        return {"error": "Job not found or not running"}
+
+    return {"status": job.status.value, "job": job.to_dict()}
+
+
+@app.post("/api/fetch/{job_id}/resume")
+def api_fetch_resume(job_id: str):
+    """Resume a paused fetch job.
+
+    Client should reconnect to SSE stream after calling this.
+    """
+    store = get_fetch_store()
+    job = store.get(job_id)
+
+    if not job:
+        return {"error": "Job not found"}
+
+    if job.status not in (FetchStatus.PAUSED, FetchStatus.FAILED):
+        return {"error": f"Job cannot be resumed (status: {job.status.value})"}
+
+    # Set to pending, will become running when stream starts
+    job.status = FetchStatus.PENDING
+    store.update(job)
+
+    return {"status": job.status.value, "job": job.to_dict()}
+
+
+@app.post("/api/fetch/{job_id}/cancel")
+def api_fetch_cancel(job_id: str):
+    """Cancel a fetch job."""
+    store = get_fetch_store()
+    job = store.cancel(job_id)
+
+    if not job:
+        return {"error": "Job not found or cannot be cancelled"}
+
+    return {"status": job.status.value, "job": job.to_dict()}
+
+
+@app.get("/api/fetch/{job_id}/status")
+def api_fetch_status(job_id: str):
+    """Get current status of a fetch job."""
+    store = get_fetch_store()
+    job = store.get(job_id)
+
+    if not job:
+        return {"error": "Job not found"}
+
+    return job.to_dict()
+
+
+@app.get("/api/fetch/{job_id}/stream")
+async def api_fetch_stream(job_id: str):
+    """SSE stream for fetch progress.
+
+    Connect after starting or resuming a job to receive live updates.
+    """
+    store = get_fetch_store()
+    job = store.get(job_id)
+
+    if not job:
+        return {"error": "Job not found"}
+
+    if job.status not in (FetchStatus.PENDING, FetchStatus.RUNNING):
+        return {"error": f"Job is not active (status: {job.status.value})"}
+
+    db = get_db()
+
+    async def event_generator():
+        """Generate SSE events from fetch job."""
+        try:
+            async for event in run_fetch_job(job, db, store):
+                yield event.to_sse()
+        except Exception as e:
+            import json
+            yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.get("/api/fetch/stats")
+def api_fetch_stats():
+    """Get fetch statistics.
+
+    Returns counts of documents with/without fulltext, pending, failed.
+    """
+    db = get_db()
+    stats = db.count_documents_for_fetch()
+    failure_summary = db.get_failure_summary()
+
+    return {
+        **stats,
+        "failures_by_type": failure_summary,
+    }
+
+
+@app.get("/api/fetch/failures")
+def api_fetch_failures(error_type: str | None = None, limit: int = 100):
+    """Get list of fetch failures.
+
+    Args:
+        error_type: Filter by error type (timeout, http_4xx, paywall, etc.)
+        limit: Maximum results (default 100)
+    """
+    db = get_db()
+    failures = db.get_fetch_failures(error_type=error_type, limit=limit)
+
+    return {"failures": failures, "count": len(failures)}
+
+
+@app.post("/api/fetch/retry-failed")
+def api_fetch_retry_failed():
+    """Clear retryable failures (timeout, http_5xx) so they can be fetched again.
+
+    Returns number of failures cleared.
+    """
+    db = get_db()
+    cleared = db.clear_retryable_failures()
+
+    return {"cleared": cleared, "message": f"Cleared {cleared} retryable failures"}
+
+
+@app.get("/api/fetch/jobs")
+def api_fetch_jobs(limit: int = 10):
+    """Get list of recent fetch jobs."""
+    store = get_fetch_store()
+    jobs = store.list_recent(limit=limit)
+
+    return {"jobs": [j.to_dict() for j in jobs]}
+
+
+@app.delete("/api/fetch/{job_id}")
+def api_fetch_delete(job_id: str):
+    """Delete a fetch job (only if not running)."""
+    store = get_fetch_store()
+    job = store.get(job_id)
+
+    if job and job.status == FetchStatus.RUNNING:
+        return {"error": "Cannot delete a running job"}
+
+    deleted = store.delete(job_id)
+
+    return {"deleted": deleted}
+
+
+# ==================== Readwise Routes ====================
 
 
 @app.get("/readwise/preview", response_class=HTMLResponse)
