@@ -30,20 +30,20 @@ from app.core.digest_job import (
     get_digest_store,
 )
 from app.core.llm_providers import LLMProvider, get_chat_provider
-from app.core.storage import Storage
+from app.core.storage import DB
 
 logger = logging.getLogger(__name__)
 
 
 async def run_digest_pipeline(
     job: DigestJob,
-    db: Storage,
+    db: DB,
 ) -> AsyncGenerator[DigestEvent, None]:
     """Run the full digest generation pipeline.
 
     Args:
         job: DigestJob with configuration (strategy, model, days)
-        db: Storage instance for database access
+        db: DB instance for database access
 
     Yields:
         DigestEvent for SSE streaming to client
@@ -151,7 +151,7 @@ async def run_digest_pipeline(
 
 async def _fetch_phase(
     job: DigestJob,
-    db: Storage,
+    db: DB,
     store: Any,
 ) -> tuple[list[dict[str, Any]], int]:
     """Fetch chunks from database for the date range.
@@ -302,7 +302,7 @@ Antworte im JSON-Format:
 
 async def _compile_phase(
     job: DigestJob,
-    db: Storage,
+    db: DB,
     clustering_result: ClusteringResult,
     overall_summary: str,
     highlights: list[str],
@@ -355,14 +355,14 @@ async def _compile_phase(
 
 async def estimate_digest(
     days: int,
-    db: Storage,
+    db: DB,
     model: str = "gpt-4.1-mini",
 ) -> dict[str, Any]:
     """Estimate cost and scope for a digest without generating it.
 
     Args:
         days: Number of days to include
-        db: Storage instance
+        db: DB instance
         model: Model to use for estimation
 
     Returns:

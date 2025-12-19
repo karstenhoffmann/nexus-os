@@ -22,22 +22,22 @@
       <p>{{ latest_digest.summary_text }}</p>
     </div>
 
-    {% if latest_digest.highlights_json %}
+    {% if latest_digest.highlights %}
     <div class="digest-highlights">
       <h3>Highlights</h3>
       <ul>
-        {% for highlight in latest_digest.highlights_json | tojson | safe %}
+        {% for highlight in latest_digest.highlights %}
         <li>{{ highlight }}</li>
         {% endfor %}
       </ul>
     </div>
     {% endif %}
 
-    {% if latest_digest.topics_json %}
+    {% if latest_digest.topics %}
     <div class="digest-topics">
       <h3>Themen</h3>
       <div class="topics-grid">
-        {% for topic in latest_digest.topics_json %}
+        {% for topic in latest_digest.topics %}
         <div class="topic-card">
           <h4>{{ topic.topic_name }}</h4>
           <span class="topic-count">{{ topic.chunk_count }} Chunks</span>
@@ -97,7 +97,7 @@
         <span>
           <strong x-text="estimate?.docs_count || 0"></strong> Dokumente,
           <strong x-text="estimate?.chunks_count || 0"></strong> Chunks
-          | Geschaetzte Kosten: <strong x-text="'$' + (estimate?.estimated_cost_usd || 0).toFixed(4)"></strong>
+          | Geschaetzte Kosten: <strong x-text="'$' + (estimate?.total_cost_usd || 0).toFixed(4)"></strong>
         </span>
       </div>
 

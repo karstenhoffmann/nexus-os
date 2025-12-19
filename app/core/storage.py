@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import sqlite3
 import struct
@@ -2667,6 +2668,9 @@ class DB:
         row = cur.fetchone()
         if not row:
             return None
+        # Parse JSON fields for template rendering
+        topics = json.loads(row[8]) if row[8] else []
+        highlights = json.loads(row[9]) if row[9] else []
         return {
             "id": row[0],
             "name": row[1],
@@ -2676,8 +2680,10 @@ class DB:
             "strategy": row[5],
             "model_id": row[6],
             "summary_text": row[7],
-            "topics_json": row[8],
-            "highlights_json": row[9],
+            "topics_json": row[8],  # Keep raw for API
+            "topics": topics,  # Parsed for templates
+            "highlights_json": row[9],  # Keep raw for API
+            "highlights": highlights,  # Parsed for templates
             "docs_analyzed": row[10],
             "chunks_analyzed": row[11],
             "tokens_input": row[12],

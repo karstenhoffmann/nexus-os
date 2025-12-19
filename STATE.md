@@ -11,18 +11,25 @@ Aktuelles Ziel
 - LLM-Powered Default Digest implementieren
 
 Naechste Schritte (Claude Code, max 3)
-1) Digest Phase 5: Test mit echten Daten (Docker starten, /digest oeffnen)
-2) Digest Phase 6: Polishing (Error Handling, Loading States)
-3) Saved Queries von /digests zu eigenem Admin-Bereich verschieben
+1) Digest Phase 6: Polishing (Error Handling, Loading States, UI Progress)
+2) Saved Queries von /digests zu eigenem Admin-Bereich verschieben
+3) Digest History-Seite mit allen generierten Digests
 
 Geplant (Detail-Plan)
 - /Users/karsten/.claude/plans/luminous-juggling-biscuit.md
 - Multi-Modell: GPT-4.1 nano/mini, GPT-4o-mini, GPT-5.x
 - Zwei Strategien: Hybrid (Embedding->LLM) und Pure LLM
 - Cached + Refresh, Admin-Konfiguration, Usage-Stats
-- ~10 Tage in 6 Phasen
 
 Handoff
+- Digest Phase 5: Test mit echten Daten erfolgreich (2025-12-19):
+  - Bugfixes: Storage->DB import, json import, total_cost_usd field name
+  - JSON-Parsing fuer Topics und Highlights im Backend (nicht Template)
+  - Erster Digest generiert: 428 Chunks -> 7 Topics, $0.007 (GPT-4.1-mini)
+  - Themen: Claude Code, KI-Vertrauen, Vorhersagbarkeit, Codewandel, Bias, Schreibmuster
+  - UI zeigt Summary, Highlights (5), Topics mit Chunk-Counts
+  - Bekanntes Problem: SSE-Progress wird im UI nicht live angezeigt (Phase 6)
+
 - Digest Phase 3+4: API Routes + UI erstellt (2025-12-19):
   - GET /digest: Hauptseite mit latest digest, generation controls
   - GET /api/digest/estimate: Kosten-Schaetzung (days, model)
