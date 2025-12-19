@@ -153,7 +153,7 @@
   <div class="card" x-show="log.length > 0">
     <h2>Verlauf</h2>
     <div class="log-container">
-      <template x-for="entry in log.slice(-20).reverse()" :key="entry.time">
+      <template x-for="(entry, idx) in log.slice(-20).reverse()" :key="idx">
         <div class="log-entry" :class="'log-' + entry.level">
           <span class="log-time" x-text="entry.time"></span>
           <span class="log-message" x-text="entry.message"></span>
@@ -259,17 +259,34 @@ function digestApp() {
       this.eventSource.addEventListener('phase_start', (e) => {
         const data = JSON.parse(e.data);
         this.phase = data.phase;
-        this.addLog('info', `Phase ${data.phase} gestartet`);
+        this.currentActivity = data.message || `Phase ${data.phase} gestartet`;
+        this.addLog('info', data.message || `Phase ${data.phase} gestartet`);
         feather.replace();
       });
 
       this.eventSource.addEventListener('phase_complete', (e) => {
         const data = JSON.parse(e.data);
         this.phase = data.phase;
+        this.currentActivity = '';
+
+        // Update token/cost from phase_complete events
+        if (data.tokens_used) {
+          this.tokensUsed = data.tokens_used;
+        }
+        if (data.cost_usd) {
+          this.costUsd = data.cost_usd;
+        }
+
         this.addLog('success', `Phase ${data.phase} abgeschlossen`);
 
         if (data.topics_created) {
           this.addLog('info', `${data.topics_created} Themen erstellt`);
+        }
+        if (data.chunks_found) {
+          this.addLog('info', `${data.chunks_found} Chunks gefunden`);
+        }
+        if (data.highlights_count) {
+          this.addLog('info', `${data.highlights_count} Highlights generiert`);
         }
       });
 

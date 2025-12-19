@@ -11,7 +11,7 @@ Aktuelles Ziel
 - LLM-Powered Default Digest implementieren
 
 Naechste Schritte (Claude Code, max 3)
-1) Digest Phase 6: Polishing (Error Handling, Loading States, UI Progress)
+1) Manueller Test: Neuen Digest generieren, SSE-Progress beobachten
 2) Saved Queries von /digests zu eigenem Admin-Bereich verschieben
 3) Digest History-Seite mit allen generierten Digests
 
@@ -22,6 +22,15 @@ Geplant (Detail-Plan)
 - Cached + Refresh, Admin-Konfiguration, Usage-Stats
 
 Handoff
+- Digest Phase 6: SSE-Progress Fix (2025-12-19):
+  - Problem: PHASE_START Events fehlten in digest_pipeline.py
+  - Fix: Jede Phase sendet jetzt PHASE_START mit Aktivitaets-Nachricht
+  - Frontend zeigt currentActivity aus message-Feld
+  - Token/Cost-Updates in PHASE_COMPLETE Events
+  - UI zeigt live: Phase-Label, Activity-Text, Tokens, Kosten
+  - Log zeigt: Chunks gefunden, Themen erstellt, Highlights generiert
+  - Naechster Schritt: Manueller Test im Browser
+
 - Digest Phase 5: Test mit echten Daten erfolgreich (2025-12-19):
   - Bugfixes: Storage->DB import, json import, total_cost_usd field name
   - JSON-Parsing fuer Topics und Highlights im Backend (nicht Template)

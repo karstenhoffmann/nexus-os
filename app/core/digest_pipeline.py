@@ -64,6 +64,11 @@ async def run_digest_pipeline(
 
     try:
         # Phase 1: FETCH
+        yield DigestEvent(
+            type=DigestEventType.PHASE_START,
+            phase=DigestPhase.FETCH,
+            data={"message": "Lade Chunks aus Datenbank..."},
+        )
         chunks, docs_count = await _fetch_phase(job, db, store)
         yield DigestEvent(
             type=DigestEventType.PHASE_COMPLETE,
@@ -87,6 +92,11 @@ async def run_digest_pipeline(
             return
 
         # Phase 2: CLUSTER
+        yield DigestEvent(
+            type=DigestEventType.PHASE_START,
+            phase=DigestPhase.CLUSTER,
+            data={"message": f"Gruppiere {len(chunks)} Chunks in Themen..."},
+        )
         clustering_result = await _cluster_phase(job, chunks, llm, store)
         yield DigestEvent(
             type=DigestEventType.PHASE_COMPLETE,
@@ -94,10 +104,17 @@ async def run_digest_pipeline(
             data={
                 "topics_created": len(clustering_result.clusters),
                 "strategy": clustering_result.strategy,
+                "tokens_used": job.total_tokens,
+                "cost_usd": round(job.cost_usd, 6),
             },
         )
 
         # Phase 3: SUMMARIZE
+        yield DigestEvent(
+            type=DigestEventType.PHASE_START,
+            phase=DigestPhase.SUMMARIZE,
+            data={"message": "Generiere Zusammenfassung und Highlights..."},
+        )
         overall_summary, highlights = await _summarize_phase(
             job, clustering_result, llm, store
         )
@@ -107,10 +124,17 @@ async def run_digest_pipeline(
             data={
                 "summary_length": len(overall_summary),
                 "highlights_count": len(highlights),
+                "tokens_used": job.total_tokens,
+                "cost_usd": round(job.cost_usd, 6),
             },
         )
 
         # Phase 4: COMPILE
+        yield DigestEvent(
+            type=DigestEventType.PHASE_START,
+            phase=DigestPhase.COMPILE,
+            data={"message": "Speichere Digest in Datenbank..."},
+        )
         digest_id = await _compile_phase(
             job, db, clustering_result, overall_summary, highlights, store
         )
