@@ -2068,6 +2068,22 @@ def api_digest_latest():
     return digest
 
 
+@app.get("/api/digest/history")
+def api_digest_history(limit: int = 20, favorites_only: bool = False):
+    """Get list of past generated digests.
+
+    Args:
+        limit: Maximum number to return (default 20)
+        favorites_only: If True, only return favorited digests
+
+    Returns:
+        List of digest metadata (without full content)
+    """
+    db = get_db()
+    digests = db.list_generated_digests(limit=limit, favorites_only=favorites_only)
+    return {"digests": digests}
+
+
 @app.get("/api/digest/{digest_id}")
 def api_digest_get(digest_id: int):
     """Get a specific generated digest by ID.
@@ -2085,22 +2101,6 @@ def api_digest_get(digest_id: int):
         return {"error": "Digest nicht gefunden"}
 
     return digest
-
-
-@app.get("/api/digest/history")
-def api_digest_history(limit: int = 20, favorites_only: bool = False):
-    """Get list of past generated digests.
-
-    Args:
-        limit: Maximum number to return (default 20)
-        favorites_only: If True, only return favorited digests
-
-    Returns:
-        List of digest metadata (without full content)
-    """
-    db = get_db()
-    digests = db.list_generated_digests(limit=limit, favorites_only=favorites_only)
-    return {"digests": digests}
 
 
 @app.post("/api/digest/{digest_id}/favorite")
