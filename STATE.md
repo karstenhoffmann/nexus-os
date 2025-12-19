@@ -11,9 +11,9 @@ Aktuelles Ziel
 - LLM-Powered Default Digest implementieren
 
 Naechste Schritte (Claude Code, max 3)
-1) Digest Phase 2c: digest_pipeline.py (Fetch, Cluster, Summarize, Compile orchestrieren)
-2) Digest Phase 3: API Routes (/digest, /api/digest/*)
-3) Digest Phase 4: UI (digest_home.html)
+1) Digest Phase 3: API Routes (/digest, /api/digest/*)
+2) Digest Phase 4: UI (digest_home.html)
+3) Digest Phase 5: Test mit echten Daten
 
 Geplant (Detail-Plan)
 - /Users/karsten/.claude/plans/luminous-juggling-biscuit.md
@@ -23,6 +23,17 @@ Geplant (Detail-Plan)
 - ~10 Tage in 6 Phasen
 
 Handoff
+- Digest Phase 2c: digest_pipeline.py erstellt (2025-12-19):
+  - run_digest_pipeline(): Async Generator fuer SSE-Streaming
+  - 4 Phasen: _fetch_phase, _cluster_phase, _summarize_phase, _compile_phase
+  - FETCH: Holt Chunks mit Embeddings (hybrid) oder ohne (pure_llm)
+  - CLUSTER: Ruft cluster_chunks() auf, trackt Tokens/Cost
+  - SUMMARIZE: Generiert Overall Summary + Highlights per LLM
+  - COMPILE: Speichert Digest in DB via save_generated_digest()
+  - estimate_digest(): Kosten-Schaetzung ohne LLM-Call
+  - Tests: tests/test_digest_pipeline.py mit Mocks
+  - Naechster Schritt: API Routes (Phase 3)
+
 - Digest Phase 2b: digest_clustering.py erstellt (2025-12-19):
   - TopicCluster Dataclass mit topic_name, summary, chunk_ids, key_points
   - ClusteringResult mit Token/Cost-Tracking
