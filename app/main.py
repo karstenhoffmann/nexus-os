@@ -1932,3 +1932,202 @@ def sync_stats():
     """Get current pipeline stats."""
     db = get_db()
     return db.get_pipeline_stats()
+
+
+# ==================== LLM Digest Routes ====================
+
+from app.core.digest_job import (
+    DigestStatus,
+    get_digest_store,
+)
+from app.core.digest_pipeline import run_digest_pipeline, estimate_digest
+
+
+@app.get("/digest", response_class=HTMLResponse)
+def digest_page(request: Request):
+    """LLM-powered digest page."""
+    db = get_db()
+    store = get_digest_store()
+
+    # Get latest generated digest
+    latest_digest = db.get_latest_generated_digest()
+
+    # Get running job if any
+    running_job = store.get_running()
+
+    # Recent digest jobs
+    recent_jobs = store.list_all()[:5]
+
+    return render(
+        "digest_home.html",
+        request=request,
+        latest_digest=latest_digest,
+        running_job=running_job,
+        recent_jobs=recent_jobs,
+    )
+
+
+@app.get("/api/digest/estimate")
+async def api_digest_estimate(days: int = 7, model: str = "gpt-4.1-mini"):
+    """Estimate cost and scope for a digest.
+
+    Args:
+        days: Number of days to include (default 7)
+        model: LLM model to use (default gpt-4.1-mini)
+
+    Returns:
+        Dict with chunk/doc counts and cost estimate
+    """
+    db = get_db()
+    estimate = await estimate_digest(days=days, db=db, model=model)
+    return estimate
+
+
+@app.post("/api/digest/generate")
+def api_digest_generate_start(
+    strategy: str = "hybrid",
+    model: str = "gpt-4.1-mini",
+    days: int = 7,
+):
+    """Start a new digest generation job.
+
+    Args:
+        strategy: 'hybrid' (embedding+LLM) or 'pure_llm'
+        model: LLM model ID
+        days: Number of days to analyze
+
+    Returns:
+        Dict with job_id for SSE stream connection
+    """
+    store = get_digest_store()
+
+    # Check if a job is already running
+    running = store.get_running()
+    if running:
+        return {"error": "Ein Digest-Job laeuft bereits", "job_id": running.id}
+
+    job = store.create(strategy=strategy, model=model, days=days)
+
+    return {
+        "job_id": job.id,
+        "strategy": strategy,
+        "model": model,
+        "days": days,
+    }
+
+
+@app.get("/api/digest/{job_id}/stream")
+async def api_digest_stream(job_id: str):
+    """SSE stream for digest generation progress.
+
+    Connect after starting a job to receive live updates.
+    """
+    store = get_digest_store()
+    job = store.get(job_id)
+
+    if not job:
+        return {"error": "Job nicht gefunden"}
+
+    if job.status not in (DigestStatus.PENDING, DigestStatus.RUNNING):
+        return {"error": f"Job ist nicht aktiv (status: {job.status.value})"}
+
+    db = get_db()
+
+    async def event_generator():
+        """Generate SSE events from digest pipeline."""
+        try:
+            async for event in run_digest_pipeline(job, db):
+                yield event.to_sse()
+        except Exception as e:
+            yield f"event: error\ndata: {{\"error\": \"{e}\"}}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.get("/api/digest/{job_id}/status")
+def api_digest_job_status(job_id: str):
+    """Get current status of a digest job."""
+    store = get_digest_store()
+    job = store.get(job_id)
+
+    if not job:
+        return {"error": "Job nicht gefunden"}
+
+    return job.to_dict()
+
+
+@app.get("/api/digest/latest")
+def api_digest_latest():
+    """Get the most recent generated digest.
+
+    Returns:
+        Dict with digest data including summary, topics, and highlights
+    """
+    db = get_db()
+    digest = db.get_latest_generated_digest()
+
+    if not digest:
+        return {"error": "Kein Digest vorhanden"}
+
+    return digest
+
+
+@app.get("/api/digest/{digest_id}")
+def api_digest_get(digest_id: int):
+    """Get a specific generated digest by ID.
+
+    Args:
+        digest_id: Database ID of the digest
+
+    Returns:
+        Dict with full digest data
+    """
+    db = get_db()
+    digest = db.get_generated_digest(digest_id)
+
+    if not digest:
+        return {"error": "Digest nicht gefunden"}
+
+    return digest
+
+
+@app.get("/api/digest/history")
+def api_digest_history(limit: int = 10):
+    """Get list of past generated digests.
+
+    Args:
+        limit: Maximum number to return (default 10)
+
+    Returns:
+        List of digest metadata (without full content)
+    """
+    db = get_db()
+    digests = db.list_generated_digests(limit=limit)
+    return {"digests": digests}
+
+
+@app.delete("/api/digest/{digest_id}")
+def api_digest_delete(digest_id: int):
+    """Delete a generated digest.
+
+    Args:
+        digest_id: Database ID of the digest
+
+    Returns:
+        Success status
+    """
+    db = get_db()
+    deleted = db.delete_generated_digest(digest_id)
+
+    if not deleted:
+        return {"error": "Digest nicht gefunden oder konnte nicht geloescht werden"}
+
+    return {"deleted": True, "digest_id": digest_id}

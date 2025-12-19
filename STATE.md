@@ -11,9 +11,9 @@ Aktuelles Ziel
 - LLM-Powered Default Digest implementieren
 
 Naechste Schritte (Claude Code, max 3)
-1) Digest Phase 3: API Routes (/digest, /api/digest/*)
-2) Digest Phase 4: UI (digest_home.html)
-3) Digest Phase 5: Test mit echten Daten
+1) Digest Phase 5: Test mit echten Daten (Docker starten, /digest oeffnen)
+2) Digest Phase 6: Polishing (Error Handling, Loading States)
+3) Saved Queries von /digests zu eigenem Admin-Bereich verschieben
 
 Geplant (Detail-Plan)
 - /Users/karsten/.claude/plans/luminous-juggling-biscuit.md
@@ -23,6 +23,24 @@ Geplant (Detail-Plan)
 - ~10 Tage in 6 Phasen
 
 Handoff
+- Digest Phase 3+4: API Routes + UI erstellt (2025-12-19):
+  - GET /digest: Hauptseite mit latest digest, generation controls
+  - GET /api/digest/estimate: Kosten-Schaetzung (days, model)
+  - POST /api/digest/generate: Startet Job, returns job_id
+  - GET /api/digest/{job_id}/stream: SSE fuer Progress
+  - GET /api/digest/{job_id}/status: Job-Status abrufen
+  - GET /api/digest/latest: Letzten Digest abrufen
+  - GET /api/digest/{digest_id}: Digest by ID
+  - GET /api/digest/history: Liste aller Digests
+  - DELETE /api/digest/{digest_id}: Digest loeschen
+  - digest_home.html: Komplettes UI mit Alpine.js
+    - Zeigt letzten Digest (Summary, Highlights, Topics)
+    - Generation Form (Days, Model, Strategy)
+    - Live Cost Estimate
+    - SSE Progress mit Phasen
+  - Navigation: /digests -> /digest (LLM Digest statt Saved Queries)
+  - Naechster Schritt: Mit echten Daten testen
+
 - Digest Phase 2c: digest_pipeline.py erstellt (2025-12-19):
   - run_digest_pipeline(): Async Generator fuer SSE-Streaming
   - 4 Phasen: _fetch_phase, _cluster_phase, _summarize_phase, _compile_phase
