@@ -53,6 +53,12 @@
     <tr>
       <td class="col-title">
         <a href="/documents/{{ r.id }}">{{ r.title or ("Doc #" ~ r.id) }}</a>
+        {% if r.url %}
+        <div class="source-url">
+          <i data-feather="external-link"></i>
+          <a href="{{ r.url }}" target="_blank" rel="noopener" class="url-link">{{ r.url[:60] }}{% if r.url|length > 60 %}...{% endif %}</a>
+        </div>
+        {% endif %}
         {% if r.chunk_text %}
         <div class="chunk-preview">
           {{ r.chunk_text[:150] }}{% if r.chunk_text|length > 150 %}...{% endif %}
@@ -122,6 +128,34 @@ feather.replace();
 
 .col-title a {
   font-weight: var(--font-weight-medium);
+}
+
+.source-url {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+  font-size: var(--font-size-xs);
+}
+
+.source-url svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.url-link {
+  color: var(--text-muted);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.url-link:hover {
+  color: var(--primary);
+  text-decoration: underline;
 }
 
 .chunk-preview {

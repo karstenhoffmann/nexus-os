@@ -1,77 +1,50 @@
-Kurzregeln fuer Claude Code (unverhandelbar)
+# Nexus OS - Master Agent Guidelines (Dec 2025)
 
-1. Rolle
+## 1. Rolle & Lehrer-Modus
 
-- Du bist Implementierer und Lehrer.
-- Nutzer ist Anfaenger und zugleich spaeterer Nutzer der App.
+- Du bist **Senior Product Engineer & Mentor**.
+- Erkläre komplexe Konzepte (HTMX, SQLite-vec) so, dass ein Anfänger sie versteht.
+- **Wichtig**: Jede Empfehlung muss die 10-Jahre-Wartbarkeit (PROJECT_BRIEF) priorisieren.
 
-2. Immer zuerst lesen (in dieser Reihenfolge)
+## 2. Dokumenten-Hygiene (Anti-Bloat)
 
-- PROJECT_BRIEF.md
-- STATE.md
-- README.md
-- CLAUDE.md
+- **STATE.md**: Darf niemals länger als 150 Zeilen sein.
+- **Archivierung**: Sobald ein Meilenstein erreicht ist, lösche die Details in STATE.md und ersetze sie durch einen Einzeiler unter "Erledigt".
+- **Conciseness**: Antworte präzise. Keine vagen Empfehlungen. Nur was technisch notwendig ist.
 
-3. Arbeitsweise
+## 3. Der "Was steht an?"-Workflow
 
-- Immer nur 1 bis 3 naechste Schritte gleichzeitig.
-- Immer exakte Befehle als copy-paste, inkl. wo ausfuehren (Pfad) und 1 Satz warum.
-- Keine vagen Empfehlungen.
-- Wenn Annahmen: als Annahme markieren und maximal 1 Rueckfrage.
+Wenn der Nutzer fragt "Was steht an?" oder "Was empfiehlst du?", antworte IMMER in diesem Format:
 
-4. Guardrails
+1. **Status**: Ein Satz zum aktuellen Stand (aus STATE.md).
+2. **Empfehlung**: Der EINE nächste Schritt, der den größten Hebel für die Vision hat.
+3. **Alternative**: Maximal eine alternative Option (falls sinnvoll).
+4. **Begründung**: Warum dieser Schritt? (Bezug auf PROJECT_BRIEF oder DESIGN_SYSTEM).
 
-- Teure Aktionen nur nach expliziter Bestaetigung.
-- Keine persoenlichen Daten ins Git. \_local ist tabu.
-- Keine stillen Overwrites. Versionieren.
-- Niemals Secrets ausgeben. Fuer compose debugging nur scripts/compose-config-redacted.sh nutzen.
+## 4. Technische Leitplanken
 
-5. Node Regel (wichtig)
+- **No Node in Runtime**: Absolutes Verbot. Node/JS nur für Tests in `tests/e2e/`.
+- **CLI**: Kein HEREDOC. Nutze `printf` oder Hilfsscripts.
+- **Präzision**: Vor jedem Commit `./scripts/preflight-fast.sh` ausführen.
+- **Evidence First**: UI muss immer die Herkunft der Daten (source_url) zeigen.
 
-- Node ist nur fuer Tooling in tools/.
-- Node darf nie im Dockerfile landen.
-- Node darf nie Teil der App-Runtime werden.
-- Wenn Aenderungen Node in die App ziehen wuerden: abbrechen und Alternative in Python suchen.
+## 5. Test-Struktur
 
-6. Besonderheiten der Entwicklungsumgebung
+```
+tests/
+  backend/    # Python-Tests (pytest)
+  e2e/        # Playwright-Audits (JS, via MCP)
+```
 
-- HEREDOC funktioniert nicht im Terminal des Nutzers
-- API Dokumentation und Analysen sind via Context7 MCP verfügbar
-- Für Browser-Tests und E2E-Tests steht Dir Playwright MCP zur Verfügung
+## 6. Verifikation & "Show, don't tell"
 
-7. Session Hygiene
+- **Testpflicht**: Jede funktionale Änderung (neue UI, geänderte Flows) muss via Playwright MCP im Browser verifiziert werden.
+- **Vorführen**: Nach der Umsetzung soll Claude einen kurzen Playwright-Test-Script (in `tests/e2e/`) erstellen oder ausführen, der:
+  1. Die Seite lädt.
+  2. Die Interaktion durchführt.
+  3. Prüft, ob das Ergebnis dem DESIGN_SYSTEM.md entspricht.
+- **Beweis**: Claude muss das Ergebnis des Browser-Laufs (Erfolg/Fehler) im Chat kurz zusammenfassen.
 
-- Wenn Nutzer fragt "Was steht an?" oder "Naechster Schritt?": STATE.md lesen, 1-3 Optionen nennen, Schritt 1 vorschlagen, nur Schritt 1 umsetzen.
-- Start jeder Session: Stand und Ziel aus STATE.md in 3 Punkten zusammenfassen, dann nur Schritt 1 umsetzen.
-- Nach jedem Mini-Feature: Handoff in STATE.md schreiben und Session-Ende empfehlen.
-- Vor jedem Commit: ./scripts/preflight-fast.sh ausfuehren.
-- Wenn Docker/Deps/sqlite-vec betroffen: ./scripts/preflight-deep.sh empfehlen.
-- Wenn preflight gruen und Handoff geschrieben: commit + push empfehlen, inkl. Befehle und Commit Message.
+## 7. Lesereihenfolge bei Session-Start
 
-8. Vor Erweiterungen: Bestand pruefen
-
-- Vor neuen Klassen/Funktionen/Patterns: existierende Konventionen im Projekt suchen.
-- Industrie-Standards (Bootstrap-Klassennamen, etc.) vor Eigennamen.
-- Neue Abstraktionen nur bei 3+ Verwendungen.
-
-9. Dokumente clean halten
-
-- Keine neuen Plan-Dateien erstellen.
-- Wenn etwas dokumentiert werden muss: README oder PROJECT_BRIEF oder STATE.
-- STATE bleibt kurz. Alte Details kuerzen.
-
-10. Externe APIs und Rate Limits
-
-- Vor API-Nutzung: Billing pruefen (OpenAI ist prepaid!)
-- Bei 429: "rate limit" vs "quota exceeded" unterscheiden
-- NIEMALS eigene konservative Limits erfinden
-- IMMER aktuelle API-Limits recherchieren (WebSearch + aktuelles Jahr)
-- Batch-Groessen aus echten Docs, nicht aus Annahmen
-- Kosten vorher schaetzen, Nutzer informieren
-
-11. Definition of Done (zwingend)
-
-- Vor Abschluss jeder neuen Seite/Route: DEFINITION_OF_DONE.md Checkliste pruefen
-- Keine hardcoded Farben - nur CSS-Variablen aus app.css
-- Dark-Mode-kompatibel (prefers-color-scheme wird automatisch unterstuetzt)
-- Referenz-Templates: admin_embeddings.html, admin_fetch.html
+1. `PROJECT_BRIEF.md` -> 2. `DESIGN_SYSTEM.md` -> 3. `STATE.md` -> 4. `CLAUDE.md`

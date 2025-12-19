@@ -966,6 +966,9 @@ class DB:
     ) -> list[dict[str, Any]]:
         """Semantic search with chunk context and category filtering.
 
+        Results are GROUPED BY DOCUMENT - each document appears only once,
+        showing the best matching chunk as preview.
+
         Args:
             query_embedding: Serialized embedding bytes
             dimensions: Vector dimensions
@@ -974,10 +977,10 @@ class DB:
             categories: Filter by document categories
             sort_by: Column to sort by (default: distance for semantic)
             sort_dir: 'asc' or 'desc' (default: asc for distance)
-            limit: Max results
+            limit: Max results (documents, not chunks)
 
         Returns:
-            List of results with chunk_text, position data, and metadata
+            List of unique documents with best matching chunk_text as preview
         """
         # Semantic search only works on documents with embeddings (i.e., fulltext docs)
         # Highlight-only documents have no chunks/embeddings, so they can't appear here
@@ -987,6 +990,7 @@ class DB:
         vec_table = f"embeddings_{dimensions}"
 
         # Step 1: Get KNN results from vector table
+        # Fetch more chunks to ensure we get enough unique documents
         try:
             cur = self.conn.execute(
                 f"""
@@ -994,14 +998,15 @@ class DB:
                 FROM {vec_table}
                 WHERE embedding MATCH ? AND k = ?
                 """,
-                (query_embedding, limit * 2),  # Get more to filter
+                (query_embedding, limit * 5),  # Get 5x to account for grouping
             )
             knn_results = cur.fetchall()
         except Exception:
             return []
 
-        # Step 2: Get details and filter by category
-        results = []
+        # Step 2: Group by document_id - keep best (lowest distance) chunk per document
+        seen_docs: dict[int, dict[str, Any]] = {}
+
         for embedding_id, distance in knn_results:
             cur = self.conn.execute(
                 """
@@ -1019,37 +1024,50 @@ class DB:
                 (embedding_id,),
             )
             row = cur.fetchone()
-            if row:
-                # Apply category filter
-                if categories and row[10] not in categories:
-                    continue
+            if not row:
+                continue
 
-                result = {
-                    "id": row[5],  # document_id
-                    "distance": distance,
-                    "chunk_id": row[0],
-                    "chunk_text": row[1],
-                    "char_start": row[2],
-                    "char_end": row[3],
-                    "chunk_index": row[4],
-                    "title": row[6],
-                    "author": row[7],
-                    "url": row[8],
-                    "saved_at": row[9],  # effective_date
-                    "category": row[10] or "article",
-                    "word_count": row[11],
-                    "highlight_count": row[12] or 0,
-                }
+            doc_id = row[5]
 
-                # Get context
-                context = self.get_chunk_context(row[0], context_chunks=1)
-                result["context_before"] = context.get("context_before", "")
-                result["context_after"] = context.get("context_after", "")
+            # Apply category filter
+            if categories and row[10] not in categories:
+                continue
 
-                results.append(result)
+            # Skip if we already have this document (first match = best distance)
+            if doc_id in seen_docs:
+                # Optionally collect additional matching chunks for context
+                if len(seen_docs[doc_id].get("matching_chunks", [])) < 3:
+                    seen_docs[doc_id]["matching_chunks"].append({
+                        "chunk_text": row[1][:200],
+                        "distance": distance,
+                    })
+                continue
 
-                if len(results) >= limit:
-                    break
+            result = {
+                "id": doc_id,
+                "distance": distance,
+                "chunk_id": row[0],
+                "chunk_text": row[1],
+                "char_start": row[2],
+                "char_end": row[3],
+                "chunk_index": row[4],
+                "title": row[6],
+                "author": row[7],
+                "url": row[8],
+                "saved_at": row[9],  # effective_date
+                "category": row[10] or "article",
+                "word_count": row[11],
+                "highlight_count": row[12] or 0,
+                "matching_chunks": [],  # For additional context
+            }
+
+            seen_docs[doc_id] = result
+
+            # Stop when we have enough unique documents
+            if len(seen_docs) >= limit:
+                break
+
+        results = list(seen_docs.values())
 
         # Apply sorting (distance is already sorted by KNN for semantic)
         if sort_by != "distance":

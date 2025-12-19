@@ -144,7 +144,7 @@ class TestClusterPhase:
     """Tests for the cluster phase."""
 
     @pytest.mark.asyncio
-    async def test_cluster_phase_tracks_tokens(self, mock_llm, digest_job):
+    async def test_cluster_phase_tracks_tokens(self, mock_db, mock_llm, digest_job):
         """Test that cluster phase tracks token usage."""
         store = get_digest_store()
         chunks = [
@@ -168,7 +168,7 @@ class TestClusterPhase:
                 cost_usd=0.001,
             )
 
-            result = await _cluster_phase(digest_job, chunks, mock_llm, store)
+            result = await _cluster_phase(digest_job, chunks, mock_llm, store, mock_db)
 
             assert digest_job.tokens_input == 200
             assert digest_job.tokens_output == 100
@@ -179,7 +179,7 @@ class TestSummarizePhase:
     """Tests for the summarize phase."""
 
     @pytest.mark.asyncio
-    async def test_summarize_phase_generates_summary(self, mock_llm, digest_job):
+    async def test_summarize_phase_generates_summary(self, mock_db, mock_llm, digest_job):
         """Test that summarize phase generates summary and highlights."""
         store = get_digest_store()
         clustering_result = ClusteringResult(
@@ -195,23 +195,37 @@ class TestSummarizePhase:
             ],
         )
 
-        # Mock the LLM response for summary
+        # Mock the LLM response for summary (now includes title)
         async def mock_chat(messages, temperature=0.7, max_tokens=None):
             response = MagicMock()
-            response.content = '{"summary": "This week was about AI", "highlights": ["AI is growing", "ML is important"]}'
+            response.content = '{"title": "AI Weekly", "summary": "This week was about AI", "highlights": ["AI is growing", "ML is important"]}'
             response.tokens_input = 150
             response.tokens_output = 75
             return response
 
         mock_llm.chat = mock_chat
 
-        summary, highlights = await _summarize_phase(
-            digest_job, clustering_result, mock_llm, store
-        )
+        # Mock the prompt registry
+        mock_db.get_prompt.return_value = {
+            "template": "{topics_joined}",
+            "temperature": 0.7,
+            "max_tokens": 1000,
+        }
 
-        assert "AI" in summary
-        assert len(highlights) == 2
-        assert digest_job.summaries_generated == 1
+        with patch("app.core.digest_pipeline.get_prompt") as mock_get_prompt:
+            mock_prompt = MagicMock()
+            mock_prompt.template = "{topics_joined}"
+            mock_prompt.temperature = 0.7
+            mock_prompt.max_tokens = 1000
+            mock_get_prompt.return_value = mock_prompt
+
+            title, summary, highlights = await _summarize_phase(
+                digest_job, clustering_result, mock_llm, store, mock_db
+            )
+
+            assert "AI" in summary
+            assert len(highlights) == 2
+            assert digest_job.summaries_generated == 1
 
 
 class TestCompilePhase:
@@ -245,6 +259,7 @@ class TestCompilePhase:
             digest_job,
             mock_db,
             clustering_result,
+            "Test Digest Title",
             "Overall summary text",
             ["Highlight 1", "Highlight 2"],
             store,
