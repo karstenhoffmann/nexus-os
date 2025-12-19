@@ -1,0 +1,799 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Sync Pipeline</h1>
+
+<div x-data="syncApp()" x-init="init()">
+
+  <!-- Pipeline Stepper -->
+  <div class="card">
+    <div class="pipeline-stepper">
+      <div class="step" :class="{ active: phase === 'import', done: phaseIndex > 0 }">
+        <div class="step-icon">
+          <i data-feather="download"></i>
+          <div class="step-check" x-show="phaseIndex > 0"><i data-feather="check"></i></div>
+        </div>
+        <div class="step-label">Import</div>
+        <div class="step-count" x-text="docsImported > 0 ? docsImported + ' Dokumente' : ''"></div>
+      </div>
+
+      <div class="step-connector" :class="{ done: phaseIndex > 0 }"></div>
+
+      <div class="step" :class="{ active: phase === 'chunk', done: phaseIndex > 1 }">
+        <div class="step-icon">
+          <i data-feather="scissors"></i>
+          <div class="step-check" x-show="phaseIndex > 1"><i data-feather="check"></i></div>
+        </div>
+        <div class="step-label">Chunks</div>
+        <div class="step-count" x-text="chunksCreated > 0 ? chunksCreated + ' erstellt' : ''"></div>
+      </div>
+
+      <div class="step-connector" :class="{ done: phaseIndex > 1 }"></div>
+
+      <div class="step" :class="{ active: phase === 'embed', done: phaseIndex > 2 }">
+        <div class="step-icon">
+          <i data-feather="cpu"></i>
+          <div class="step-check" x-show="phaseIndex > 2"><i data-feather="check"></i></div>
+        </div>
+        <div class="step-label">Embeddings</div>
+        <div class="step-count" x-text="chunksEmbedded > 0 ? chunksEmbedded + ' / ' + chunksTotal : ''"></div>
+      </div>
+
+      <div class="step-connector" :class="{ done: phaseIndex > 2 }"></div>
+
+      <div class="step" :class="{ active: phase === 'index', done: phaseIndex > 3 }">
+        <div class="step-icon">
+          <i data-feather="search"></i>
+          <div class="step-check" x-show="phaseIndex > 3"><i data-feather="check"></i></div>
+        </div>
+        <div class="step-label">Index</div>
+        <div class="step-count" x-text="phase === 'done' ? 'Fertig' : ''"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Overview -->
+  <div class="card">
+    <h2>Aktueller Stand</h2>
+    <div class="stats-grid">
+      <div class="stat-item">
+        <span class="stat-value" x-text="stats.docs_total.toLocaleString()">{{ stats.docs_total }}</span>
+        <span class="stat-label">Dokumente</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-value" x-text="stats.docs_with_fulltext.toLocaleString()">{{ stats.docs_with_fulltext }}</span>
+        <span class="stat-label">Mit Inhalt</span>
+      </div>
+      <div class="stat-item" :class="stats.docs_without_chunks > 0 ? 'stat-pending' : 'stat-success'">
+        <span class="stat-value" x-text="stats.docs_without_chunks.toLocaleString()">{{ stats.docs_without_chunks }}</span>
+        <span class="stat-label">Ohne Chunks</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-value" x-text="stats.chunks_total.toLocaleString()">{{ stats.chunks_total }}</span>
+        <span class="stat-label">Chunks</span>
+      </div>
+      <div class="stat-item" :class="stats.chunks_without_embeddings > 0 ? 'stat-pending' : 'stat-success'">
+        <span class="stat-value" x-text="stats.chunks_without_embeddings.toLocaleString()">{{ stats.chunks_without_embeddings }}</span>
+        <span class="stat-label">Ohne Embedding</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Current Phase Detail -->
+  <div class="card" x-show="status === 'running' || status === 'paused'">
+    <h2 x-text="phaseLabel"></h2>
+
+    <!-- Progress Bar -->
+    <div x-show="chunksTotal > 0 && phase === 'embed'">
+      <div class="progress-header">
+        <span class="progress-status" x-text="statusText"></span>
+        <span class="progress-percent" x-text="Math.round(progressPercent) + '%'"></span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" :style="'width: ' + progressPercent + '%'"></div>
+      </div>
+      <div class="progress-details">
+        <span x-text="chunksEmbedded.toLocaleString() + ' / ' + chunksTotal.toLocaleString() + ' Chunks'"></span>
+        <span x-show="tokensUsed > 0" x-text="tokensUsed.toLocaleString() + ' Tokens'"></span>
+        <span x-show="costUsd > 0" x-text="'$' + costUsd.toFixed(4)"></span>
+      </div>
+    </div>
+
+    <!-- Current Activity Log -->
+    <div class="activity-log" x-show="currentActivity">
+      <span class="activity-icon"><i data-feather="activity"></i></span>
+      <span x-text="currentActivity"></span>
+    </div>
+  </div>
+
+  <!-- Completion Summary -->
+  <div class="card card-success" x-show="status === 'completed'">
+    <div class="completion-summary">
+      <div class="summary-icon"><i data-feather="check-circle"></i></div>
+      <div class="summary-content">
+        <h2>Sync abgeschlossen!</h2>
+        <div class="summary-stats">
+          <span x-show="docsImported > 0"><strong x-text="docsImported"></strong> Dokumente importiert</span>
+          <span x-show="docsMerged > 0"><strong x-text="docsMerged"></strong> aktualisiert</span>
+          <span x-show="chunksCreated > 0"><strong x-text="chunksCreated"></strong> Chunks erstellt</span>
+          <span x-show="chunksEmbedded > 0"><strong x-text="chunksEmbedded"></strong> Embeddings generiert</span>
+          <span x-show="costUsd > 0">Kosten: <strong x-text="'$' + costUsd.toFixed(4)"></strong></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Display -->
+  <div class="card card-error" x-show="error">
+    <div class="error-content">
+      <i data-feather="alert-circle"></i>
+      <span x-text="error"></span>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="card">
+    <h2>Steuerung</h2>
+
+    <form @submit.prevent="startSync" x-show="status === 'idle'">
+      <input type="hidden" name="token" value="{{ token }}">
+
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" x-model="skipImport">
+          <span>Import ueberspringen (nur Chunks + Embeddings)</span>
+        </label>
+      </div>
+
+      <!-- Cost Estimate -->
+      <div class="cost-estimate" x-show="stats.chunks_without_embeddings > 0">
+        <i data-feather="info"></i>
+        <span>
+          Geschaetzte Kosten fuer Embeddings:
+          <strong x-text="'$' + (stats.chunks_without_embeddings * 200 * 0.02 / 1000000).toFixed(4)"></strong>
+          (<span x-text="stats.chunks_without_embeddings.toLocaleString()"></span> Chunks)
+        </span>
+      </div>
+
+      <div class="button-group">
+        <button type="submit" class="btn btn-primary" :disabled="!token">
+          <i data-feather="play"></i> Sync starten
+        </button>
+      </div>
+    </form>
+
+    <div class="button-group" x-show="status === 'running'">
+      <button type="button" class="btn btn-secondary" @click="pauseSync">
+        <i data-feather="pause"></i> Pause
+      </button>
+      <button type="button" class="btn btn-danger" @click="cancelSync">
+        <i data-feather="x"></i> Abbrechen
+      </button>
+    </div>
+
+    <div class="button-group" x-show="status === 'paused'">
+      <button type="button" class="btn btn-primary" @click="resumeSync">
+        <i data-feather="play"></i> Fortsetzen
+      </button>
+      <button type="button" class="btn btn-danger" @click="cancelSync">
+        <i data-feather="x"></i> Abbrechen
+      </button>
+    </div>
+
+    <div class="button-group" x-show="status === 'completed' || status === 'cancelled' || status === 'failed'">
+      <button type="button" class="btn btn-primary" @click="resetSync">
+        <i data-feather="refresh-cw"></i> Neue Sync starten
+      </button>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="card" x-show="log.length > 0">
+    <h2>Verlauf</h2>
+    <div class="log-container">
+      <template x-for="entry in log.slice(-20).reverse()" :key="entry.time">
+        <div class="log-entry" :class="'log-' + entry.level">
+          <span class="log-time" x-text="entry.time"></span>
+          <span class="log-message" x-text="entry.message"></span>
+        </div>
+      </template>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const INITIAL_STATS = {{ stats | tojson | safe }};
+const TOKEN = '{{ token }}';
+
+function syncApp() {
+  return {
+    // State
+    status: 'idle',
+    phase: 'idle',
+    jobId: null,
+    eventSource: null,
+    skipImport: false,
+
+    // Counters
+    docsImported: 0,
+    docsMerged: 0,
+    chunksCreated: 0,
+    chunksEmbedded: 0,
+    chunksTotal: 0,
+    tokensUsed: 0,
+    costUsd: 0,
+
+    // Stats from server
+    stats: INITIAL_STATS,
+
+    // UI
+    currentActivity: '',
+    error: null,
+    log: [],
+
+    // Computed
+    get phaseIndex() {
+      const phases = ['idle', 'import', 'chunk', 'embed', 'index', 'done'];
+      return phases.indexOf(this.phase);
+    },
+
+    get phaseLabel() {
+      const labels = {
+        'idle': 'Bereit',
+        'import': 'Import von Readwise...',
+        'chunk': 'Erstelle Chunks...',
+        'embed': 'Generiere Embeddings...',
+        'index': 'Aktualisiere Index...',
+        'done': 'Fertig'
+      };
+      return labels[this.phase] || this.phase;
+    },
+
+    get statusText() {
+      const texts = {
+        'idle': 'Bereit',
+        'running': 'Laeuft',
+        'paused': 'Pausiert',
+        'completed': 'Abgeschlossen',
+        'cancelled': 'Abgebrochen',
+        'failed': 'Fehlgeschlagen'
+      };
+      return texts[this.status] || this.status;
+    },
+
+    get progressPercent() {
+      if (this.chunksTotal === 0) return 0;
+      return (this.chunksEmbedded / this.chunksTotal) * 100;
+    },
+
+    get token() {
+      return TOKEN;
+    },
+
+    // Lifecycle
+    init() {
+      feather.replace();
+    },
+
+    // Actions
+    async startSync() {
+      this.resetState();
+      this.status = 'running';
+
+      try {
+        const formData = new FormData();
+        formData.append('token', TOKEN);
+        formData.append('skip_import', this.skipImport);
+
+        const res = await fetch('/api/sync/start', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await res.json();
+        if (data.error) {
+          this.error = data.error;
+          this.status = 'failed';
+          return;
+        }
+
+        this.jobId = data.job_id;
+        this.connectStream();
+      } catch (e) {
+        this.error = 'Fehler beim Starten: ' + e.message;
+        this.status = 'failed';
+      }
+    },
+
+    connectStream() {
+      if (this.eventSource) {
+        this.eventSource.close();
+      }
+
+      this.eventSource = new EventSource(`/api/sync/${this.jobId}/stream`);
+
+      this.eventSource.onmessage = (e) => {
+        console.log('SSE message:', e.data);
+      };
+
+      this.eventSource.addEventListener('phase_start', (e) => {
+        const data = JSON.parse(e.data);
+        this.phase = data.phase;
+        this.currentActivity = data.message || '';
+        this.addLog('info', data.message || `Phase ${data.phase} gestartet`);
+        feather.replace();
+      });
+
+      this.eventSource.addEventListener('phase_progress', (e) => {
+        const data = JSON.parse(e.data);
+        this.updateFromData(data);
+      });
+
+      this.eventSource.addEventListener('phase_complete', (e) => {
+        const data = JSON.parse(e.data);
+        this.updateFromData(data);
+        this.addLog('success', `Phase ${data.phase} abgeschlossen`);
+      });
+
+      this.eventSource.addEventListener('pipeline_complete', (e) => {
+        const data = JSON.parse(e.data);
+        this.updateFromData(data);
+        this.status = 'completed';
+        this.phase = 'done';
+        this.currentActivity = '';
+        this.addLog('success', 'Sync erfolgreich abgeschlossen!');
+        this.eventSource.close();
+        this.refreshStats();
+        feather.replace();
+      });
+
+      this.eventSource.addEventListener('pipeline_paused', (e) => {
+        const data = JSON.parse(e.data);
+        this.status = 'paused';
+        this.addLog('warning', 'Pipeline pausiert');
+        this.eventSource.close();
+        feather.replace();
+      });
+
+      this.eventSource.addEventListener('pipeline_cancelled', (e) => {
+        this.status = 'cancelled';
+        this.addLog('warning', 'Pipeline abgebrochen');
+        this.eventSource.close();
+        feather.replace();
+      });
+
+      this.eventSource.addEventListener('pipeline_failed', (e) => {
+        const data = JSON.parse(e.data);
+        this.status = 'failed';
+        this.error = data.error;
+        this.addLog('error', 'Fehler: ' + data.error);
+        this.eventSource.close();
+        feather.replace();
+      });
+
+      this.eventSource.onerror = (e) => {
+        console.error('SSE error:', e);
+        if (this.status === 'running') {
+          this.addLog('error', 'Verbindung unterbrochen');
+        }
+      };
+    },
+
+    updateFromData(data) {
+      if (data.docs_imported !== undefined) this.docsImported = data.docs_imported;
+      if (data.docs_merged !== undefined) this.docsMerged = data.docs_merged;
+      if (data.chunks_created !== undefined) this.chunksCreated = data.chunks_created;
+      if (data.chunks_embedded !== undefined) this.chunksEmbedded = data.chunks_embedded;
+      if (data.chunks_total !== undefined) this.chunksTotal = data.chunks_total;
+      if (data.pending_chunks !== undefined) this.chunksTotal = data.pending_chunks;
+      if (data.tokens_used !== undefined) this.tokensUsed = data.tokens_used;
+      if (data.cost_usd !== undefined) this.costUsd = data.cost_usd;
+    },
+
+    async pauseSync() {
+      try {
+        await fetch(`/api/sync/${this.jobId}/pause`, { method: 'POST' });
+      } catch (e) {
+        console.error('Pause error:', e);
+      }
+    },
+
+    async cancelSync() {
+      try {
+        await fetch(`/api/sync/${this.jobId}/cancel`, { method: 'POST' });
+        this.status = 'cancelled';
+        if (this.eventSource) {
+          this.eventSource.close();
+        }
+      } catch (e) {
+        console.error('Cancel error:', e);
+      }
+    },
+
+    async resumeSync() {
+      this.status = 'running';
+      this.connectStream();
+    },
+
+    resetState() {
+      this.status = 'idle';
+      this.phase = 'idle';
+      this.jobId = null;
+      this.docsImported = 0;
+      this.docsMerged = 0;
+      this.chunksCreated = 0;
+      this.chunksEmbedded = 0;
+      this.chunksTotal = 0;
+      this.tokensUsed = 0;
+      this.costUsd = 0;
+      this.currentActivity = '';
+      this.error = null;
+      this.log = [];
+    },
+
+    resetSync() {
+      this.resetState();
+      this.refreshStats();
+    },
+
+    async refreshStats() {
+      try {
+        const res = await fetch('/api/sync/stats');
+        this.stats = await res.json();
+      } catch (e) {
+        console.error('Stats refresh error:', e);
+      }
+    },
+
+    addLog(level, message) {
+      const now = new Date();
+      const time = now.toLocaleTimeString('de-DE');
+      this.log.push({ time, level, message });
+    }
+  };
+}
+</script>
+
+<style>
+/* Pipeline Stepper */
+.pipeline-stepper {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--space-md) 0;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 0 0 auto;
+  width: 80px;
+  text-align: center;
+  opacity: 0.5;
+  transition: opacity var(--transition-base);
+}
+
+.step.active,
+.step.done {
+  opacity: 1;
+}
+
+.step-icon {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-sm);
+  transition: all var(--transition-base);
+}
+
+.step-icon svg {
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+}
+
+.step.active .step-icon {
+  border-color: var(--primary);
+  background: var(--primary-bg, rgba(59, 130, 246, 0.1));
+}
+
+.step.active .step-icon svg {
+  color: var(--primary);
+}
+
+.step.done .step-icon {
+  border-color: var(--success, #22c55e);
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.step.done .step-icon svg {
+  color: var(--success, #22c55e);
+}
+
+.step-check {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 18px;
+  height: 18px;
+  background: var(--success, #22c55e);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.step-check svg {
+  width: 12px;
+  height: 12px;
+  color: white !important;
+}
+
+.step-label {
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.step-count {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  min-height: 1.2em;
+}
+
+.step-connector {
+  flex: 1;
+  height: 2px;
+  background: var(--border-color);
+  margin-top: 24px;
+  transition: background var(--transition-base);
+}
+
+.step-connector.done {
+  background: var(--success, #22c55e);
+}
+
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-md);
+}
+
+.stat-item {
+  text-align: center;
+  padding: var(--space-md);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.stat-value {
+  display: block;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--space-xs);
+}
+
+.stat-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.stat-success .stat-value {
+  color: var(--success, #22c55e);
+}
+
+.stat-pending .stat-value {
+  color: var(--warning, #f59e0b);
+}
+
+/* Progress */
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+}
+
+.progress-bar {
+  height: 8px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-bottom: var(--space-sm);
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+}
+
+.progress-details {
+  display: flex;
+  gap: var(--space-md);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+/* Activity Log */
+.activity-log {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  margin-top: var(--space-md);
+}
+
+.activity-icon svg {
+  width: 1rem;
+  height: 1rem;
+  color: var(--primary);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Completion */
+.card-success {
+  border-color: var(--success, #22c55e);
+  background: rgba(34, 197, 94, 0.05);
+}
+
+.completion-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.summary-icon svg {
+  width: 48px;
+  height: 48px;
+  color: var(--success, #22c55e);
+}
+
+.summary-content h2 {
+  margin: 0 0 var(--space-sm) 0;
+  color: var(--success, #22c55e);
+}
+
+.summary-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-lg);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+/* Error */
+.card-error {
+  border-color: var(--error, #ef4444);
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.error-content {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--error, #ef4444);
+}
+
+.error-content svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+}
+
+/* Cost Estimate */
+.cost-estimate {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-md);
+  font-size: var(--font-size-sm);
+}
+
+.cost-estimate svg {
+  width: 1rem;
+  height: 1rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* Form */
+.form-group {
+  margin-bottom: var(--space-md);
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  cursor: pointer;
+}
+
+.checkbox-label input {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Button Group */
+.button-group {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+/* Log */
+.log-container {
+  max-height: 300px;
+  overflow-y: auto;
+  font-family: var(--font-mono, monospace);
+  font-size: var(--font-size-sm);
+}
+
+.log-entry {
+  display: flex;
+  gap: var(--space-md);
+  padding: var(--space-xs) 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
+.log-time {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.log-success .log-message { color: var(--success, #22c55e); }
+.log-warning .log-message { color: var(--warning, #f59e0b); }
+.log-error .log-message { color: var(--error, #ef4444); }
+
+/* Responsive */
+@media (max-width: 640px) {
+  .pipeline-stepper {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-sm);
+  }
+
+  .step-connector {
+    display: none;
+  }
+
+  .step {
+    width: 70px;
+  }
+
+  .step-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .completion-summary {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+</style>
+
+{% endblock %}

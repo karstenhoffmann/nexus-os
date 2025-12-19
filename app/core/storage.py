@@ -2233,6 +2233,94 @@ class DB:
             "fontSize": self.get_setting("theme_font_size", "medium"),
         }
 
+    # ==================== Pipeline Stats ====================
+
+    def get_pipeline_stats(
+        self,
+        provider: str = "openai",
+        model: str = "text-embedding-3-small",
+    ) -> dict[str, int]:
+        """Get all stats needed for the unified sync pipeline.
+
+        Returns:
+            docs_total: Total documents
+            docs_with_fulltext: Documents with fulltext content
+            docs_without_chunks: Documents with fulltext but no chunks (need chunking)
+            chunks_total: Total chunks
+            chunks_without_embeddings: Chunks without embedding (need embedding)
+            orphaned_embeddings: Embeddings for deleted chunks
+        """
+        cur = self.conn.execute("SELECT COUNT(*) FROM documents")
+        docs_total = cur.fetchone()[0]
+
+        cur = self.conn.execute(
+            "SELECT COUNT(*) FROM documents WHERE fulltext IS NOT NULL AND fulltext != ''"
+        )
+        docs_with_fulltext = cur.fetchone()[0]
+
+        # Documents with fulltext but no chunks
+        cur = self.conn.execute(
+            """SELECT COUNT(*) FROM documents d
+               LEFT JOIN document_chunks c ON c.document_id = d.id
+               WHERE d.fulltext IS NOT NULL AND d.fulltext != ''
+                 AND c.id IS NULL"""
+        )
+        docs_without_chunks = cur.fetchone()[0]
+
+        cur = self.conn.execute("SELECT COUNT(*) FROM document_chunks")
+        chunks_total = cur.fetchone()[0]
+
+        # Chunks without embedding for this provider/model
+        cur = self.conn.execute(
+            """SELECT COUNT(*) FROM document_chunks c
+               WHERE NOT EXISTS (
+                   SELECT 1 FROM embeddings e
+                   WHERE e.chunk_id = c.id
+                     AND e.provider = ?
+                     AND e.model = ?
+               )""",
+            (provider, model),
+        )
+        chunks_without_embeddings = cur.fetchone()[0]
+
+        # Orphaned embeddings
+        cur = self.conn.execute(
+            """SELECT COUNT(*) FROM embeddings e
+               LEFT JOIN document_chunks c ON c.id = e.chunk_id
+               WHERE e.chunk_id IS NOT NULL AND c.id IS NULL"""
+        )
+        orphaned_embeddings = cur.fetchone()[0]
+
+        return {
+            "docs_total": docs_total,
+            "docs_with_fulltext": docs_with_fulltext,
+            "docs_without_chunks": docs_without_chunks,
+            "chunks_total": chunks_total,
+            "chunks_without_embeddings": chunks_without_embeddings,
+            "orphaned_embeddings": orphaned_embeddings,
+        }
+
+    def get_documents_for_chunking(self, limit: int = 100) -> list[dict[str, Any]]:
+        """Get documents with fulltext but no chunks (need chunking).
+
+        Returns:
+            List of documents with id, title, fulltext
+        """
+        cur = self.conn.execute(
+            """SELECT d.id, d.title, d.fulltext
+               FROM documents d
+               LEFT JOIN document_chunks c ON c.document_id = d.id
+               WHERE d.fulltext IS NOT NULL AND d.fulltext != ''
+                 AND c.id IS NULL
+               ORDER BY d.id
+               LIMIT ?""",
+            (limit,),
+        )
+        return [
+            {"id": row[0], "title": row[1], "fulltext": row[2]}
+            for row in cur.fetchall()
+        ]
+
     def set_theme(
         self,
         primary: str | None = None,

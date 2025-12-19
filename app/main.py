@@ -23,6 +23,12 @@ from app.core.embed_job_v2 import (
     get_embed_store,
     run_embed_job,
 )
+from app.core.pipeline_job import (
+    PipelinePhase,
+    PipelineStatus,
+    get_pipeline_store,
+    run_pipeline,
+)
 from app.core.content_fetcher import extract_text_from_html
 from app.core.embed_job import generate_embeddings_batch, generate_embeddings_v2, generate_chunk_embeddings_v2
 from app.core.chunking import get_chunking_info, chunk_document
@@ -1740,3 +1746,124 @@ def readwise_job_detail(request: Request, job_id: str):
     if not job:
         return render("job_detail.html", request=request, job=None, error="Job nicht gefunden")
     return render("job_detail.html", request=request, job=job, error=None)
+
+
+# ==================== Sync Pipeline ====================
+
+
+@app.get("/sync", response_class=HTMLResponse)
+def sync_page(request: Request):
+    """Unified sync pipeline page."""
+    s = Settings.from_env()
+    db = get_db()
+
+    # Get pipeline stats
+    stats = db.get_pipeline_stats()
+
+    # Get running or recent pipeline job
+    store = get_pipeline_store()
+    running_job = store.get_running()
+    recent_jobs = store.list_all()[:5]
+
+    return render(
+        "sync.html",
+        request=request,
+        token=s.readwise_api_token,
+        stats=stats,
+        running_job=running_job,
+        recent_jobs=recent_jobs,
+    )
+
+
+@app.post("/api/sync/start")
+def sync_start(token: str = Form(...), skip_import: bool = Form(False)):
+    """Start a new sync pipeline job."""
+    store = get_pipeline_store()
+
+    # Check if already running
+    if store.get_running():
+        return {"error": "Pipeline laeuft bereits"}, 400
+
+    job = store.create()
+    # Store config for stream
+    job._token = token  # type: ignore[attr-defined]
+    job._skip_import = skip_import  # type: ignore[attr-defined]
+    store.update(job)
+
+    return {"job_id": job.id}
+
+
+@app.post("/api/sync/{job_id}/pause")
+def sync_pause(job_id: str):
+    """Pause a running pipeline."""
+    store = get_pipeline_store()
+    job = store.pause(job_id)
+    if not job:
+        return {"error": "Job nicht gefunden oder nicht laufend"}, 404
+    return {"status": job.status.value, "phase": job.phase.value}
+
+
+@app.post("/api/sync/{job_id}/cancel")
+def sync_cancel(job_id: str):
+    """Cancel a running pipeline."""
+    store = get_pipeline_store()
+    job = store.cancel(job_id)
+    if not job:
+        return {"error": "Job nicht gefunden"}, 404
+    return {"status": job.status.value}
+
+
+@app.get("/api/sync/{job_id}/stream")
+async def sync_stream(job_id: str):
+    """SSE stream for pipeline progress."""
+    store = get_pipeline_store()
+    job = store.get(job_id)
+    if not job:
+        return {"error": "Job nicht gefunden"}, 404
+
+    s = Settings.from_env()
+    token = getattr(job, "_token", None) or s.readwise_api_token
+    skip_import = getattr(job, "_skip_import", False)
+
+    if not token:
+        return {"error": "Kein Token verfuegbar"}, 400
+
+    db = get_db()
+
+    async def event_generator():
+        """Generate SSE events from pipeline."""
+        async for event in run_pipeline(
+            job=job,
+            db=db,
+            store=store,
+            token=token,
+            skip_import=skip_import,
+        ):
+            yield event.to_sse()
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.get("/api/sync/{job_id}/status")
+def sync_status(job_id: str):
+    """Get current status of a pipeline job."""
+    store = get_pipeline_store()
+    job = store.get(job_id)
+    if not job:
+        return {"error": "Job nicht gefunden"}, 404
+    return job.to_dict()
+
+
+@app.get("/api/sync/stats")
+def sync_stats():
+    """Get current pipeline stats."""
+    db = get_db()
+    return db.get_pipeline_stats()
