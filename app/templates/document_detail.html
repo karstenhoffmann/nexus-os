@@ -308,7 +308,7 @@ function documentApp() {
 }
 
 .copy-btn.copy-success {
-  color: var(--success, #22c55e);
+  color: var(--success);
   opacity: 1;
 }
 
@@ -413,9 +413,9 @@ function documentApp() {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  background: rgba(239, 68, 68, 0.1);
-  color: #dc2626;
-  border-color: rgba(239, 68, 68, 0.3);
+  background: var(--error-bg);
+  color: var(--error);
+  border-color: var(--error);
 }
 
 .card-error svg {
@@ -439,23 +439,23 @@ function documentApp() {
 }
 
 .badge-pdf {
-  background: rgba(239, 68, 68, 0.1);
-  color: #dc2626;
+  background: var(--error-bg);
+  color: var(--error);
 }
 
 .badge-podcast {
-  background: rgba(245, 158, 11, 0.1);
-  color: #d97706;
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 
 .badge-video {
-  background: rgba(34, 197, 94, 0.1);
-  color: #16a34a;
+  background: var(--success-bg);
+  color: var(--success);
 }
 
 .badge-tweet {
-  background: rgba(29, 161, 242, 0.1);
-  color: #1da1f2;
+  background: var(--twitter-bg);
+  color: var(--twitter);
 }
 
 .badge-email,
@@ -465,8 +465,8 @@ function documentApp() {
 }
 
 .badge-epub {
-  background: rgba(168, 85, 247, 0.1);
-  color: #9333ea;
+  background: var(--purple-bg);
+  color: var(--purple);
 }
 
 .badge-books,
@@ -476,18 +476,18 @@ function documentApp() {
 }
 
 .badge-podcasts {
-  background: rgba(245, 158, 11, 0.1);
-  color: #d97706;
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 
 .badge-tweets {
-  background: rgba(29, 161, 242, 0.1);
-  color: #1da1f2;
+  background: var(--twitter-bg);
+  color: var(--twitter);
 }
 
 .badge-linkedin {
-  background: rgba(10, 102, 194, 0.1);
-  color: #0a66c2;
+  background: var(--linkedin-bg);
+  color: var(--linkedin);
 }
 </style>
 

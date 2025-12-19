@@ -282,7 +282,7 @@
 <style>
 /* Info Card */
 .info-card {
-  background: rgba(59, 130, 246, 0.05);
+  background: var(--info-bg);
   border-left: 4px solid var(--primary);
 }
 .info-card p {
@@ -303,17 +303,17 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  background: rgba(120,120,120,0.08);
+  background: var(--bg-secondary);
   border-radius: 8px;
 }
 .pipeline-step.current {
-  background: rgba(59, 130, 246, 0.15);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  background: var(--info-bg);
+  border: 1px solid var(--primary);
 }
 .step-icon {
   width: 24px;
   height: 24px;
-  background: rgba(120,120,120,0.15);
+  background: var(--bg-secondary);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -335,7 +335,7 @@
   opacity: 0.7;
 }
 .pipeline-arrow {
-  color: rgba(120,120,120,0.4);
+  color: var(--text-muted);
   font-size: 1.2rem;
 }
 
@@ -350,15 +350,15 @@
 }
 .status-success {
   background: var(--success-bg);
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  border: 1px solid var(--success);
 }
 .status-pending {
-  background: rgba(59, 130, 246, 0.1);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  background: var(--info-bg);
+  border: 1px solid var(--primary);
 }
 .status-empty {
-  background: rgba(120,120,120,0.08);
-  border: 1px solid rgba(120,120,120,0.2);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
 }
 .status-icon {
   display: flex;
@@ -391,7 +391,7 @@
   flex-direction: column;
   align-items: center;
   padding: 1rem;
-  background: rgba(120,120,120,0.05);
+  background: var(--bg-hover);
   border-radius: 8px;
   min-width: 100px;
 }
@@ -428,7 +428,7 @@
 /* Cost Estimate */
 .cost-estimate {
   padding: 0.75rem;
-  background: rgba(120,120,120,0.05);
+  background: var(--bg-hover);
   border-radius: 6px;
   margin-bottom: 1rem;
 }
@@ -452,7 +452,7 @@
   font-weight: 600;
 }
 .progress-bar {
-  background: rgba(120,120,120,0.15);
+  background: var(--bg-secondary);
   border-radius: 4px;
   height: 8px;
   overflow: hidden;
@@ -541,7 +541,7 @@
   color: white;
 }
 .btn-secondary {
-  background: rgba(120,120,120,0.1);
+  background: var(--bg-secondary);
   color: inherit;
 }
 .btn-cost {
@@ -573,13 +573,13 @@
   overflow-y: auto;
   font-family: monospace;
   font-size: 0.85rem;
-  background: rgba(120,120,120,0.05);
+  background: var(--bg-hover);
   padding: 0.5rem;
   border-radius: 8px;
 }
 .log-entry {
   padding: 0.25rem 0;
-  border-bottom: 1px solid rgba(120,120,120,0.1);
+  border-bottom: 1px solid var(--border);
 }
 .log-time {
   opacity: 0.5;
@@ -599,7 +599,7 @@
 }
 .job-item {
   padding: 0.75rem;
-  background: rgba(120,120,120,0.05);
+  background: var(--bg-hover);
   border-radius: 8px;
 }
 .job-header {
@@ -617,11 +617,11 @@
   border-radius: 4px;
 }
 .job-status-completed { background: var(--success-bg); color: var(--success); }
-.job-status-running { background: rgba(59,130,246,0.15); color: var(--primary); }
+.job-status-running { background: var(--info-bg); color: var(--primary); }
 .job-status-paused { background: var(--warning-bg); color: var(--warning); }
 .job-status-failed { background: var(--error-bg); color: var(--error); }
-.job-status-cancelled { background: rgba(120,120,120,0.2); }
-.job-status-pending { background: rgba(120,120,120,0.2); }
+.job-status-cancelled { background: var(--bg-secondary); }
+.job-status-pending { background: var(--bg-secondary); }
 .job-details {
   display: flex;
   gap: 1rem;
@@ -636,7 +636,7 @@
   margin-top: 0.25rem;
 }
 .progress-bar-small {
-  background: rgba(120,120,120,0.15);
+  background: var(--bg-secondary);
   border-radius: 2px;
   height: 4px;
   overflow: hidden;

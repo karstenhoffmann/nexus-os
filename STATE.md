@@ -2,19 +2,19 @@ nexus-os Status
 
 Stand (kurz)
 - Semantische Suche funktioniert (sqlite-vec KNN + Chunk-Metadaten)
-- UI/Design System mit CSS-Variablen, Dark Mode, Feather Icons
+- UI/Design System komplett (CSS-Variablen, Dark Mode, Feather Icons, keine hardcoded Farben)
 - Library-Seite mit Tabellenansicht, Filtern und Sortierung (FTS + Semantic)
 - Unified Sync Pipeline: Import -> Chunk -> Embed -> Index in einem Flow
 - Drafts-Seite mit Versionierung (LinkedIn, Article, Note)
 - Admin Prompt-Management mit Registry-Pattern (getestet, funktioniert)
 
 Aktuelles Ziel
-- UI Design Review: Hardcoded Colors beheben
+- Multi-Modell Feature (Plan in floating-strolling-biscuit.md)
 
 Naechste Schritte (Claude Code, max 3)
-1) Hardcoded Colors ersetzen (~80 rgba/hex-Werte in Templates)
-2) Fehlende Variablen in app.css ergaenzen (purple, linkedin, modal-overlay)
-3) Icon-Size Utilities definieren
+1) Multi-Modell Feature planen und starten
+2) -
+3) -
 
 Geplant (Detail-Plan)
 - /Users/karsten/.claude/plans/floating-strolling-biscuit.md
@@ -23,7 +23,7 @@ Geplant (Detail-Plan)
 - Cached + Refresh, Admin-Konfiguration, Usage-Stats
 
 Handoff
-- UI Design Review IN PROGRESS (2025-12-19):
+- UI Design Review KOMPLETT (2025-12-19):
   - Review durchgefuehrt: Design-System Score 7.4/10
   - ERLEDIGT: Undefined CSS Variables (commit 4a151f1)
     - --border-color -> --border (19x)
@@ -31,22 +31,36 @@ Handoff
     - --text-primary -> --text (5x)
     - --accent -> --primary (7x)
     - --bg-muted/--bg-code/--bg-tertiary -> --bg-secondary (8x)
-  - OFFEN: ~80 hardcoded rgba/hex Colors in Templates
-    - admin_embeddings.html (~25x): rgba(120,120,120,*) -> var(--bg-secondary), rgba(59,130,246,*) -> var(--primary-bg)
-    - admin_fetch.html (~15x): gleiche Patterns wie admin_embeddings
-    - partials/library_results.html (~15x): #dc2626 -> var(--error), #d97706 -> var(--warning), #16a34a -> var(--success)
-    - document_detail.html (~20x): Badge-Farben hardcoded, rgba fuer error/warning/success
-    - admin_prompts.html (~10x): Modal-Overlay rgba(0,0,0,0.8), hardcoded #ffffff/#242424
-    - admin_compare.html: inline style="color: #22c55e/#ef4444"
-    - sync.html: var(--success, #22c55e) Fallbacks (ok aber inkonsistent)
-  - OFFEN: Fehlende Variablen in app.css ergaenzen:
-    - --purple: #9333ea, --purple-bg: rgba(168, 85, 247, 0.1)
-    - --pink: #db2777, --pink-bg: rgba(236, 72, 153, 0.1)
-    - --linkedin: #0a66c2, --linkedin-bg: rgba(10, 102, 194, 0.1)
-    - --twitter: #1da1f2, --twitter-bg: rgba(29, 161, 242, 0.1)
-    - --modal-overlay: rgba(0, 0, 0, 0.8)
-    - --gray-05 bis --gray-20 fuer neutrale rgba(120,120,120,*) Werte
-  - OFFEN: Icon-Size Utilities in app.css:
+  - ERLEDIGT: Hardcoded Colors in Templates (~92x ersetzt)
+    - ERLEDIGT: admin_embeddings.html (18x ersetzt)
+      - rgba(120,120,120,*) -> var(--bg-secondary), var(--bg-hover), var(--border), var(--text-muted)
+      - rgba(59,130,246,*) -> var(--info-bg), var(--primary)
+      - rgba(34,197,94,*) -> var(--success)
+    - ERLEDIGT: admin_fetch.html (15x ersetzt)
+      - rgba(120,120,120,*) -> var(--bg-secondary), var(--bg-hover), var(--border)
+      - rgba(59,130,246,*) -> var(--info-bg)
+    - ERLEDIGT: partials/library_results.html (16x ersetzt)
+      - Badge-Farben: pdf->error, podcast/highlight->warning, video->success
+      - Neue Variablen: --purple, --pink, --twitter, --linkedin in app.css
+    - ERLEDIGT: document_detail.html (20x ersetzt)
+      - Badge-Farben wie library_results.html
+      - .card-error -> var(--error-bg/error)
+      - Fallback #22c55e -> var(--success) korrigiert
+    - ERLEDIGT: admin_prompts.html (15x ersetzt)
+      - Modal: rgba(0,0,0,0.8) -> var(--modal-overlay)
+      - Alle #ffffff/#242424 Fallbacks entfernt
+      - Dark-Mode @media queries entfernt (CSS-Variablen reichen)
+    - ERLEDIGT: admin_compare.html (8x ersetzt)
+      - Inline styles -> class="text-success/text-error"
+      - rgba(120,120,120,...) -> var(--bg-hover/bg-secondary/border)
+    - sync.html: var(--success, #22c55e) Fallbacks (ok, nur Fallbacks)
+  - ERLEDIGT: Fehlende Variablen in app.css ergaenzt:
+    - --purple, --purple-bg (fuer epub Badge)
+    - --pink, --pink-bg (fuer note Badge)
+    - --twitter, --twitter-bg (fuer tweet Badge)
+    - --linkedin, --linkedin-bg (fuer linkedin Badge)
+    - --modal-overlay (fuer Modal-Hintergrund)
+  - ERLEDIGT: Icon-Size Utilities in app.css:
     - .icon-xs (0.75rem), .icon-sm (1rem), .icon-md (1.25rem), .icon-lg (1.5rem), .icon-xl (2rem)
 
 - Admin Prompt-Management KOMPLETT (2025-12-19):

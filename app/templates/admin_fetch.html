@@ -284,7 +284,7 @@
   flex-direction: column;
   align-items: center;
   padding: 1rem;
-  background: rgba(120,120,120,0.05);
+  background: var(--bg-hover);
   border-radius: 8px;
   min-width: 100px;
 }
@@ -301,7 +301,7 @@
 .stat-error .stat-value { color: var(--error); }
 
 .progress-bar {
-  background: rgba(120,120,120,0.15);
+  background: var(--bg-secondary);
   border-radius: 4px;
   height: 8px;
   overflow: hidden;
@@ -312,7 +312,7 @@
   transition: width 0.3s ease;
 }
 .progress-bar-small {
-  background: rgba(120,120,120,0.15);
+  background: var(--bg-secondary);
   border-radius: 2px;
   height: 4px;
   overflow: hidden;
@@ -325,7 +325,7 @@
 }
 .counter-success { background: var(--success-bg); color: var(--success); }
 .counter-error { background: var(--error-bg); color: var(--error); }
-.counter-skip { background: rgba(120,120,120,0.15); }
+.counter-skip { background: var(--bg-secondary); }
 
 .text-success { color: var(--success); }
 .text-error { color: var(--error); }
@@ -336,7 +336,7 @@
   border-left: 4px solid var(--warning);
 }
 .running-banner {
-  background: rgba(59, 130, 246, 0.1);
+  background: var(--info-bg);
   border-left: 4px solid var(--primary);
 }
 .error-card {
@@ -355,7 +355,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: rgba(120,120,120,0.05);
+  background: var(--bg-hover);
   border-radius: 8px;
 }
 .failure-count {
@@ -377,13 +377,13 @@
   overflow-y: auto;
   font-family: monospace;
   font-size: 0.85rem;
-  background: rgba(120,120,120,0.05);
+  background: var(--bg-hover);
   padding: 0.5rem;
   border-radius: 8px;
 }
 .log-entry {
   padding: 0.25rem 0;
-  border-bottom: 1px solid rgba(120,120,120,0.1);
+  border-bottom: 1px solid var(--border);
 }
 .log-time {
   opacity: 0.5;
@@ -413,7 +413,7 @@
 }
 .job-item {
   padding: 0.75rem;
-  background: rgba(120,120,120,0.05);
+  background: var(--bg-hover);
   border-radius: 8px;
 }
 .job-header {
@@ -431,11 +431,11 @@
   border-radius: 4px;
 }
 .job-status-completed { background: var(--success-bg); color: var(--success); }
-.job-status-running { background: rgba(59, 130, 246, 0.15); color: var(--primary); }
+.job-status-running { background: var(--info-bg); color: var(--primary); }
 .job-status-paused { background: var(--warning-bg); color: var(--warning); }
 .job-status-failed { background: var(--error-bg); color: var(--error); }
-.job-status-cancelled { background: rgba(120,120,120,0.2); }
-.job-status-pending { background: rgba(120,120,120,0.2); }
+.job-status-cancelled { background: var(--bg-secondary); }
+.job-status-pending { background: var(--bg-secondary); }
 .job-details {
   display: flex;
   gap: 1rem;
@@ -489,12 +489,12 @@
   gap: 0.25rem;
 }
 .btn-secondary {
-  background: rgba(120,120,120,0.1);
+  background: var(--bg-secondary);
   color: inherit;
-  border: 1px solid rgba(120,120,120,0.3);
+  border: 1px solid var(--border);
 }
 .btn-secondary:hover {
-  background: rgba(120,120,120,0.2);
+  background: var(--bg-hover);
 }
 
 [x-cloak] { display: none !important; }

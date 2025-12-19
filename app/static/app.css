@@ -27,6 +27,19 @@
   --info: #3b82f6;
   --info-bg: rgba(59, 130, 246, 0.1);
 
+  /* Kategorie-Farben (fuer Badges) */
+  --purple: #9333ea;
+  --purple-bg: rgba(147, 51, 234, 0.1);
+  --pink: #db2777;
+  --pink-bg: rgba(219, 39, 119, 0.1);
+  --twitter: #1da1f2;
+  --twitter-bg: rgba(29, 161, 242, 0.1);
+  --linkedin: #0a66c2;
+  --linkedin-bg: rgba(10, 102, 194, 0.1);
+
+  /* Modal */
+  --modal-overlay: rgba(0, 0, 0, 0.7);
+
   /* Neutral - Light Mode (weicher, wie OpenAI) */
   --bg: #f7f7f8;
   --bg-secondary: #ececf1;
@@ -492,6 +505,13 @@ a.card h3 {
 /* ===========================================
    Icon Utilities (Feather)
    =========================================== */
+
+/* Icon Sizes */
+.icon-xs { width: 0.75rem; height: 0.75rem; }   /* 12px */
+.icon-sm { width: 1rem; height: 1rem; }         /* 16px */
+.icon-md { width: 1.25rem; height: 1.25rem; }   /* 20px */
+.icon-lg { width: 1.5rem; height: 1.5rem; }     /* 24px */
+.icon-xl { width: 2rem; height: 2rem; }         /* 32px */
 
 .icon-spin {
   animation: spin 1s linear infinite;

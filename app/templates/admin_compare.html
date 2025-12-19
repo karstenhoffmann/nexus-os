@@ -29,8 +29,8 @@
     <template x-for="provider in providers" :key="provider.provider">
       <div class="card">
         <div class="row" style="justify-content: flex-start; gap: 8px;">
-          <span x-show="provider.healthy" style="color: #22c55e;">●</span>
-          <span x-show="!provider.healthy" style="color: #ef4444;">●</span>
+          <span x-show="provider.healthy" class="text-success">●</span>
+          <span x-show="!provider.healthy" class="text-error">●</span>
           <strong x-text="provider.provider"></strong>
         </div>
         <div class="kv" style="margin-top: 8px;">
@@ -144,7 +144,7 @@
   opacity: 0.8;
   margin-bottom: 1rem;
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid rgba(120,120,120,0.2);
+  border-bottom: 1px solid var(--border);
 }
 .compare-results {
   display: flex;
@@ -156,7 +156,7 @@
   gap: 0.75rem;
   padding: 0.5rem;
   border-radius: 8px;
-  background: rgba(120,120,120,0.05);
+  background: var(--bg-hover);
 }
 .compare-rank {
   width: 24px;
@@ -165,7 +165,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: rgba(120,120,120,0.15);
+  background: var(--bg-secondary);
   font-size: 0.8em;
   font-weight: 600;
 }
@@ -184,17 +184,17 @@
   display: inline-block;
   padding: 2px 8px;
   border-radius: 12px;
-  background: rgba(120,120,120,0.15);
+  background: var(--bg-secondary);
   font-size: 0.75em;
 }
 .muted {
   opacity: 0.7;
 }
 .error {
-  color: #ef4444;
+  color: var(--error);
 }
 .success {
-  color: #22c55e;
+  color: var(--success);
 }
 .analysis p {
   margin: 0.5rem 0;
