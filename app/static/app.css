@@ -608,15 +608,57 @@ input[type="color"]::-webkit-color-swatch {
    Tables
    =========================================== */
 
-.data-table {
+/* Table Scroll Wrapper - MUSS die Tabelle umschließen für horizontales Scrollen */
+.table-wrapper {
   width: 100%;
-  border-collapse: collapse;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   margin-top: var(--section-gap);
   background: var(--bg-card);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  box-shadow: var(--shadow-card);
+
+  /* Firefox Scrollbar */
+  scrollbar-width: auto;
+  scrollbar-color: var(--text-muted) var(--bg-secondary);
+}
+
+/* Webkit Scrollbar für Wrapper */
+.table-wrapper::-webkit-scrollbar {
+  height: 12px;
+}
+
+.table-wrapper::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.table-wrapper::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border-radius: 6px;
+  border: 2px solid var(--bg-secondary);
+}
+
+.table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* Tabelle selbst - KEIN display:block, KEIN overflow */
+.data-table {
+  width: 100%;
+  min-width: max-content;  /* Verhindert dass Spalten zu eng werden */
+  border-collapse: collapse;
+  /* Styling wird vom Wrapper übernommen wenn vorhanden */
+}
+
+/* Fallback wenn kein Wrapper: Styling auf der Tabelle */
+.data-table:not(.table-wrapper .data-table) {
+  margin-top: var(--section-gap);
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
 }
+
 
 .data-table thead {
   background: var(--bg-secondary);
@@ -653,20 +695,106 @@ input[type="color"]::-webkit-color-swatch {
   font-weight: var(--font-weight-medium);
 }
 
+/* Library Table - Column Styles */
+.col-title {
+  max-width: 400px;
+  min-width: 200px;
+}
+
+.col-title > a {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);  /* Titel in Textfarbe, nicht Primary */
+}
+
+.col-title > a:hover {
+  color: var(--primary);
+}
+
+.source-url {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+  font-size: var(--font-size-xs);
+}
+
+.source-url svg {
+  color: var(--primary);  /* Nur Icon in Primärfarbe */
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+
+.source-url a {
+  color: var(--text-muted);  /* URL in muted, nicht Primary */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
+}
+
+.source-url a:hover {
+  color: var(--text-secondary);
+}
+
+/* Highlight Count Badges */
+.highlight-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 var(--space-xs);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  border-radius: var(--radius-full);
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.highlight-count-zero {
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+
+/* Sortable Table Headers */
+.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--transition-fast);
+}
+
+.sortable:hover {
+  background: var(--bg-hover);
+}
+
+.sortable svg {
+  width: 1rem;
+  height: 1rem;
+  margin-left: var(--space-xs);
+  vertical-align: middle;
+  opacity: 0.7;
+}
+
+.sortable.active {
+  color: var(--primary);
+}
+
+.sortable.active svg {
+  opacity: 1;
+  color: var(--primary);
+}
+
 /* Compact Table Variant */
 .data-table.compact th,
 .data-table.compact td {
   padding: var(--space-sm) var(--space-md);
 }
 
-/* Responsive Table */
-@media (max-width: 768px) {
-  .data-table {
-    display: block;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-}
+/* Responsive Table - now handled in base .data-table styles */
 
 /* ===========================================
    Lists & Items
@@ -1038,7 +1166,68 @@ input[type="color"]::-webkit-color-swatch {
   flex-shrink: 0;
 }
 
-/* Mobile Responsive */
+/* ===========================================
+   Mobile & Responsive
+   =========================================== */
+
+/* Navigation Responsive - mittel breite Viewports */
+@media (max-width: 900px) {
+  .topbar .row {
+    flex-wrap: nowrap;
+  }
+
+  .nav {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;  /* Firefox: Scrollbar verstecken */
+    -ms-overflow-style: none;  /* IE/Edge */
+    flex-shrink: 1;
+    min-width: 0;  /* Wichtig für flex overflow */
+  }
+
+  .nav::-webkit-scrollbar {
+    display: none;  /* Chrome/Safari: Scrollbar verstecken */
+  }
+
+  .nav a {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+}
+
+/* Navigation Responsive - schmale Viewports: nur Icons */
+@media (max-width: 600px) {
+  .brand a {
+    font-size: var(--font-size-base);
+  }
+
+  .nav {
+    gap: var(--space-xs);
+  }
+
+  .nav a {
+    padding: var(--space-sm);
+  }
+
+  /* Text verstecken, nur Icons zeigen */
+  .nav a span,
+  .nav a:not(.theme-toggle) {
+    font-size: 0;  /* Text verstecken */
+  }
+
+  .nav a svg {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  /* Theme toggle anpassen */
+  .theme-toggle {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* Hero Search Mobile */
 @media (max-width: 480px) {
   .hero-search-bar {
     flex-wrap: wrap;

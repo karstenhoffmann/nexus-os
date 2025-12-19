@@ -52,6 +52,22 @@ jinja = Environment(
 )
 
 
+def dateformat_filter(value: str | None) -> str:
+    """Convert ISO date (YYYY-MM-DD) to German format (DD.MM.YYYY)."""
+    if not value:
+        return "-"
+    try:
+        parts = value[:10].split("-")
+        if len(parts) == 3:
+            return f"{parts[2]}.{parts[1]}.{parts[0]}"
+    except (IndexError, TypeError):
+        pass
+    return value[:10] if value else "-"
+
+
+jinja.filters["dateformat"] = dateformat_filter
+
+
 def _render_markdown(text: str) -> str:
     """Render markdown to HTML safely."""
     if not text:

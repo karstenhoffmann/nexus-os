@@ -4,6 +4,14 @@
 
 <h1>Sync Pipeline</h1>
 
+<div class="info-box">
+  {{ icon("info") }}
+  <div>
+    <strong>Was passiert beim Sync?</strong>
+    <p>Holt neue Inhalte von Readwise und verarbeitet sie automatisch: Import → Chunks → Embeddings → Index. Bestehende Dokumente bleiben unverändert.</p>
+  </div>
+</div>
+
 <div x-data="syncApp()" x-init="init()">
 
   <!-- Pipeline Stepper -->
@@ -451,6 +459,31 @@ function syncApp() {
 </script>
 
 <style>
+/* Info Box */
+.info-box {
+  display: flex;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--primary);
+  margin-bottom: var(--section-gap);
+}
+
+.info-box > svg {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--primary);
+  margin-top: 2px;
+}
+
+.info-box p {
+  margin: var(--space-xs) 0 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
 /* Pipeline Stepper */
 .pipeline-stepper {
   display: flex;

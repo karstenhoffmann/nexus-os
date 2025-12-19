@@ -1,49 +1,50 @@
 {% if rows %}
 {% from "macros/icons.html" import icon %}
+<div class="table-wrapper">
 <table class="data-table library-table">
   <thead>
     <tr>
-      <th class="sortable" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('title')">
+      <th class="sortable{% if sort_by == 'title' %} active{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('title')">
         Titel
         {% if sort_by == 'title' %}
-          {{ icon("chevron-{{ 'up' if sort_dir == 'asc' else 'down' }}") }}
+          {{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}
         {% endif %}
       </th>
-      <th class="sortable col-numeric" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('highlight_count')">
+      <th class="sortable col-numeric{% if sort_by == 'highlight_count' %} active{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('highlight_count')">
         {{ icon("bookmark") }}
         {% if sort_by == 'highlight_count' %}
-          {{ icon("chevron-{{ 'up' if sort_dir == 'asc' else 'down' }}") }}
+          {{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}
         {% endif %}
       </th>
-      <th class="sortable" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('author')">
+      <th class="sortable{% if sort_by == 'author' %} active{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('author')">
         Autor
         {% if sort_by == 'author' %}
-          {{ icon("chevron-{{ 'up' if sort_dir == 'asc' else 'down' }}") }}
+          {{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}
         {% endif %}
       </th>
-      <th class="sortable" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('category')">
+      <th class="sortable{% if sort_by == 'category' %} active{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('category')">
         Typ
         {% if sort_by == 'category' %}
-          {{ icon("chevron-{{ 'up' if sort_dir == 'asc' else 'down' }}") }}
+          {{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}
         {% endif %}
       </th>
-      <th class="sortable" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('saved_at')">
+      <th class="sortable{% if sort_by == 'saved_at' %} active{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('saved_at')">
         Datum
         {% if sort_by == 'saved_at' %}
-          {{ icon("chevron-{{ 'up' if sort_dir == 'asc' else 'down' }}") }}
+          {{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}
         {% endif %}
       </th>
-      <th class="sortable col-numeric" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('word_count')">
+      <th class="sortable col-numeric{% if sort_by == 'word_count' %} active{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('word_count')">
         Woerter
         {% if sort_by == 'word_count' %}
-          {{ icon("chevron-{{ 'up' if sort_dir == 'asc' else 'down' }}") }}
+          {{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}
         {% endif %}
       </th>
       {% if mode == 'semantic' %}
-      <th class="sortable col-numeric" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('distance')">
+      <th class="sortable col-numeric{% if sort_by == 'distance' %} active{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('distance')">
         Score
         {% if sort_by == 'distance' %}
-          {{ icon("chevron-{{ 'up' if sort_dir == 'asc' else 'down' }}") }}
+          {{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}
         {% endif %}
       </th>
       {% endif %}
@@ -70,14 +71,14 @@
         {% if r.highlight_count %}
         <span class="highlight-count">{{ r.highlight_count }}</span>
         {% else %}
-        <span class="highlight-count-zero">0</span>
+        <span class="highlight-count highlight-count-zero">0</span>
         {% endif %}
       </td>
       <td>{{ r.author or "-" }}</td>
       <td>
         <span class="badge badge-{{ r.category or 'article' }}">{{ r.category or "article" }}</span>
       </td>
-      <td class="col-date">{{ r.saved_at[:10] if r.saved_at else "-" }}</td>
+      <td class="col-date">{{ r.saved_at | dateformat }}</td>
       <td class="col-numeric">{{ "{:,}".format(r.word_count).replace(",", ".") if r.word_count else "-" }}</td>
       {% if mode == 'semantic' %}
       <td class="col-numeric">{{ "%.3f"|format(r.distance) if r.distance is not none else "-" }}</td>
@@ -86,6 +87,7 @@
     {% endfor %}
   </tbody>
 </table>
+</div>
 
 <script>
 // Re-render feather icons after HTMX swap
@@ -142,7 +144,7 @@
 .source-url svg {
   width: 0.75rem;
   height: 0.75rem;
-  color: var(--text-muted);
+  color: var(--primary);
   flex-shrink: 0;
 }
 
@@ -195,8 +197,8 @@
 }
 
 .highlight-count-zero {
+  background: var(--bg-secondary);
   color: var(--text-muted);
-  font-size: var(--font-size-xs);
 }
 
 /* Category Badges */
