@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h1>Digests</h1>
-<p class="subtitle">Gespeicherte Suchen und Highlights aus deiner Bibliothek</p>
+<h1>Gespeicherte Queries</h1>
+<p class="subtitle">Suchen und Highlights aus deiner Bibliothek (Admin-Bereich)</p>
 
 <!-- Default Digest: Neueste Highlights -->
 <section class="card digest-section">
@@ -67,7 +67,7 @@
           <i data-feather="edit-2" x-show="!editing"></i>
           <span x-text="editing ? 'Abbrechen' : 'Bearbeiten'"></span>
         </button>
-        <form method="post" action="/digests/{{ d.id }}/delete" style="display: inline;">
+        <form method="post" action="/admin/queries/{{ d.id }}/delete" style="display: inline;">
           <button type="submit" class="btn btn-sm btn-ghost btn-danger-text"
                   onclick="return confirm('Wirklich loeschen?')">
             <i data-feather="trash-2"></i> Loeschen
@@ -77,7 +77,7 @@
 
       <!-- Edit Form (inline, hidden by default) -->
       <div x-show="editing" x-transition class="digest-edit">
-        <form method="post" action="/digests/{{ d.id }}/update" class="edit-form">
+        <form method="post" action="/admin/queries/{{ d.id }}/update" class="edit-form">
           <input type="text" name="name" value="{{ d.name }}" class="input" placeholder="Name" required>
           <input type="text" name="query" value="{{ d.query }}" class="input" placeholder="Query" required>
           <select name="mode" class="input">
@@ -109,7 +109,7 @@
 <!-- Neue Query erstellen -->
 <section class="card digest-section">
   <h2><i data-feather="plus-circle"></i> Neue Query</h2>
-  <form method="post" action="/digests/create" class="create-form">
+  <form method="post" action="/admin/queries/create" class="create-form">
     <div class="form-row">
       <input type="text" name="name" class="input" placeholder="Name (z.B. 'Machine Learning')" required>
       <input type="text" name="query" class="input" placeholder="Suchbegriff (z.B. 'neural network')" required>

@@ -244,46 +244,52 @@ def document_detail(request: Request, doc_id: int):
     return render("document_detail.html", request=request, doc=doc, highlights=highlights, error=None)
 
 
-@app.get("/digests", response_class=HTMLResponse)
-def digests_page(request: Request):
-    """Digests page with saved queries and recent highlights."""
+@app.get("/digests")
+def digests_redirect():
+    """Redirect old /digests to /admin/queries."""
+    return RedirectResponse(url="/admin/queries", status_code=302)
+
+
+@app.get("/admin/queries", response_class=HTMLResponse)
+def admin_queries_page(request: Request):
+    """Admin page for saved queries and recent highlights."""
     db = get_db()
     digests_list = db.list_digests()
     highlights = db.get_recent_highlights(limit=10)
-    return render("digests.html", request=request, digests=digests_list, highlights=highlights)
+    return render("admin_queries.html", request=request, digests=digests_list, highlights=highlights)
 
 
-@app.post("/digests/create")
-def digests_create(
+@app.post("/admin/queries/create")
+def admin_queries_create(
     name: str = Form(...),
     query: str = Form(...),
     mode: str = Form("fts"),
 ):
-    """Create a new saved digest/query."""
+    """Create a new saved query."""
     db = get_db()
     db.create_digest(name=name, query=query, mode=mode)
-    return RedirectResponse(url="/digests", status_code=303)
+    return RedirectResponse(url="/admin/queries", status_code=303)
 
 
-@app.post("/digests/{digest_id}/update")
-def digests_update(
-    digest_id: int,
+@app.post("/admin/queries/{query_id}/update")
+def admin_queries_update(
+    query_id: int,
     name: str = Form(...),
     query: str = Form(...),
     mode: str = Form("fts"),
 ):
-    """Update an existing digest."""
+    """Update an existing query."""
     db = get_db()
-    db.update_digest(digest_id, name=name, query=query, mode=mode)
-    return RedirectResponse(url="/digests", status_code=303)
+    db.update_digest(query_id, name=name, query=query, mode=mode)
+    return RedirectResponse(url="/admin/queries", status_code=303)
 
 
-@app.post("/digests/{digest_id}/delete")
-def digests_delete(digest_id: int):
-    """Delete a digest."""
+@app.post("/admin/queries/{query_id}/delete")
+def admin_queries_delete(query_id: int):
+    """Delete a query."""
     db = get_db()
-    db.delete_digest(digest_id)
-    return RedirectResponse(url="/digests", status_code=303)
+    db.delete_digest(query_id)
+    return RedirectResponse(url="/admin/queries", status_code=303)
 
 
 @app.get("/api/digests/{digest_id}/results", response_class=HTMLResponse)
@@ -1945,26 +1951,8 @@ from app.core.digest_pipeline import run_digest_pipeline, estimate_digest
 
 @app.get("/digest", response_class=HTMLResponse)
 def digest_page(request: Request):
-    """LLM-powered digest page."""
-    db = get_db()
-    store = get_digest_store()
-
-    # Get latest generated digest
-    latest_digest = db.get_latest_generated_digest()
-
-    # Get running job if any
-    running_job = store.get_running()
-
-    # Recent digest jobs
-    recent_jobs = store.list_all()[:5]
-
-    return render(
-        "digest_home.html",
-        request=request,
-        latest_digest=latest_digest,
-        running_job=running_job,
-        recent_jobs=recent_jobs,
-    )
+    """LLM-powered digest page. All data is loaded dynamically via JavaScript."""
+    return render("digest_home.html", request=request)
 
 
 @app.get("/api/digest/estimate")
@@ -2100,23 +2088,43 @@ def api_digest_get(digest_id: int):
 
 
 @app.get("/api/digest/history")
-def api_digest_history(limit: int = 10):
+def api_digest_history(limit: int = 20, favorites_only: bool = False):
     """Get list of past generated digests.
 
     Args:
-        limit: Maximum number to return (default 10)
+        limit: Maximum number to return (default 20)
+        favorites_only: If True, only return favorited digests
 
     Returns:
         List of digest metadata (without full content)
     """
     db = get_db()
-    digests = db.list_generated_digests(limit=limit)
+    digests = db.list_generated_digests(limit=limit, favorites_only=favorites_only)
     return {"digests": digests}
+
+
+@app.post("/api/digest/{digest_id}/favorite")
+def api_digest_toggle_favorite(digest_id: int):
+    """Toggle favorite status of a digest.
+
+    Args:
+        digest_id: Database ID of the digest
+
+    Returns:
+        New favorite status
+    """
+    db = get_db()
+    new_state = db.toggle_digest_favorite(digest_id)
+
+    if new_state is None:
+        return {"error": "Digest nicht gefunden"}
+
+    return {"digest_id": digest_id, "is_favorite": new_state}
 
 
 @app.delete("/api/digest/{digest_id}")
 def api_digest_delete(digest_id: int):
-    """Delete a generated digest.
+    """Soft-delete a generated digest.
 
     Args:
         digest_id: Database ID of the digest

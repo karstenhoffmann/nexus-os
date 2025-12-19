@@ -113,15 +113,16 @@ async def run_digest_pipeline(
         yield DigestEvent(
             type=DigestEventType.PHASE_START,
             phase=DigestPhase.SUMMARIZE,
-            data={"message": "Generiere Zusammenfassung und Highlights..."},
+            data={"message": "Generiere Titel, Zusammenfassung und Highlights..."},
         )
-        overall_summary, highlights = await _summarize_phase(
+        title, overall_summary, highlights = await _summarize_phase(
             job, clustering_result, llm, store
         )
         yield DigestEvent(
             type=DigestEventType.PHASE_COMPLETE,
             phase=DigestPhase.SUMMARIZE,
             data={
+                "title": title,
                 "summary_length": len(overall_summary),
                 "highlights_count": len(highlights),
                 "tokens_used": job.total_tokens,
@@ -136,7 +137,7 @@ async def run_digest_pipeline(
             data={"message": "Speichere Digest in Datenbank..."},
         )
         digest_id = await _compile_phase(
-            job, db, clustering_result, overall_summary, highlights, store
+            job, db, clustering_result, title, overall_summary, highlights, store
         )
         yield DigestEvent(
             type=DigestEventType.PHASE_COMPLETE,
@@ -256,8 +257,12 @@ async def _summarize_phase(
     clustering_result: ClusteringResult,
     llm: LLMProvider,
     store: Any,
-) -> tuple[str, list[str]]:
-    """Generate overall summary and highlights from clustered topics."""
+) -> tuple[str, str, list[str]]:
+    """Generate title, overall summary and highlights from clustered topics.
+
+    Returns:
+        Tuple of (title, summary, highlights)
+    """
     job.phase = DigestPhase.SUMMARIZE
     store.update(job)
 
@@ -273,17 +278,19 @@ async def _summarize_phase(
 
     topics_joined = "\n\n".join(topics_text)
 
-    # Generate overall summary
+    # Generate title, summary and highlights
     prompt = f"""Du bist ein persoenlicher Wissensassistent. Der Nutzer hat diese Woche folgende Themen gelesen:
 
 {topics_joined}
 
 Erstelle:
-1. Eine Zusammenfassung (3-5 Saetze): Was hat den Nutzer diese Woche beschaeftigt?
-2. 3-5 Highlights: Die wichtigsten Erkenntnisse oder interessantesten Punkte
+1. Einen aussagekraeftigen Titel (max 60 Zeichen): Was war das Hauptthema dieser Woche? Der Titel sollte die wichtigsten 2-3 Themen nennen, z.B. "KI-Tools, Produktivitaet & Coding"
+2. Eine Zusammenfassung (3-5 Saetze): Was hat den Nutzer diese Woche beschaeftigt?
+3. 3-5 Highlights: Die wichtigsten Erkenntnisse oder interessantesten Punkte
 
 Antworte im JSON-Format:
 {{
+  "title": "...",
   "summary": "...",
   "highlights": ["...", "...", "..."]
 }}"""
@@ -291,7 +298,7 @@ Antworte im JSON-Format:
     response = await llm.chat(
         messages=[{"role": "user", "content": prompt}],
         temperature=0.4,
-        max_tokens=800,
+        max_tokens=900,
     )
 
     # Track token usage
@@ -310,24 +317,32 @@ Antworte im JSON-Format:
 
     try:
         data = json.loads(content)
+        title = data.get("title", "")
         summary = data.get("summary", "")
         highlights = data.get("highlights", [])
     except json.JSONDecodeError:
         logger.warning("Failed to parse summary response, using raw content")
+        title = ""
         summary = content[:500]
         highlights = []
 
+    # Truncate title if too long
+    if len(title) > 80:
+        title = title[:77] + "..."
+
     logger.info(
-        f"Generated summary ({len(summary)} chars) and {len(highlights)} highlights"
+        f"Generated title ({len(title)} chars), summary ({len(summary)} chars) "
+        f"and {len(highlights)} highlights"
     )
 
-    return summary, highlights
+    return title, summary, highlights
 
 
 async def _compile_phase(
     job: DigestJob,
     db: DB,
     clustering_result: ClusteringResult,
+    title: str,
     overall_summary: str,
     highlights: list[str],
     store: Any,
@@ -345,7 +360,7 @@ async def _compile_phase(
     # Prepare highlights JSON
     highlights_json = json.dumps(highlights, ensure_ascii=False) if highlights else None
 
-    # Generate digest name
+    # Generate digest name (fallback if no title)
     date_from_str = job.date_from.strftime("%Y-%m-%d") if job.date_from else ""
     date_to_str = job.date_to.strftime("%Y-%m-%d") if job.date_to else ""
     name = f"Digest {date_from_str} bis {date_to_str}"
@@ -353,6 +368,7 @@ async def _compile_phase(
     # Save to database
     digest_id = db.save_generated_digest(
         name=name,
+        title=title if title else None,
         time_range_days=job.days,
         date_from=date_from_str,
         date_to=date_to_str,
@@ -369,7 +385,7 @@ async def _compile_phase(
     )
 
     logger.info(
-        f"Saved digest {digest_id}: {name}, "
+        f"Saved digest {digest_id}: '{title or name}', "
         f"{job.docs_found} docs, {job.chunks_found} chunks, "
         f"cost: ${job.cost_usd:.4f}"
     )

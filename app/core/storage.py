@@ -568,6 +568,17 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         """)
         conn.commit()
 
+    # Migration: Add new columns to generated_digests if missing
+    cur = conn.execute("PRAGMA table_info(generated_digests)")
+    existing_cols = {row[1] for row in cur.fetchall()}
+    if "title" not in existing_cols:
+        conn.execute("ALTER TABLE generated_digests ADD COLUMN title TEXT")
+    if "is_favorite" not in existing_cols:
+        conn.execute("ALTER TABLE generated_digests ADD COLUMN is_favorite INTEGER DEFAULT 0")
+    if "deleted_at" not in existing_cols:
+        conn.execute("ALTER TABLE generated_digests ADD COLUMN deleted_at TEXT")
+    conn.commit()
+
     cur = conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='digest_topics'"
     )
@@ -2619,6 +2630,7 @@ class DB:
         self,
         *,
         name: str,
+        title: str | None = None,
         time_range_days: int,
         date_from: str,
         date_to: str,
@@ -2637,14 +2649,14 @@ class DB:
         cur = self.conn.execute(
             """
             INSERT INTO generated_digests (
-                name, time_range_days, date_from, date_to, strategy, model_id,
+                name, title, time_range_days, date_from, date_to, strategy, model_id,
                 summary_text, topics_json, highlights_json,
                 docs_analyzed, chunks_analyzed, tokens_input, tokens_output, cost_usd
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING id
             """,
             (
-                name, time_range_days, date_from, date_to, strategy, model_id,
+                name, title, time_range_days, date_from, date_to, strategy, model_id,
                 summary_text, topics_json, highlights_json,
                 docs_analyzed, chunks_analyzed, tokens_input, tokens_output, cost_usd,
             ),
@@ -2654,14 +2666,14 @@ class DB:
         return digest_id
 
     def get_generated_digest(self, digest_id: int) -> dict[str, Any] | None:
-        """Get a generated digest by ID."""
+        """Get a generated digest by ID (excludes soft-deleted)."""
         cur = self.conn.execute(
             """
-            SELECT id, name, time_range_days, date_from, date_to, strategy, model_id,
+            SELECT id, name, title, time_range_days, date_from, date_to, strategy, model_id,
                    summary_text, topics_json, highlights_json,
                    docs_analyzed, chunks_analyzed, tokens_input, tokens_output, cost_usd,
-                   generated_at
-            FROM generated_digests WHERE id = ?
+                   generated_at, is_favorite
+            FROM generated_digests WHERE id = ? AND deleted_at IS NULL
             """,
             (digest_id,),
         )
@@ -2669,34 +2681,37 @@ class DB:
         if not row:
             return None
         # Parse JSON fields for template rendering
-        topics = json.loads(row[8]) if row[8] else []
-        highlights = json.loads(row[9]) if row[9] else []
+        topics = json.loads(row[9]) if row[9] else []
+        highlights = json.loads(row[10]) if row[10] else []
         return {
             "id": row[0],
             "name": row[1],
-            "time_range_days": row[2],
-            "date_from": row[3],
-            "date_to": row[4],
-            "strategy": row[5],
-            "model_id": row[6],
-            "summary_text": row[7],
-            "topics_json": row[8],  # Keep raw for API
+            "title": row[2],
+            "time_range_days": row[3],
+            "date_from": row[4],
+            "date_to": row[5],
+            "strategy": row[6],
+            "model_id": row[7],
+            "summary_text": row[8],
+            "topics_json": row[9],  # Keep raw for API
             "topics": topics,  # Parsed for templates
-            "highlights_json": row[9],  # Keep raw for API
+            "highlights_json": row[10],  # Keep raw for API
             "highlights": highlights,  # Parsed for templates
-            "docs_analyzed": row[10],
-            "chunks_analyzed": row[11],
-            "tokens_input": row[12],
-            "tokens_output": row[13],
-            "cost_usd": row[14],
-            "generated_at": row[15],
+            "docs_analyzed": row[11],
+            "chunks_analyzed": row[12],
+            "tokens_input": row[13],
+            "tokens_output": row[14],
+            "cost_usd": row[15],
+            "generated_at": row[16],
+            "is_favorite": bool(row[17]) if row[17] is not None else False,
         }
 
     def get_latest_generated_digest(self) -> dict[str, Any] | None:
-        """Get the most recent generated digest."""
+        """Get the most recent generated digest (excludes soft-deleted)."""
         cur = self.conn.execute(
             """
             SELECT id FROM generated_digests
+            WHERE deleted_at IS NULL
             ORDER BY generated_at DESC LIMIT 1
             """
         )
@@ -2705,40 +2720,73 @@ class DB:
             return None
         return self.get_generated_digest(row[0])
 
-    def list_generated_digests(self, limit: int = 20) -> list[dict[str, Any]]:
-        """List generated digests (summary info only)."""
+    def list_generated_digests(
+        self, limit: int = 20, favorites_only: bool = False
+    ) -> list[dict[str, Any]]:
+        """List generated digests (summary info only). Excludes soft-deleted."""
+        where_clauses = ["deleted_at IS NULL"]
+        params: list[Any] = []
+
+        if favorites_only:
+            where_clauses.append("is_favorite = 1")
+
+        where_sql = " AND ".join(where_clauses)
+
         cur = self.conn.execute(
-            """
-            SELECT id, name, time_range_days, date_from, date_to, strategy, model_id,
-                   docs_analyzed, chunks_analyzed, cost_usd, generated_at
+            f"""
+            SELECT id, name, title, time_range_days, date_from, date_to, strategy, model_id,
+                   docs_analyzed, chunks_analyzed, cost_usd, generated_at, is_favorite
             FROM generated_digests
+            WHERE {where_sql}
             ORDER BY generated_at DESC
             LIMIT ?
             """,
-            (limit,),
+            (*params, limit),
         )
         return [
             {
                 "id": r[0],
                 "name": r[1],
-                "time_range_days": r[2],
-                "date_from": r[3],
-                "date_to": r[4],
-                "strategy": r[5],
-                "model_id": r[6],
-                "docs_analyzed": r[7],
-                "chunks_analyzed": r[8],
-                "cost_usd": r[9],
-                "generated_at": r[10],
+                "title": r[2],
+                "time_range_days": r[3],
+                "date_from": r[4],
+                "date_to": r[5],
+                "strategy": r[6],
+                "model_id": r[7],
+                "docs_analyzed": r[8],
+                "chunks_analyzed": r[9],
+                "cost_usd": r[10],
+                "generated_at": r[11],
+                "is_favorite": bool(r[12]) if r[12] is not None else False,
             }
             for r in cur.fetchall()
         ]
 
     def delete_generated_digest(self, digest_id: int) -> bool:
-        """Delete a generated digest and its topics/citations. Returns True if deleted."""
-        cur = self.conn.execute("DELETE FROM generated_digests WHERE id = ?", (digest_id,))
+        """Soft-delete a generated digest. Returns True if updated."""
+        cur = self.conn.execute(
+            "UPDATE generated_digests SET deleted_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
+            (digest_id,),
+        )
         self.conn.commit()
         return cur.rowcount > 0
+
+    def toggle_digest_favorite(self, digest_id: int) -> bool | None:
+        """Toggle favorite status. Returns new state, or None if not found."""
+        cur = self.conn.execute(
+            "SELECT is_favorite FROM generated_digests WHERE id = ? AND deleted_at IS NULL",
+            (digest_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        new_state = 0 if row[0] else 1
+        self.conn.execute(
+            "UPDATE generated_digests SET is_favorite = ? WHERE id = ?",
+            (new_state, digest_id),
+        )
+        self.conn.commit()
+        return bool(new_state)
 
     def save_digest_topic(
         self,

@@ -8,20 +8,33 @@ Stand (kurz)
 - Drafts-Seite mit Versionierung (LinkedIn, Article, Note)
 
 Aktuelles Ziel
-- LLM-Powered Default Digest implementieren
+- Digest UX verfeinern und testen
 
 Naechste Schritte (Claude Code, max 3)
-1) Manueller Test: Neuen Digest generieren, SSE-Progress beobachten
-2) Saved Queries von /digests zu eigenem Admin-Bereich verschieben
-3) Digest History-Seite mit allen generierten Digests
+1) Manueller Test im Browser: /digest oeffnen, neuen Digest generieren
+2) Pruefen: Wird LLM-Titel korrekt angezeigt? Funktioniert Favorit-Toggle?
+3) Dark Mode testen
 
 Geplant (Detail-Plan)
-- /Users/karsten/.claude/plans/luminous-juggling-biscuit.md
+- /Users/karsten/.claude/plans/floating-strolling-biscuit.md
 - Multi-Modell: GPT-4.1 nano/mini, GPT-4o-mini, GPT-5.x
 - Zwei Strategien: Hybrid (Embedding->LLM) und Pure LLM
 - Cached + Refresh, Admin-Konfiguration, Usage-Stats
 
 Handoff
+- Digest Phase 7: UX Overhaul (2025-12-19):
+  - Komplett neues UI: "Neue Digest generieren" oben, History darunter
+  - Digest History: Alle Digests mit Expand/Collapse, Skeleton-Loading
+  - LLM-generierter Titel: Pipeline generiert aussagekraeftigen Titel aus Themen
+  - Favoriten-System: is_favorite Feld, Toggle-Button, Filter-Pill
+  - Soft-Delete: deleted_at Feld statt Hard-Delete
+  - Metadaten in Cards: Zeitraum, Chunks, Modell, Kosten
+  - Saved Queries verschoben: /digests -> /admin/queries (Redirect)
+  - DB-Migration: title, is_favorite, deleted_at Felder automatisch hinzugefuegt
+  - Neue APIs: POST /api/digest/{id}/favorite, GET /api/digest/history?favorites_only=true
+  - DoD: Keine hardcoded Farben, nur CSS-Variablen, Dark-Mode-kompatibel
+  - Naechster Schritt: Manueller Test im Browser
+
 - Digest Phase 6: SSE-Progress Fix (2025-12-19):
   - Problem: PHASE_START Events fehlten in digest_pipeline.py
   - Fix: Jede Phase sendet jetzt PHASE_START mit Aktivitaets-Nachricht

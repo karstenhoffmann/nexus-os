@@ -5,62 +5,9 @@
 
 <div x-data="digestApp()" x-init="init()">
 
-  <!-- Latest Digest Display -->
-  {% if latest_digest %}
+  <!-- Generation Controls (always on top) -->
   <div class="card">
-    <div class="digest-header">
-      <h2>{{ latest_digest.name }}</h2>
-      <span class="digest-meta">
-        {{ latest_digest.docs_analyzed }} Dokumente |
-        {{ latest_digest.chunks_analyzed }} Chunks |
-        ${{ "%.4f"|format(latest_digest.cost_usd) }}
-      </span>
-    </div>
-
-    <div class="digest-summary">
-      <h3>Zusammenfassung</h3>
-      <p>{{ latest_digest.summary_text }}</p>
-    </div>
-
-    {% if latest_digest.highlights %}
-    <div class="digest-highlights">
-      <h3>Highlights</h3>
-      <ul>
-        {% for highlight in latest_digest.highlights %}
-        <li>{{ highlight }}</li>
-        {% endfor %}
-      </ul>
-    </div>
-    {% endif %}
-
-    {% if latest_digest.topics %}
-    <div class="digest-topics">
-      <h3>Themen</h3>
-      <div class="topics-grid">
-        {% for topic in latest_digest.topics %}
-        <div class="topic-card">
-          <h4>{{ topic.topic_name }}</h4>
-          <span class="topic-count">{{ topic.chunk_count }} Chunks</span>
-          <p>{{ topic.summary }}</p>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
-  </div>
-  {% else %}
-  <div class="card">
-    <div class="empty-state">
-      <i data-feather="file-text"></i>
-      <p>Noch kein Digest generiert.</p>
-      <p class="text-muted">Starte unten die Generierung.</p>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- Generation Controls -->
-  <div class="card">
-    <h2>Neuen Digest generieren</h2>
+    <h2><i data-feather="zap"></i> Neuen Digest generieren</h2>
 
     <!-- Estimate -->
     <div class="estimate-section" x-show="!running">
@@ -135,9 +82,6 @@
           <span x-text="'Kosten: $' + costUsd.toFixed(4)"></span>
         </div>
       </div>
-      <button type="button" class="btn btn-secondary" @click="location.reload()">
-        <i data-feather="refresh-cw"></i> Seite aktualisieren
-      </button>
     </div>
 
     <!-- Error -->
@@ -149,10 +93,142 @@
     </div>
   </div>
 
-  <!-- Log -->
-  <div class="card" x-show="log.length > 0">
-    <h2>Verlauf</h2>
-    <div class="log-container">
+  <!-- Filter Bar -->
+  <div class="filter-bar">
+    <div class="filter-group">
+      <button class="filter-pill"
+              :class="{ active: !favoritesOnly }"
+              @click="favoritesOnly = false; loadHistory()">
+        Alle
+      </button>
+      <button class="filter-pill"
+              :class="{ active: favoritesOnly }"
+              @click="favoritesOnly = true; loadHistory()">
+        <i data-feather="star"></i> Favoriten
+      </button>
+    </div>
+    <span class="digest-count" x-text="digests.length + ' Digests'"></span>
+  </div>
+
+  <!-- Digest History -->
+  <div class="digests-list">
+    <!-- Empty State -->
+    <div class="card empty-state" x-show="digests.length === 0 && !loading">
+      <i data-feather="file-text"></i>
+      <p>Noch keine Digests generiert.</p>
+      <p class="text-muted">Starte oben die Generierung.</p>
+    </div>
+
+    <!-- Loading State -->
+    <div class="card" x-show="loading">
+      <div class="skeleton-loader">
+        <div class="skeleton-line"></div>
+        <div class="skeleton-line short"></div>
+      </div>
+    </div>
+
+    <!-- Digest Cards -->
+    <template x-for="digest in digests" :key="digest.id">
+      <div class="digest-card" :class="{ 'expanded': expandedId === digest.id }">
+        <!-- Header (always visible) -->
+        <div class="digest-card-header" @click="expandDigest(digest.id)">
+          <div class="digest-card-icon">
+            <i data-feather="file-text"></i>
+          </div>
+          <div class="digest-card-info">
+            <h3 class="digest-card-title" x-text="digest.title || digest.name"></h3>
+            <div class="digest-card-meta">
+              <span class="meta-badge">
+                <i data-feather="calendar"></i>
+                <span x-text="digest.time_range_days + ' Tage'"></span>
+              </span>
+              <span class="meta-badge">
+                <i data-feather="layers"></i>
+                <span x-text="(digest.chunks_analyzed || 0) + ' Chunks'"></span>
+              </span>
+              <span class="meta-badge">
+                <i data-feather="cpu"></i>
+                <span x-text="digest.model_id"></span>
+              </span>
+              <span class="meta-badge">
+                <span x-text="'$' + (digest.cost_usd || 0).toFixed(4)"></span>
+              </span>
+            </div>
+          </div>
+          <div class="digest-card-actions" @click.stop>
+            <button class="btn-icon"
+                    :class="{ 'is-favorite': digest.is_favorite }"
+                    @click="toggleFavorite(digest.id)"
+                    title="Favorit">
+              <i data-feather="star"></i>
+            </button>
+            <button class="btn-icon"
+                    @click="expandDigest(digest.id)"
+                    :title="expandedId === digest.id ? 'Einklappen' : 'Ausklappen'">
+              <i :data-feather="expandedId === digest.id ? 'chevron-up' : 'chevron-down'"></i>
+            </button>
+            <button class="btn-icon btn-danger"
+                    @click="deleteDigest(digest.id)"
+                    title="Loeschen">
+              <i data-feather="trash-2"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Content (expanded) -->
+        <div class="digest-card-content" x-show="expandedId === digest.id" x-transition>
+          <!-- Skeleton while loading -->
+          <template x-if="loadingId === digest.id">
+            <div class="skeleton-loader">
+              <div class="skeleton-line"></div>
+              <div class="skeleton-line"></div>
+              <div class="skeleton-line short"></div>
+            </div>
+          </template>
+
+          <!-- Content when loaded -->
+          <template x-if="expandedId === digest.id && expandedData && loadingId !== digest.id">
+            <div>
+              <div class="digest-summary">
+                <h4>Zusammenfassung</h4>
+                <p x-text="expandedData.summary_text"></p>
+              </div>
+
+              <div class="digest-highlights" x-show="expandedData.highlights && expandedData.highlights.length > 0">
+                <h4>Highlights</h4>
+                <ul>
+                  <template x-for="h in expandedData.highlights" :key="h">
+                    <li x-text="h"></li>
+                  </template>
+                </ul>
+              </div>
+
+              <div class="digest-topics" x-show="expandedData.topics && expandedData.topics.length > 0">
+                <h4>Themen</h4>
+                <div class="topics-grid">
+                  <template x-for="topic in expandedData.topics" :key="topic.topic_name">
+                    <div class="topic-card">
+                      <h5 x-text="topic.topic_name"></h5>
+                      <span class="topic-count" x-text="topic.chunk_count + ' Chunks'"></span>
+                      <p x-text="topic.summary"></p>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- Log (collapsible) -->
+  <div class="card log-card" x-show="log.length > 0">
+    <div class="log-header" @click="showLog = !showLog">
+      <h3><i data-feather="terminal"></i> Generierungs-Log</h3>
+      <i :data-feather="showLog ? 'chevron-up' : 'chevron-down'"></i>
+    </div>
+    <div class="log-container" x-show="showLog" x-transition>
       <template x-for="(entry, idx) in log.slice(-20).reverse()" :key="idx">
         <div class="log-entry" :class="'log-' + entry.level">
           <span class="log-time" x-text="entry.time"></span>
@@ -175,36 +251,42 @@ function digestApp() {
     // Estimate
     estimate: null,
 
-    // State
+    // Generation State
     status: 'idle',
     phase: 'idle',
     running: false,
     jobId: null,
     eventSource: null,
-
-    // Progress
     tokensUsed: 0,
     costUsd: 0,
     currentActivity: '',
-
-    // UI
     error: null,
     log: [],
+    showLog: false,
+
+    // History State
+    digests: [],
+    loading: false,
+    expandedId: null,
+    expandedData: null,
+    loadingId: null,
+    favoritesOnly: false,
 
     get phaseLabel() {
       const labels = {
         'idle': 'Bereit',
         'fetch': 'Lade Chunks...',
         'cluster': 'Gruppiere Themen...',
-        'summarize': 'Generiere Zusammenfassung...',
+        'summarize': 'Generiere Titel & Zusammenfassung...',
         'compile': 'Speichere Digest...',
         'done': 'Fertig'
       };
       return labels[this.phase] || this.phase;
     },
 
-    init() {
+    async init() {
       this.fetchEstimate();
+      await this.loadHistory();
       feather.replace();
     },
 
@@ -217,11 +299,90 @@ function digestApp() {
       }
     },
 
+    async loadHistory() {
+      this.loading = true;
+      try {
+        const params = new URLSearchParams();
+        params.set('limit', '50');
+        if (this.favoritesOnly) params.set('favorites_only', 'true');
+
+        const res = await fetch('/api/digest/history?' + params);
+        const data = await res.json();
+        this.digests = data.digests || [];
+
+        // Auto-expand latest if nothing is expanded
+        if (this.digests.length > 0 && !this.expandedId) {
+          this.expandDigest(this.digests[0].id);
+        }
+      } catch (e) {
+        console.error('History error:', e);
+      } finally {
+        this.loading = false;
+        this.$nextTick(() => feather.replace());
+      }
+    },
+
+    async expandDigest(id) {
+      if (this.expandedId === id) {
+        // Already expanded -> collapse
+        this.expandedId = null;
+        this.expandedData = null;
+        this.$nextTick(() => feather.replace());
+        return;
+      }
+
+      this.expandedId = id;
+      this.loadingId = id;
+      this.$nextTick(() => feather.replace());
+
+      try {
+        const res = await fetch(`/api/digest/${id}`);
+        this.expandedData = await res.json();
+      } catch (e) {
+        console.error('Load digest error:', e);
+      } finally {
+        this.loadingId = null;
+        this.$nextTick(() => feather.replace());
+      }
+    },
+
+    async toggleFavorite(id) {
+      try {
+        const res = await fetch(`/api/digest/${id}/favorite`, { method: 'POST' });
+        const data = await res.json();
+        // Update local state
+        const digest = this.digests.find(d => d.id === id);
+        if (digest) {
+          digest.is_favorite = data.is_favorite;
+        }
+        this.$nextTick(() => feather.replace());
+      } catch (e) {
+        console.error('Toggle favorite error:', e);
+      }
+    },
+
+    async deleteDigest(id) {
+      if (!confirm('Digest wirklich loeschen?')) return;
+
+      try {
+        await fetch(`/api/digest/${id}`, { method: 'DELETE' });
+        this.digests = this.digests.filter(d => d.id !== id);
+        if (this.expandedId === id) {
+          this.expandedId = null;
+          this.expandedData = null;
+        }
+        this.$nextTick(() => feather.replace());
+      } catch (e) {
+        console.error('Delete error:', e);
+      }
+    },
+
     async startGeneration() {
       this.running = true;
       this.status = 'running';
       this.error = null;
       this.log = [];
+      this.showLog = true;
 
       try {
         const params = new URLSearchParams({
@@ -269,7 +430,6 @@ function digestApp() {
         this.phase = data.phase;
         this.currentActivity = '';
 
-        // Update token/cost from phase_complete events
         if (data.tokens_used) {
           this.tokensUsed = data.tokens_used;
         }
@@ -288,9 +448,12 @@ function digestApp() {
         if (data.highlights_count) {
           this.addLog('info', `${data.highlights_count} Highlights generiert`);
         }
+        if (data.title) {
+          this.addLog('info', `Titel: "${data.title}"`);
+        }
       });
 
-      this.eventSource.addEventListener('digest_complete', (e) => {
+      this.eventSource.addEventListener('digest_complete', async (e) => {
         const data = JSON.parse(e.data);
         this.status = 'completed';
         this.phase = 'done';
@@ -299,6 +462,13 @@ function digestApp() {
         this.tokensUsed = data.total_tokens || 0;
         this.addLog('success', `Digest ${data.digest_id} generiert!`);
         this.eventSource.close();
+
+        // Reload history and expand new digest
+        await this.loadHistory();
+        if (data.digest_id) {
+          this.expandDigest(data.digest_id);
+        }
+
         feather.replace();
       });
 
@@ -330,72 +500,17 @@ function digestApp() {
 </script>
 
 <style>
-/* Digest Styles */
-.digest-header {
+/* Card Header with Icon */
+.card h2 {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--space-md);
+  gap: 0.5rem;
 }
 
-.digest-meta {
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-}
-
-.digest-summary h3,
-.digest-highlights h3,
-.digest-topics h3 {
-  margin-top: var(--space-lg);
-  margin-bottom: var(--space-sm);
-}
-
-.digest-highlights ul {
-  padding-left: var(--space-lg);
-}
-
-.digest-highlights li {
-  margin-bottom: var(--space-sm);
-}
-
-.topics-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: var(--space-md);
-}
-
-.topic-card {
-  padding: var(--space-md);
-  background: var(--bg-secondary);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-color);
-}
-
-.topic-card h4 {
-  margin: 0 0 var(--space-xs) 0;
-}
-
-.topic-count {
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-}
-
-.topic-card p {
-  margin: var(--space-sm) 0 0 0;
-  font-size: var(--font-size-sm);
-}
-
-/* Empty State */
-.empty-state {
-  text-align: center;
-  padding: var(--space-xl);
-  color: var(--text-muted);
-}
-
-.empty-state svg {
-  width: 48px;
-  height: 48px;
-  margin-bottom: var(--space-md);
+.card h2 svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--primary);
 }
 
 /* Form */
@@ -445,6 +560,13 @@ function digestApp() {
   flex-shrink: 0;
 }
 
+/* Button Group */
+.button-group {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
 /* Progress */
 .progress-header {
   display: flex;
@@ -482,40 +604,38 @@ function digestApp() {
   50% { opacity: 0.5; }
 }
 
-/* Completion */
+/* Completion & Error */
 .card-success {
   padding: var(--space-md);
   border-radius: var(--radius-md);
-  border: 1px solid var(--success, #22c55e);
-  background: rgba(34, 197, 94, 0.05);
+  border: 1px solid var(--success);
+  background: var(--success-bg);
 }
 
 .completion-summary {
   display: flex;
   align-items: center;
   gap: var(--space-md);
-  margin-bottom: var(--space-md);
 }
 
 .summary-icon svg {
   width: 32px;
   height: 32px;
-  color: var(--success, #22c55e);
+  color: var(--success);
 }
 
-/* Error */
 .card-error {
   padding: var(--space-md);
   border-radius: var(--radius-md);
-  border: 1px solid var(--error, #ef4444);
-  background: rgba(239, 68, 68, 0.05);
+  border: 1px solid var(--error);
+  background: var(--error-bg);
 }
 
 .error-content {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  color: var(--error, #ef4444);
+  color: var(--error);
 }
 
 .error-content svg {
@@ -524,19 +644,323 @@ function digestApp() {
   flex-shrink: 0;
 }
 
-/* Button Group */
-.button-group {
+/* Filter Bar */
+.filter-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: var(--space-lg) 0 var(--space-md);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.filter-group {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: var(--radius-xl);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.filter-pill:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.filter-pill.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.filter-pill svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.digest-count {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+/* Digests List */
+.digests-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+/* Digest Card */
+.digest-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.digest-card.expanded {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-md);
+}
+
+.digest-card-header {
+  display: flex;
+  align-items: center;
+  padding: var(--space-md);
+  cursor: pointer;
+  gap: var(--space-md);
+}
+
+.digest-card-header:hover {
+  background: var(--bg-hover);
+}
+
+.digest-card-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.digest-card-icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--text-muted);
+}
+
+.digest-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.digest-card-title {
+  margin: 0 0 0.25rem 0;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.digest-card-meta {
   display: flex;
   gap: var(--space-sm);
   flex-wrap: wrap;
 }
 
+.meta-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-sm);
+}
+
+.meta-badge svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.digest-card-actions {
+  display: flex;
+  gap: var(--space-xs);
+  flex-shrink: 0;
+}
+
+.btn-icon {
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all var(--transition-fast);
+}
+
+.btn-icon:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.btn-icon.is-favorite {
+  color: var(--warning);
+}
+
+.btn-icon.is-favorite svg {
+  fill: var(--warning);
+}
+
+.btn-icon.btn-danger:hover {
+  background: var(--error-bg);
+  color: var(--error);
+}
+
+.btn-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Digest Content */
+.digest-card-content {
+  padding: 0 var(--space-md) var(--space-md);
+  border-top: 1px solid var(--border-color);
+}
+
+.digest-summary,
+.digest-highlights,
+.digest-topics {
+  margin-top: var(--space-md);
+}
+
+.digest-summary h4,
+.digest-highlights h4,
+.digest-topics h4 {
+  margin: 0 0 var(--space-sm) 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.digest-summary p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.digest-highlights ul {
+  margin: 0;
+  padding-left: var(--space-lg);
+}
+
+.digest-highlights li {
+  margin-bottom: var(--space-xs);
+}
+
+/* Topics Grid */
+.topics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-md);
+}
+
+.topic-card {
+  padding: var(--space-md);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+}
+
+.topic-card h5 {
+  margin: 0 0 var(--space-xs) 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.topic-count {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.topic-card p {
+  margin: var(--space-sm) 0 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+/* Skeleton Loader */
+.skeleton-loader {
+  padding: var(--space-md) 0;
+}
+
+.skeleton-line {
+  height: 1rem;
+  background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-hover) 50%, var(--bg-secondary) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.skeleton-line.short {
+  width: 60%;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: var(--space-xl);
+  color: var(--text-muted);
+}
+
+.empty-state svg {
+  width: 3rem;
+  height: 3rem;
+  margin-bottom: var(--space-md);
+  opacity: 0.5;
+}
+
 /* Log */
+.log-card {
+  margin-top: var(--space-lg);
+}
+
+.log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  padding: var(--space-sm) 0;
+}
+
+.log-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: var(--font-size-base);
+}
+
+.log-header svg {
+  width: 1rem;
+  height: 1rem;
+  color: var(--text-muted);
+}
+
 .log-container {
   max-height: 200px;
   overflow-y: auto;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
   font-size: var(--font-size-sm);
+  border-top: 1px solid var(--border-color);
+  padding-top: var(--space-sm);
 }
 
 .log-entry {
@@ -555,9 +979,9 @@ function digestApp() {
   flex-shrink: 0;
 }
 
-.log-success .log-message { color: var(--success, #22c55e); }
-.log-warning .log-message { color: var(--warning, #f59e0b); }
-.log-error .log-message { color: var(--error, #ef4444); }
+.log-success .log-message { color: var(--success); }
+.log-warning .log-message { color: var(--warning); }
+.log-error .log-message { color: var(--error); }
 </style>
 
 {% endblock %}
