@@ -272,6 +272,61 @@ CREATE TABLE IF NOT EXISTS app_settings (
   value TEXT NOT NULL,
   updated_at TEXT DEFAULT (datetime('now'))
 );
+
+-- LLM Konfiguration pro Aufgabe (Digest, etc.)
+CREATE TABLE IF NOT EXISTS llm_configs (
+  id INTEGER PRIMARY KEY,
+  task_type TEXT NOT NULL UNIQUE,
+  provider TEXT DEFAULT 'openai',
+  model TEXT NOT NULL,
+  is_default INTEGER DEFAULT 1
+);
+
+-- Generierte Digests (LLM-powered)
+CREATE TABLE IF NOT EXISTS generated_digests (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  time_range_days INTEGER DEFAULT 7,
+  date_from TEXT NOT NULL,
+  date_to TEXT NOT NULL,
+  strategy TEXT NOT NULL,
+  model_id TEXT NOT NULL,
+  summary_text TEXT NOT NULL,
+  topics_json TEXT NOT NULL,
+  highlights_json TEXT,
+  docs_analyzed INTEGER,
+  chunks_analyzed INTEGER,
+  tokens_input INTEGER,
+  tokens_output INTEGER,
+  cost_usd REAL,
+  generated_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Themen pro Digest
+CREATE TABLE IF NOT EXISTS digest_topics (
+  id INTEGER PRIMARY KEY,
+  digest_id INTEGER REFERENCES generated_digests(id) ON DELETE CASCADE,
+  topic_index INTEGER,
+  topic_name TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  chunk_count INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_digest_topics_digest_id ON digest_topics(digest_id);
+
+-- Quellenverweise (Citations)
+CREATE TABLE IF NOT EXISTS digest_citations (
+  id INTEGER PRIMARY KEY,
+  digest_id INTEGER REFERENCES generated_digests(id) ON DELETE CASCADE,
+  topic_id INTEGER REFERENCES digest_topics(id),
+  chunk_id INTEGER REFERENCES document_chunks(id),
+  document_id INTEGER REFERENCES documents(id),
+  citation_type TEXT,
+  excerpt TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_digest_citations_digest_id ON digest_citations(digest_id);
+CREATE INDEX IF NOT EXISTS idx_digest_citations_topic_id ON digest_citations(topic_id);
 """
 
 def _backfill_document_metadata(conn: sqlite3.Connection) -> None:
@@ -468,6 +523,84 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     # Ensure all documents have a category (fallback for docs without raw_json)
     conn.execute("UPDATE documents SET category = 'article' WHERE category IS NULL")
     conn.commit()
+
+    # Create LLM Digest tables if not exist (Phase 1)
+    cur = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='llm_configs'"
+    )
+    if cur.fetchone() is None:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS llm_configs (
+                id INTEGER PRIMARY KEY,
+                task_type TEXT NOT NULL UNIQUE,
+                provider TEXT DEFAULT 'openai',
+                model TEXT NOT NULL,
+                is_default INTEGER DEFAULT 1
+            )
+        """)
+        conn.commit()
+
+    cur = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='generated_digests'"
+    )
+    if cur.fetchone() is None:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS generated_digests (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                time_range_days INTEGER DEFAULT 7,
+                date_from TEXT NOT NULL,
+                date_to TEXT NOT NULL,
+                strategy TEXT NOT NULL,
+                model_id TEXT NOT NULL,
+                summary_text TEXT NOT NULL,
+                topics_json TEXT NOT NULL,
+                highlights_json TEXT,
+                docs_analyzed INTEGER,
+                chunks_analyzed INTEGER,
+                tokens_input INTEGER,
+                tokens_output INTEGER,
+                cost_usd REAL,
+                generated_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        conn.commit()
+
+    cur = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='digest_topics'"
+    )
+    if cur.fetchone() is None:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS digest_topics (
+                id INTEGER PRIMARY KEY,
+                digest_id INTEGER REFERENCES generated_digests(id) ON DELETE CASCADE,
+                topic_index INTEGER,
+                topic_name TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                chunk_count INTEGER
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_digest_topics_digest_id ON digest_topics(digest_id)")
+        conn.commit()
+
+    cur = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='digest_citations'"
+    )
+    if cur.fetchone() is None:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS digest_citations (
+                id INTEGER PRIMARY KEY,
+                digest_id INTEGER REFERENCES generated_digests(id) ON DELETE CASCADE,
+                topic_id INTEGER REFERENCES digest_topics(id),
+                chunk_id INTEGER REFERENCES document_chunks(id),
+                document_id INTEGER REFERENCES documents(id),
+                citation_type TEXT,
+                excerpt TEXT
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_digest_citations_digest_id ON digest_citations(digest_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_digest_citations_topic_id ON digest_citations(topic_id)")
+        conn.commit()
 
 
 VEC_SQL = """
@@ -2431,6 +2564,329 @@ class DB:
             self.set_setting("theme_radius", radius)
         if fontSize is not None:
             self.set_setting("theme_font_size", fontSize)
+
+    # ==================== LLM Config Methods ====================
+
+    def get_llm_config(self, task_type: str) -> dict[str, Any] | None:
+        """Get LLM configuration for a specific task type."""
+        cur = self.conn.execute(
+            "SELECT id, task_type, provider, model, is_default FROM llm_configs WHERE task_type = ?",
+            (task_type,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "task_type": row[1],
+            "provider": row[2],
+            "model": row[3],
+            "is_default": bool(row[4]),
+        }
+
+    def set_llm_config(self, task_type: str, provider: str, model: str) -> int:
+        """Set or update LLM configuration for a task type."""
+        cur = self.conn.execute(
+            """
+            INSERT INTO llm_configs (task_type, provider, model, is_default)
+            VALUES (?, ?, ?, 1)
+            ON CONFLICT(task_type) DO UPDATE SET
+                provider = excluded.provider,
+                model = excluded.model
+            RETURNING id
+            """,
+            (task_type, provider, model),
+        )
+        config_id = cur.fetchone()[0]
+        self.conn.commit()
+        return config_id
+
+    def list_llm_configs(self) -> list[dict[str, Any]]:
+        """List all LLM configurations."""
+        cur = self.conn.execute(
+            "SELECT id, task_type, provider, model, is_default FROM llm_configs ORDER BY task_type"
+        )
+        return [
+            {"id": r[0], "task_type": r[1], "provider": r[2], "model": r[3], "is_default": bool(r[4])}
+            for r in cur.fetchall()
+        ]
+
+    # ==================== Generated Digest Methods ====================
+
+    def save_generated_digest(
+        self,
+        *,
+        name: str,
+        time_range_days: int,
+        date_from: str,
+        date_to: str,
+        strategy: str,
+        model_id: str,
+        summary_text: str,
+        topics_json: str,
+        highlights_json: str | None = None,
+        docs_analyzed: int | None = None,
+        chunks_analyzed: int | None = None,
+        tokens_input: int | None = None,
+        tokens_output: int | None = None,
+        cost_usd: float | None = None,
+    ) -> int:
+        """Save a generated digest. Returns the digest id."""
+        cur = self.conn.execute(
+            """
+            INSERT INTO generated_digests (
+                name, time_range_days, date_from, date_to, strategy, model_id,
+                summary_text, topics_json, highlights_json,
+                docs_analyzed, chunks_analyzed, tokens_input, tokens_output, cost_usd
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id
+            """,
+            (
+                name, time_range_days, date_from, date_to, strategy, model_id,
+                summary_text, topics_json, highlights_json,
+                docs_analyzed, chunks_analyzed, tokens_input, tokens_output, cost_usd,
+            ),
+        )
+        digest_id = cur.fetchone()[0]
+        self.conn.commit()
+        return digest_id
+
+    def get_generated_digest(self, digest_id: int) -> dict[str, Any] | None:
+        """Get a generated digest by ID."""
+        cur = self.conn.execute(
+            """
+            SELECT id, name, time_range_days, date_from, date_to, strategy, model_id,
+                   summary_text, topics_json, highlights_json,
+                   docs_analyzed, chunks_analyzed, tokens_input, tokens_output, cost_usd,
+                   generated_at
+            FROM generated_digests WHERE id = ?
+            """,
+            (digest_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "name": row[1],
+            "time_range_days": row[2],
+            "date_from": row[3],
+            "date_to": row[4],
+            "strategy": row[5],
+            "model_id": row[6],
+            "summary_text": row[7],
+            "topics_json": row[8],
+            "highlights_json": row[9],
+            "docs_analyzed": row[10],
+            "chunks_analyzed": row[11],
+            "tokens_input": row[12],
+            "tokens_output": row[13],
+            "cost_usd": row[14],
+            "generated_at": row[15],
+        }
+
+    def get_latest_generated_digest(self) -> dict[str, Any] | None:
+        """Get the most recent generated digest."""
+        cur = self.conn.execute(
+            """
+            SELECT id FROM generated_digests
+            ORDER BY generated_at DESC LIMIT 1
+            """
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        return self.get_generated_digest(row[0])
+
+    def list_generated_digests(self, limit: int = 20) -> list[dict[str, Any]]:
+        """List generated digests (summary info only)."""
+        cur = self.conn.execute(
+            """
+            SELECT id, name, time_range_days, date_from, date_to, strategy, model_id,
+                   docs_analyzed, chunks_analyzed, cost_usd, generated_at
+            FROM generated_digests
+            ORDER BY generated_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        return [
+            {
+                "id": r[0],
+                "name": r[1],
+                "time_range_days": r[2],
+                "date_from": r[3],
+                "date_to": r[4],
+                "strategy": r[5],
+                "model_id": r[6],
+                "docs_analyzed": r[7],
+                "chunks_analyzed": r[8],
+                "cost_usd": r[9],
+                "generated_at": r[10],
+            }
+            for r in cur.fetchall()
+        ]
+
+    def delete_generated_digest(self, digest_id: int) -> bool:
+        """Delete a generated digest and its topics/citations. Returns True if deleted."""
+        cur = self.conn.execute("DELETE FROM generated_digests WHERE id = ?", (digest_id,))
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def save_digest_topic(
+        self,
+        *,
+        digest_id: int,
+        topic_index: int,
+        topic_name: str,
+        summary: str,
+        chunk_count: int | None = None,
+    ) -> int:
+        """Save a topic for a generated digest. Returns topic id."""
+        cur = self.conn.execute(
+            """
+            INSERT INTO digest_topics (digest_id, topic_index, topic_name, summary, chunk_count)
+            VALUES (?, ?, ?, ?, ?)
+            RETURNING id
+            """,
+            (digest_id, topic_index, topic_name, summary, chunk_count),
+        )
+        topic_id = cur.fetchone()[0]
+        self.conn.commit()
+        return topic_id
+
+    def get_digest_topics(self, digest_id: int) -> list[dict[str, Any]]:
+        """Get all topics for a digest."""
+        cur = self.conn.execute(
+            """
+            SELECT id, topic_index, topic_name, summary, chunk_count
+            FROM digest_topics WHERE digest_id = ?
+            ORDER BY topic_index
+            """,
+            (digest_id,),
+        )
+        return [
+            {"id": r[0], "topic_index": r[1], "topic_name": r[2], "summary": r[3], "chunk_count": r[4]}
+            for r in cur.fetchall()
+        ]
+
+    def save_digest_citation(
+        self,
+        *,
+        digest_id: int,
+        topic_id: int | None = None,
+        chunk_id: int | None = None,
+        document_id: int | None = None,
+        citation_type: str | None = None,
+        excerpt: str | None = None,
+    ) -> int:
+        """Save a citation for a digest. Returns citation id."""
+        cur = self.conn.execute(
+            """
+            INSERT INTO digest_citations (digest_id, topic_id, chunk_id, document_id, citation_type, excerpt)
+            VALUES (?, ?, ?, ?, ?, ?)
+            RETURNING id
+            """,
+            (digest_id, topic_id, chunk_id, document_id, citation_type, excerpt),
+        )
+        citation_id = cur.fetchone()[0]
+        self.conn.commit()
+        return citation_id
+
+    def get_digest_citations(self, digest_id: int, topic_id: int | None = None) -> list[dict[str, Any]]:
+        """Get citations for a digest, optionally filtered by topic."""
+        if topic_id:
+            cur = self.conn.execute(
+                """
+                SELECT c.id, c.topic_id, c.chunk_id, c.document_id, c.citation_type, c.excerpt,
+                       d.title, d.url_original
+                FROM digest_citations c
+                LEFT JOIN documents d ON d.id = c.document_id
+                WHERE c.digest_id = ? AND c.topic_id = ?
+                """,
+                (digest_id, topic_id),
+            )
+        else:
+            cur = self.conn.execute(
+                """
+                SELECT c.id, c.topic_id, c.chunk_id, c.document_id, c.citation_type, c.excerpt,
+                       d.title, d.url_original
+                FROM digest_citations c
+                LEFT JOIN documents d ON d.id = c.document_id
+                WHERE c.digest_id = ?
+                """,
+                (digest_id,),
+            )
+        return [
+            {
+                "id": r[0],
+                "topic_id": r[1],
+                "chunk_id": r[2],
+                "document_id": r[3],
+                "citation_type": r[4],
+                "excerpt": r[5],
+                "title": r[6],
+                "url": r[7],
+            }
+            for r in cur.fetchall()
+        ]
+
+    def get_chunks_in_date_range(
+        self,
+        date_from: str,
+        date_to: str,
+        limit: int = 2000,
+    ) -> list[dict[str, Any]]:
+        """Get chunks from documents in a date range (for Digest generation).
+
+        Args:
+            date_from: ISO date string (e.g. '2025-12-12')
+            date_to: ISO date string (e.g. '2025-12-19')
+            limit: Max chunks to return
+
+        Returns:
+            List of chunks with document metadata
+        """
+        cur = self.conn.execute(
+            """
+            SELECT c.id, c.document_id, c.chunk_index, c.chunk_text, c.token_count,
+                   d.title, d.author, d.category, d.saved_at
+            FROM document_chunks c
+            JOIN documents d ON d.id = c.document_id
+            WHERE date(d.saved_at) BETWEEN date(?) AND date(?)
+            ORDER BY d.saved_at DESC, c.chunk_index
+            LIMIT ?
+            """,
+            (date_from, date_to, limit),
+        )
+        return [
+            {
+                "id": r[0],
+                "document_id": r[1],
+                "chunk_index": r[2],
+                "chunk_text": r[3],
+                "token_count": r[4],
+                "title": r[5],
+                "author": r[6],
+                "category": r[7],
+                "saved_at": r[8],
+            }
+            for r in cur.fetchall()
+        ]
+
+    def count_chunks_in_date_range(self, date_from: str, date_to: str) -> dict[str, int]:
+        """Count chunks and docs in a date range."""
+        cur = self.conn.execute(
+            """
+            SELECT COUNT(DISTINCT d.id), COUNT(c.id)
+            FROM documents d
+            LEFT JOIN document_chunks c ON c.document_id = d.id
+            WHERE date(d.saved_at) BETWEEN date(?) AND date(?)
+            """,
+            (date_from, date_to),
+        )
+        row = cur.fetchone()
+        return {"docs": row[0], "chunks": row[1]}
 
 
 _db: DB | None = None

@@ -11,9 +11,9 @@ Aktuelles Ziel
 - LLM-Powered Default Digest implementieren
 
 Naechste Schritte (Claude Code, max 3)
-1) Digest Phase 1: LLM Provider + DB-Schema
-2) Digest Phase 2: Pipeline (Fetch, Cluster, Summarize, Compile)
-3) Digest Phase 3-4: API + UI
+1) Digest Phase 2: Pipeline (Fetch, Cluster, Summarize, Compile)
+2) Digest Phase 3: API Routes (/digest, /api/digest/*)
+3) Digest Phase 4: UI (digest_home.html)
 
 Geplant (Detail-Plan)
 - /Users/karsten/.claude/plans/luminous-juggling-biscuit.md
@@ -23,6 +23,14 @@ Geplant (Detail-Plan)
 - ~10 Tage in 6 Phasen
 
 Handoff
+- Digest Phase 1 implementiert (2025-12-19):
+  - llm_providers.py: OpenAIChatProvider (GPT-4.1 nano/mini, GPT-4o-mini, GPT-4o)
+  - DB-Schema: llm_configs, generated_digests, digest_topics, digest_citations
+  - DB-Methoden: get/set_llm_config, save/get_generated_digest, get_chunks_in_date_range
+  - Health Check funktioniert: GPT-4.1-mini verbunden (Latency ~1.7s)
+  - Kosten-Schaetzung: estimate_digest_cost() fuer 2000 Chunks = ~$0.33
+  - Test: 428 Chunks im 7-Tage-Zeitraum verfuegbar
+
 - Digest-Plan erstellt (2025-12-19):
   - Vision: Wochenübersicht mit LLM-Summaries, Themen-Cluster, Highlights
   - Route: /digest (eigene Seite, nicht Startseite)
