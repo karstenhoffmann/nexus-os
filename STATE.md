@@ -4,6 +4,7 @@ Stand (kurz)
 - Semantische Suche funktioniert (sqlite-vec KNN + Chunk-Metadaten)
 - UI/Design System mit CSS-Variablen, Dark Mode, Feather Icons
 - Library-Seite mit Tabellenansicht, Filtern und Sortierung (FTS + Semantic)
+- Unified Sync Pipeline: Import -> Chunk -> Embed -> Index in einem Flow
 
 Aktuelles Ziel
 - Drafts-Seite implementieren
@@ -11,41 +12,30 @@ Aktuelles Ziel
 Naechste Schritte (Claude Code, max 3)
 1) Feature Development: Drafts-Seite
 2) Optional: Digests-Feedback einarbeiten
-3) Optional: Doppelte Embeddings pruefen (8 Stueck)
+3) Optional: 11 Docs ohne Chunks pruefen
 
 Handoff
+- Unified Sync Pipeline implementiert (2025-12-19):
+  - Neue Seite /sync ersetzt /readwise/import
+  - 4-Phasen Stepper: Import -> Chunk -> Embed -> Index
+  - pipeline_job.py orchestriert bestehende Jobs (ImportJob, EmbedJob)
+  - SSE Streaming fuer Live-Progress aller Phasen
+  - Kosten-Schaetzung vor Embedding-Phase
+  - Navigation aktualisiert: "Import" -> "Sync"
+  - Alte Import-Seite bleibt erreichbar unter /readwise/import
+
 - Kategorie-Normalisierung implementiert (2025-12-18):
-  - Neues Modul app/core/categories.py mit normalize_category()
-  - Plural->Singular Mapping (articles->article, tweets->tweet)
-  - LinkedIn-Regel: URLs mit linkedin.com werden Kategorie "linkedin"
-  - Integration in save_article() - gilt fuer alle Imports/Re-Syncs
-  - LinkedIn Badge CSS hinzugefuegt
-  - NAECHSTER SCHRITT: Re-Sync via /readwise/import fuer echte Kategorien
+  - normalize_category() in app/core/categories.py
+  - Re-Sync durchgefuehrt: 2639 Docs mit echten Kategorien
+  - LinkedIn (221), Podcast (428), PDF (96), Tweet (63), RSS (204), Book (32)
 
-- Library-Filter gefixt (2025-12-18):
-  - "Volltext" und "Highlights" Filter-Buttons funktionieren jetzt
-  - Volltext=true zeigt Dokumente MIT fulltext
-  - Highlights=true zeigt Dokumente OHNE fulltext aber MIT highlights (464 Stueck)
-  - Beide aktiv = alle Dokumente mit Inhalt
-  - Filter in search_library() und search_library_semantic() implementiert
-
-- Library-Ansicht komplett ueberarbeitet (2025-12-18):
-  - Neue Spalte "Highlights" mit Anzahl pro Dokument (sortierbar)
-  - Datum zeigt jetzt: saved_at ODER erstes Highlight-Datum als Fallback
-  - highlight_count in search_library() und search_library_semantic()
-  - 464 highlight-only Dokumente werden korrekt mit Datum angezeigt
-  - word_count ist NULL fuer bestehende Docs (wird bei Re-Import gefuellt)
-
-- Detail-Seite redesigned (2025-12-18):
-  - Markdown-Rendering via markdown2
-  - Copy-Buttons fuer Highlights und Fulltext
-  - Metadata-Grid mit category, word_count, dates
-
-- Import-Pipeline gefixt:
-  - category/word_count/saved_at werden jetzt bei Import gespeichert
-  - Backfill-Migration setzt category='article' fuer alle bestehenden Docs
+- Library komplett (2025-12-18):
+  - Filter (Volltext/Highlights), Sortierung, Highlights-Spalte
+  - Detail-Seite mit Markdown, Copy-Buttons
 
 Status
+- Total Docs: 2.639
+- Mit Fulltext: 2.160
+- Ohne Chunks: 11
 - Total Chunks: 69.338
-- Mit Embeddings: 69.346 (100%)
-- Verwaiste Embeddings: 0
+- Mit Embeddings: 69.338 (100%)
