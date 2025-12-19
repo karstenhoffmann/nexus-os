@@ -23,6 +23,14 @@ Geplant (Detail-Plan)
 - ~10 Tage in 6 Phasen
 
 Handoff
+- Digest Phase 2a: digest_job.py erstellt (2025-12-19):
+  - DigestPhase: IDLE, FETCH, CLUSTER, SUMMARIZE, COMPILE, DONE
+  - DigestStatus: PENDING, RUNNING, COMPLETED, FAILED
+  - DigestEvent mit SSE-Serialisierung
+  - DigestJob mit Token/Cost-Tracking
+  - DigestJobStore (thread-safe, in-memory)
+  - Naechster Schritt: digest_clustering.py
+
 - Digest Phase 1 implementiert (2025-12-19):
   - llm_providers.py: OpenAIChatProvider (GPT-4.1 nano/mini, GPT-4o-mini, GPT-4o)
   - DB-Schema: llm_configs, generated_digests, digest_topics, digest_citations
