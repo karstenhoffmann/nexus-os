@@ -9,11 +9,12 @@ Stand (kurz)
 - Admin Prompt-Management mit Registry-Pattern (getestet, funktioniert)
 
 Aktuelles Ziel
-- Feature komplett: Admin Prompt-Management
+- UI Design Review: Hardcoded Colors beheben
 
 Naechste Schritte (Claude Code, max 3)
-1) Commit + Push (Feature fertig)
-2) Naechstes Feature: Draft-Generierung mit LLM?
+1) Hardcoded Colors ersetzen (~80 rgba/hex-Werte in Templates)
+2) Fehlende Variablen in app.css ergaenzen (purple, linkedin, modal-overlay)
+3) Icon-Size Utilities definieren
 
 Geplant (Detail-Plan)
 - /Users/karsten/.claude/plans/floating-strolling-biscuit.md
@@ -22,6 +23,20 @@ Geplant (Detail-Plan)
 - Cached + Refresh, Admin-Konfiguration, Usage-Stats
 
 Handoff
+- UI Design Review IN PROGRESS (2025-12-19):
+  - Review durchgefuehrt: Design-System Score 7.4/10
+  - ERLEDIGT: Undefined CSS Variables (commit 4a151f1)
+    - --border-color -> --border (19x)
+    - --bg-primary -> --bg-card (3x)
+    - --text-primary -> --text (5x)
+    - --accent -> --primary (7x)
+    - --bg-muted/--bg-code/--bg-tertiary -> --bg-secondary (8x)
+  - OFFEN: ~80 hardcoded rgba/hex Colors in Templates
+    - Hauptsaechlich in: admin_embeddings, admin_fetch, library_results, document_detail
+    - Pattern: rgba(120,120,120,*) und #dc2626/#22c55e etc.
+  - OFFEN: Fehlende Variablen in app.css (purple, linkedin, twitter, modal-overlay)
+  - OFFEN: Icon-Size Utilities (.icon-xs bis .icon-xl)
+
 - Admin Prompt-Management KOMPLETT (2025-12-19):
   - app/core/prompts.py: DEFAULT_PROMPTS Registry mit 3 Prompts
   - DB-Tabelle prompt_templates fuer Custom Overrides
