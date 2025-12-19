@@ -1,13 +1,14 @@
 {% extends "base.html" %}
+{% from "macros/icons.html" import icon %}
 {% block content %}
 
 <div class="breadcrumb">
-  <a href="/library"><i data-feather="arrow-left"></i> Zurueck zur Bibliothek</a>
+  <a href="/library">{{ icon("arrow-left") }} Zurueck zur Bibliothek</a>
 </div>
 
 {% if error %}
 <div class="card card-error">
-  <i data-feather="alert-circle"></i> {{ error }}
+  {{ icon("alert-circle") }} {{ error }}
 </div>
 {% endif %}
 
@@ -21,7 +22,7 @@
     <div class="meta-grid">
       {% if doc.author %}
       <div class="meta-item">
-        <i data-feather="user"></i>
+        {{ icon("user") }}
         <span>{{ doc.author }}</span>
       </div>
       {% endif %}
@@ -34,21 +35,21 @@
 
       {% if doc.word_count %}
       <div class="meta-item">
-        <i data-feather="file-text"></i>
+        {{ icon("file-text") }}
         <span>{{ "{:,}".format(doc.word_count).replace(",", ".") }} Woerter</span>
       </div>
       {% endif %}
 
       {% if doc.saved_at %}
       <div class="meta-item">
-        <i data-feather="bookmark"></i>
+        {{ icon("bookmark") }}
         <span>Gespeichert: {{ doc.saved_at[:10] }}</span>
       </div>
       {% endif %}
 
       {% if doc.published_at %}
       <div class="meta-item">
-        <i data-feather="calendar"></i>
+        {{ icon("calendar") }}
         <span>Veroeffentlicht: {{ doc.published_at[:10] }}</span>
       </div>
       {% endif %}
@@ -56,7 +57,7 @@
       {% if doc.url_original %}
       <div class="meta-item">
         <a href="{{ doc.url_original }}" target="_blank" rel="noopener">
-          <i data-feather="external-link"></i> Original
+          {{ icon("external-link") }} Original
         </a>
       </div>
       {% endif %}
@@ -71,7 +72,7 @@
   {% if doc.summary %}
   <section class="card">
     <div class="section-header">
-      <h2><i data-feather="align-left"></i> Zusammenfassung</h2>
+      <h2>{{ icon("align-left") }} Zusammenfassung</h2>
     </div>
     <div class="summary-content">
       {{ doc.summary|markdown|safe }}
@@ -83,7 +84,7 @@
   {% if highlights %}
   <section class="card">
     <div class="section-header">
-      <h2><i data-feather="bookmark"></i> Highlights ({{ highlights|length }})</h2>
+      <h2>{{ icon("bookmark") }} Highlights ({{ highlights|length }})</h2>
     </div>
     <ul class="highlights-list">
       {% for h in highlights %}
@@ -92,7 +93,7 @@
           <blockquote>{{ h.text|markdown|safe }}</blockquote>
           {% if h.note %}
           <p class="highlight-note">
-            <i data-feather="message-circle"></i> {{ h.note }}
+            {{ icon("message-circle") }} {{ h.note }}
           </p>
           {% endif %}
           {% if h.highlighted_at %}
@@ -100,7 +101,7 @@
           {% endif %}
         </div>
         <button class="btn btn-icon copy-btn" @click="copyToClipboard($event, '{{ h.text|e|replace("'", "\\'") }}')" title="Markdown kopieren">
-          <i data-feather="copy"></i>
+          {{ icon("copy") }}
         </button>
       </li>
       {% endfor %}
@@ -112,9 +113,9 @@
   {% if doc.fulltext %}
   <section class="card">
     <div class="section-header">
-      <h2><i data-feather="file-text"></i> Inhalt</h2>
+      <h2>{{ icon("file-text") }} Inhalt</h2>
       <button class="btn btn-secondary btn-sm copy-btn" @click="copyFulltext($event)" title="Rohen Text kopieren">
-        <i data-feather="copy"></i> Kopieren
+        {{ icon("copy") }} Kopieren
       </button>
     </div>
     <div class="article-content">
@@ -123,7 +124,7 @@
   </section>
   {% elif not highlights %}
   <div class="card empty-state">
-    <i data-feather="inbox" class="empty-icon"></i>
+    {{ icon("inbox", "empty-icon") }}
     <p>Kein Inhalt fuer dieses Dokument verfuegbar.</p>
   </div>
   {% endif %}
@@ -153,12 +154,10 @@ function documentApp() {
     },
     showCopyFeedback(button) {
       const originalHTML = button.innerHTML;
-      button.innerHTML = '<i data-feather="check"></i>';
-      feather.replace();
+      button.innerHTML = '{{ icon("check") }}';
       button.classList.add('copy-success');
       setTimeout(() => {
         button.innerHTML = originalHTML;
-        feather.replace();
         button.classList.remove('copy-success');
       }, 1500);
     }

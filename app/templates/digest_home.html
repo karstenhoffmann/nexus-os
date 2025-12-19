@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros/icons.html" import icon %}
 {% block content %}
 
 <h1>Digest</h1>
@@ -7,7 +8,7 @@
 
   <!-- Generation Controls (always on top) -->
   <div class="card">
-    <h2><i data-feather="zap"></i> Neuen Digest generieren</h2>
+    <h2>{{ icon("zap") }} Neuen Digest generieren</h2>
 
     <!-- Estimate -->
     <div class="estimate-section" x-show="!running">
@@ -40,7 +41,7 @@
       </div>
 
       <div class="cost-estimate" x-show="estimate">
-        <i data-feather="info"></i>
+        {{ icon("info") }}
         <span>
           <strong x-text="estimate?.docs_count || 0"></strong> Dokumente,
           <strong x-text="estimate?.chunks_count || 0"></strong> Chunks
@@ -50,7 +51,7 @@
 
       <div class="button-group">
         <button type="button" class="btn btn-primary" @click="startGeneration" :disabled="!estimate || estimate.chunks_count === 0">
-          <i data-feather="zap"></i> Digest generieren
+          {{ icon("zap") }} Digest generieren
         </button>
       </div>
     </div>
@@ -63,7 +64,7 @@
       </div>
 
       <div class="activity-log" x-show="currentActivity">
-        <span class="activity-icon"><i data-feather="activity"></i></span>
+        <span class="activity-icon">{{ icon("activity") }}</span>
         <span x-text="currentActivity"></span>
       </div>
 
@@ -76,7 +77,7 @@
     <!-- Completion -->
     <div class="card-success" x-show="status === 'completed'" style="margin-top: var(--space-md);">
       <div class="completion-summary">
-        <div class="summary-icon"><i data-feather="check-circle"></i></div>
+        <div class="summary-icon">{{ icon("check-circle") }}</div>
         <div class="summary-content">
           <strong>Digest erfolgreich generiert!</strong>
           <span x-text="'Kosten: $' + costUsd.toFixed(4)"></span>
@@ -87,7 +88,7 @@
     <!-- Error -->
     <div class="card-error" x-show="error" style="margin-top: var(--space-md);">
       <div class="error-content">
-        <i data-feather="alert-circle"></i>
+        {{ icon("alert-circle") }}
         <span x-text="error"></span>
       </div>
     </div>
@@ -104,7 +105,7 @@
       <button class="filter-pill"
               :class="{ active: favoritesOnly }"
               @click="favoritesOnly = true; loadHistory()">
-        <i data-feather="star"></i> Favoriten
+        {{ icon("star") }} Favoriten
       </button>
     </div>
     <span class="digest-count" x-text="digests.length + ' Digests'"></span>
@@ -114,7 +115,7 @@
   <div class="digests-list">
     <!-- Empty State -->
     <div class="card empty-state" x-show="digests.length === 0 && !loading">
-      <i data-feather="file-text"></i>
+      {{ icon("file-text") }}
       <p>Noch keine Digests generiert.</p>
       <p class="text-muted">Starte oben die Generierung.</p>
     </div>
@@ -133,21 +134,21 @@
         <!-- Header (always visible) -->
         <div class="digest-card-header" @click="expandDigest(digest.id)">
           <div class="digest-card-icon">
-            <i data-feather="file-text"></i>
+            {{ icon("file-text") }}
           </div>
           <div class="digest-card-info">
             <h3 class="digest-card-title" x-text="digest.title || digest.name"></h3>
             <div class="digest-card-meta">
               <span class="meta-badge">
-                <i data-feather="calendar"></i>
+                {{ icon("calendar") }}
                 <span x-text="digest.time_range_days + ' Tage'"></span>
               </span>
               <span class="meta-badge">
-                <i data-feather="layers"></i>
+                {{ icon("layers") }}
                 <span x-text="(digest.chunks_analyzed || 0) + ' Chunks'"></span>
               </span>
               <span class="meta-badge">
-                <i data-feather="cpu"></i>
+                {{ icon("cpu") }}
                 <span x-text="digest.model_id"></span>
               </span>
               <span class="meta-badge">
@@ -160,17 +161,18 @@
                     :class="{ 'is-favorite': digest.is_favorite }"
                     @click="toggleFavorite(digest.id)"
                     title="Favorit">
-              <i data-feather="star"></i>
+              {{ icon("star") }}
             </button>
             <button class="btn-icon"
                     @click="expandDigest(digest.id)"
                     :title="expandedId === digest.id ? 'Einklappen' : 'Ausklappen'">
-              <i :data-feather="expandedId === digest.id ? 'chevron-up' : 'chevron-down'"></i>
+              <svg x-show="expandedId !== digest.id" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              <svg x-show="expandedId === digest.id" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
             </button>
             <button class="btn-icon btn-danger"
                     @click="deleteDigest(digest.id)"
                     title="Loeschen">
-              <i data-feather="trash-2"></i>
+              {{ icon("trash-2") }}
             </button>
           </div>
         </div>
@@ -225,8 +227,9 @@
   <!-- Log (collapsible) -->
   <div class="card log-card" x-show="log.length > 0">
     <div class="log-header" @click="showLog = !showLog">
-      <h3><i data-feather="terminal"></i> Generierungs-Log</h3>
-      <i :data-feather="showLog ? 'chevron-up' : 'chevron-down'"></i>
+      <h3>{{ icon("terminal") }} Generierungs-Log</h3>
+      <svg x-show="!showLog" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      <svg x-show="showLog" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
     </div>
     <div class="log-container" x-show="showLog" x-transition>
       <template x-for="(entry, idx) in log.slice(-20).reverse()" :key="idx">
@@ -287,7 +290,6 @@ function digestApp() {
     async init() {
       this.fetchEstimate();
       await this.loadHistory();
-      feather.replace();
     },
 
     async fetchEstimate() {
@@ -318,7 +320,6 @@ function digestApp() {
         console.error('History error:', e);
       } finally {
         this.loading = false;
-        this.$nextTick(() => feather.replace());
       }
     },
 
@@ -327,13 +328,11 @@ function digestApp() {
         // Already expanded -> collapse
         this.expandedId = null;
         this.expandedData = null;
-        this.$nextTick(() => feather.replace());
         return;
       }
 
       this.expandedId = id;
       this.loadingId = id;
-      this.$nextTick(() => feather.replace());
 
       try {
         const res = await fetch(`/api/digest/${id}`);
@@ -342,7 +341,6 @@ function digestApp() {
         console.error('Load digest error:', e);
       } finally {
         this.loadingId = null;
-        this.$nextTick(() => feather.replace());
       }
     },
 
@@ -355,7 +353,6 @@ function digestApp() {
         if (digest) {
           digest.is_favorite = data.is_favorite;
         }
-        this.$nextTick(() => feather.replace());
       } catch (e) {
         console.error('Toggle favorite error:', e);
       }
@@ -371,7 +368,6 @@ function digestApp() {
           this.expandedId = null;
           this.expandedData = null;
         }
-        this.$nextTick(() => feather.replace());
       } catch (e) {
         console.error('Delete error:', e);
       }
@@ -422,7 +418,6 @@ function digestApp() {
         this.phase = data.phase;
         this.currentActivity = data.message || `Phase ${data.phase} gestartet`;
         this.addLog('info', data.message || `Phase ${data.phase} gestartet`);
-        feather.replace();
       });
 
       this.eventSource.addEventListener('phase_complete', (e) => {
@@ -468,8 +463,6 @@ function digestApp() {
         if (data.digest_id) {
           this.expandDigest(data.digest_id);
         }
-
-        feather.replace();
       });
 
       this.eventSource.addEventListener('digest_failed', (e) => {
@@ -479,7 +472,6 @@ function digestApp() {
         this.error = data.error;
         this.addLog('error', 'Fehler: ' + data.error);
         this.eventSource.close();
-        feather.replace();
       });
 
       this.eventSource.onerror = (e) => {

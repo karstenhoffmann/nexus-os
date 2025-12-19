@@ -1,48 +1,49 @@
 {% if rows %}
+{% from "macros/icons.html" import icon %}
 <table class="data-table library-table">
   <thead>
     <tr>
       <th class="sortable" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('title')">
         Titel
         {% if sort_by == 'title' %}
-          <i data-feather="chevron-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+          {{ icon("chevron-{{ 'up' if sort_dir == 'asc' else 'down' }}") }}
         {% endif %}
       </th>
       <th class="sortable col-numeric" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('highlight_count')">
-        <i data-feather="bookmark"></i>
+        {{ icon("bookmark") }}
         {% if sort_by == 'highlight_count' %}
-          <i data-feather="chevron-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+          {{ icon("chevron-{{ 'up' if sort_dir == 'asc' else 'down' }}") }}
         {% endif %}
       </th>
       <th class="sortable" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('author')">
         Autor
         {% if sort_by == 'author' %}
-          <i data-feather="chevron-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+          {{ icon("chevron-{{ 'up' if sort_dir == 'asc' else 'down' }}") }}
         {% endif %}
       </th>
       <th class="sortable" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('category')">
         Typ
         {% if sort_by == 'category' %}
-          <i data-feather="chevron-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+          {{ icon("chevron-{{ 'up' if sort_dir == 'asc' else 'down' }}") }}
         {% endif %}
       </th>
       <th class="sortable" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('saved_at')">
         Datum
         {% if sort_by == 'saved_at' %}
-          <i data-feather="chevron-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+          {{ icon("chevron-{{ 'up' if sort_dir == 'asc' else 'down' }}") }}
         {% endif %}
       </th>
       <th class="sortable col-numeric" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('word_count')">
         Woerter
         {% if sort_by == 'word_count' %}
-          <i data-feather="chevron-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+          {{ icon("chevron-{{ 'up' if sort_dir == 'asc' else 'down' }}") }}
         {% endif %}
       </th>
       {% if mode == 'semantic' %}
       <th class="sortable col-numeric" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('distance')">
         Score
         {% if sort_by == 'distance' %}
-          <i data-feather="chevron-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+          {{ icon("chevron-{{ 'up' if sort_dir == 'asc' else 'down' }}") }}
         {% endif %}
       </th>
       {% endif %}
@@ -55,7 +56,7 @@
         <a href="/documents/{{ r.id }}">{{ r.title or ("Doc #" ~ r.id) }}</a>
         {% if r.url %}
         <div class="source-url">
-          <i data-feather="external-link"></i>
+          {{ icon("external-link") }}
           <a href="{{ r.url }}" target="_blank" rel="noopener" class="url-link">{{ r.url[:60] }}{% if r.url|length > 60 %}...{% endif %}</a>
         </div>
         {% endif %}
@@ -88,15 +89,15 @@
 
 <script>
 // Re-render feather icons after HTMX swap
-feather.replace();
+
 </script>
 
 {% else %}
 <div class="empty-state">
-  <i data-feather="search" class="empty-icon"></i>
+  {{ icon("search", "empty-icon") }}
   <p>Keine Ergebnisse gefunden.</p>
 </div>
-<script>feather.replace();</script>
+<script></script>
 {% endif %}
 
 <style>

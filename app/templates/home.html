@@ -1,7 +1,37 @@
 {% extends "base.html" %}
+{% from "macros/icons.html" import icon %}
 {% block content %}
 
 <h1>Start</h1>
+
+<!-- Hero Search -->
+<section class="hero-search">
+  <form action="/library" method="get" class="hero-search-form">
+    <div class="hero-search-bar">
+      {{ icon("search", "hero-search-icon") }}
+      <input
+        type="text"
+        name="q"
+        class="hero-search-input"
+        placeholder="Suche in deiner Library..."
+        autofocus
+      >
+      <div class="hero-search-actions">
+        <select name="mode" class="hero-mode-select">
+          <option value="semantic">Semantic</option>
+          <option value="fts">Keyword</option>
+        </select>
+        <button type="submit" class="hero-search-btn" aria-label="Suchen">
+          {{ icon("arrow-right") }}
+        </button>
+      </div>
+    </div>
+  </form>
+  <p class="hero-search-hint">
+    {{ icon("zap") }}
+    <span>Semantische Suche findet Bedeutung, nicht nur Woerter</span>
+  </p>
+</section>
 
 <div class="grid">
   <div class="card">

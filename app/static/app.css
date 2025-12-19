@@ -912,3 +912,335 @@ input[type="color"]::-webkit-color-swatch {
 
 /* Cloak for Alpine.js */
 [x-cloak] { display: none !important; }
+
+/* ===========================================
+   Hero Search (Startseite)
+   =========================================== */
+
+.hero-search {
+  margin: var(--space-xl) 0 var(--space-2xl);
+}
+
+.hero-search-form {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+/* Die zusammenhängende Suchleiste */
+.hero-search-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap; /* NIEMALS umbrechen auf Desktop */
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-md);
+  background: var(--bg-card);
+  border: 2px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.hero-search-bar:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-light);
+}
+
+.hero-search-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.hero-search-bar input.hero-search-input,
+.hero-search-bar input.hero-search-input[type="text"] {
+  flex: 1 1 auto;
+  min-width: 0; /* Wichtig für flex truncation */
+  width: auto !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: var(--font-size-lg);
+  padding: var(--space-xs) var(--space-sm);
+  color: var(--text);
+}
+
+.hero-search-bar input.hero-search-input:focus {
+  outline: none;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.hero-search-bar input.hero-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Actions Container (Select + Button) */
+.hero-search-bar .hero-search-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-shrink: 0;
+}
+
+.hero-search-bar select.hero-mode-select {
+  width: auto !important;
+  min-width: 100px;
+  max-width: 120px;
+  padding: var(--space-xs) 2rem var(--space-xs) var(--space-sm);
+  font-size: var(--font-size-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-secondary);
+  cursor: pointer;
+}
+
+.hero-search-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.hero-search-btn:hover {
+  background: var(--primary-hover);
+}
+
+.hero-search-btn svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/* Hint unterhalb */
+.hero-search-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  margin-top: var(--space-md);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.hero-search-hint svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+/* Mobile Responsive */
+@media (max-width: 480px) {
+  .hero-search-bar {
+    flex-wrap: wrap;
+    padding: var(--space-sm);
+    gap: var(--space-sm);
+  }
+
+  .hero-search-bar .hero-search-icon {
+    display: none; /* Platz sparen auf Mobile */
+  }
+
+  .hero-search-bar input.hero-search-input {
+    width: 100% !important;
+    flex: none;
+    font-size: var(--font-size-base);
+  }
+
+  .hero-search-bar .hero-search-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .hero-search-bar select.hero-mode-select {
+    flex: 1;
+    max-width: none;
+  }
+}
+
+/* ===========================================
+   HTMX Loading & Error States
+   =========================================== */
+
+/* Loading Indicator - wird während HTMX-Request angezeigt */
+.htmx-indicator {
+  display: none;
+}
+
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+/* Button Loading State */
+.btn.htmx-request {
+  position: relative;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.btn.htmx-request::after {
+  content: '';
+  position: absolute;
+  width: 1em;
+  height: 1em;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  right: var(--space-sm);
+}
+
+/* Container Loading State (für Bereiche die neu geladen werden) */
+.htmx-request:not(.btn) {
+  position: relative;
+  min-height: 60px;
+}
+
+/* Overlay während Loading - nur für Container, nicht für inline-Elemente */
+.htmx-swapping:not(.btn):not(.badge):not(span)::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--bg-card);
+  opacity: 0.7;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+.htmx-swapping:not(.btn):not(.badge):not(span)::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  border: 3px solid var(--bg-secondary);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  z-index: 2;
+}
+
+/* HTMX Error State */
+.htmx-error-container {
+  padding: var(--card-padding);
+  background: var(--error-bg);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.htmx-error-container .error-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--error);
+  margin-bottom: var(--space-sm);
+}
+
+.htmx-error-container .error-title {
+  font-weight: var(--font-weight-semibold);
+  color: var(--error);
+  margin-bottom: var(--space-xs);
+}
+
+.htmx-error-container .error-message {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-md);
+}
+
+.htmx-error-container .btn-retry {
+  background: var(--error);
+  color: white;
+}
+
+.htmx-error-container .btn-retry:hover {
+  background: #dc2626;
+}
+
+/* Toast Notifications */
+.htmx-toast-container {
+  position: fixed;
+  bottom: var(--space-lg);
+  right: var(--space-lg);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  pointer-events: none;
+}
+
+.htmx-toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border);
+  font-size: var(--font-size-sm);
+  pointer-events: auto;
+  animation: slideIn 0.3s ease;
+}
+
+.htmx-toast.toast-error {
+  border-left: 4px solid var(--error);
+}
+
+.htmx-toast.toast-success {
+  border-left: 4px solid var(--success);
+}
+
+.htmx-toast svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+}
+
+.htmx-toast.toast-error svg {
+  color: var(--error);
+}
+
+.htmx-toast.toast-success svg {
+  color: var(--success);
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.htmx-toast.removing {
+  animation: slideOut 0.3s ease forwards;
+}

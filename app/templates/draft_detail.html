@@ -1,21 +1,22 @@
 {% extends "base.html" %}
+{% from "macros/icons.html" import icon %}
 {% block content %}
 
 <div class="breadcrumb">
-  <a href="/drafts"><i data-feather="arrow-left"></i> Drafts</a>
+  <a href="/drafts">{{ icon("arrow-left") }} Drafts</a>
 </div>
 
 <div class="draft-header" x-data="{ editingTitle: false }">
   <div class="draft-title-row">
     <div class="draft-icon-lg">
-      {% if draft.kind == 'linkedin' %}<i data-feather="linkedin"></i>
-      {% elif draft.kind == 'article' %}<i data-feather="file-text"></i>
-      {% else %}<i data-feather="edit-3"></i>{% endif %}
+      {% if draft.kind == 'linkedin' %}{{ icon("linkedin") }}
+      {% elif draft.kind == 'article' %}{{ icon("file-text") }}
+      {% else %}{{ icon("edit-3") }}{% endif %}
     </div>
     <div class="draft-title-edit" x-show="!editingTitle">
       <h1>{{ draft.title or ("Draft #" ~ draft.id) }}</h1>
       <button class="btn-icon" @click="editingTitle = true" title="Titel bearbeiten">
-        <i data-feather="edit-2"></i>
+        {{ icon("edit-2") }}
       </button>
     </div>
     <form x-show="editingTitle" action="/drafts/{{ draft.id }}/title" method="post" class="title-form">
@@ -26,8 +27,8 @@
   </div>
   <div class="draft-meta-row">
     <span class="status-badge status-{{ draft.status }}">{{ draft.status }}</span>
-    <span class="meta-item"><i data-feather="calendar"></i> {{ draft.created_at[:10] if draft.created_at else '' }}</span>
-    <span class="meta-item"><i data-feather="clock"></i> {{ draft.versions|length }} Version{% if draft.versions|length != 1 %}en{% endif %}</span>
+    <span class="meta-item">{{ icon("calendar") }} {{ draft.created_at[:10] if draft.created_at else '' }}</span>
+    <span class="meta-item">{{ icon("clock") }} {{ draft.versions|length }} Version{% if draft.versions|length != 1 %}en{% endif %}</span>
   </div>
 </div>
 
@@ -37,33 +38,33 @@
     <form action="/drafts/{{ draft.id }}/status" method="post" style="display:inline;">
       <input type="hidden" name="status" value="published">
       <button type="submit" class="btn btn-success btn-sm">
-        <i data-feather="check-circle"></i> Als fertig markieren
+        {{ icon("check-circle") }} Als fertig markieren
       </button>
     </form>
     <form action="/drafts/{{ draft.id }}/status" method="post" style="display:inline;">
       <input type="hidden" name="status" value="archived">
       <button type="submit" class="btn btn-secondary btn-sm">
-        <i data-feather="archive"></i> Archivieren
+        {{ icon("archive") }} Archivieren
       </button>
     </form>
   {% elif draft.status == 'published' %}
     <form action="/drafts/{{ draft.id }}/status" method="post" style="display:inline;">
       <input type="hidden" name="status" value="working">
       <button type="submit" class="btn btn-secondary btn-sm">
-        <i data-feather="edit"></i> Weiter bearbeiten
+        {{ icon("edit") }} Weiter bearbeiten
       </button>
     </form>
     <form action="/drafts/{{ draft.id }}/status" method="post" style="display:inline;">
       <input type="hidden" name="status" value="archived">
       <button type="submit" class="btn btn-secondary btn-sm">
-        <i data-feather="archive"></i> Archivieren
+        {{ icon("archive") }} Archivieren
       </button>
     </form>
   {% else %}
     <form action="/drafts/{{ draft.id }}/status" method="post" style="display:inline;">
       <input type="hidden" name="status" value="working">
       <button type="submit" class="btn btn-secondary btn-sm">
-        <i data-feather="rotate-ccw"></i> Reaktivieren
+        {{ icon("rotate-ccw") }} Reaktivieren
       </button>
     </form>
   {% endif %}
@@ -71,7 +72,7 @@
 
 <!-- New Version Form -->
 <div class="card" x-data="draftEditor()">
-  <h2><i data-feather="edit-3"></i> Neue Version erstellen</h2>
+  <h2>{{ icon("edit-3") }} Neue Version erstellen</h2>
   <form action="/drafts/{{ draft.id }}/version" method="post">
     <div class="form-group">
       <label for="text">Inhalt</label>
@@ -87,14 +88,14 @@
       <input type="text" name="note" id="note" class="input" placeholder="z.B. Feedback von Max eingearbeitet">
     </div>
     <button type="submit" class="btn btn-primary">
-      <i data-feather="save"></i> Version speichern
+      {{ icon("save") }} Version speichern
     </button>
   </form>
 </div>
 
 <!-- Version History -->
 <div class="card">
-  <h2><i data-feather="git-branch"></i> Versionshistorie</h2>
+  <h2>{{ icon("git-branch") }} Versionshistorie</h2>
   {% if draft.versions %}
   <div class="versions-list">
     {% for v in draft.versions %}
@@ -107,12 +108,12 @@
           <span class="version-note">{{ v.note }}</span>
           {% endif %}
         </div>
-        <i data-feather="chevron-down" class="version-chevron" :class="{ 'rotated': expanded }"></i>
+        <span class="version-chevron" :class="{ 'rotated': expanded }">{{ icon("chevron-down") }}</span>
       </div>
       <div class="version-content" x-show="expanded" x-transition>
         <pre class="version-text">{{ v.text }}</pre>
         <button class="btn btn-secondary btn-sm copy-btn" @click="navigator.clipboard.writeText($refs.text{{ v.id }}.innerText)">
-          <i data-feather="copy"></i> Kopieren
+          {{ icon("copy") }} Kopieren
         </button>
         <span class="version-text-hidden" x-ref="text{{ v.id }}" style="display:none">{{ v.text }}</span>
       </div>

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros/icons.html" import icon %}
 {% block content %}
 
 <h1>Fulltext Fetching</h1>
@@ -43,7 +44,7 @@
       <strong>Fehler:</strong> {{ resumable_job.items_failed }}
     </p>
     <button @click="resumeJob('{{ resumable_job.id }}')" class="btn">
-      <i data-feather="play"></i> Job fortsetzen
+      {{ icon("play") }} Job fortsetzen
     </button>
     <button @click="dismissResume()" class="btn btn-sm">
       Ignorieren
@@ -110,25 +111,25 @@
         class="btn"
         :disabled="status === 'running'"
         x-show="status !== 'running' && status !== 'paused'">
-        <i data-feather="download"></i> Fetch starten
+        {{ icon("download") }} Fetch starten
       </button>
       <button
         @click="pauseFetch()"
         class="btn btn-warning"
         x-show="status === 'running'">
-        <i data-feather="pause"></i> Pausieren
+        {{ icon("pause") }} Pausieren
       </button>
       <button
         @click="resumeFetch()"
         class="btn"
         x-show="status === 'paused'">
-        <i data-feather="play"></i> Fortsetzen
+        {{ icon("play") }} Fortsetzen
       </button>
       <button
         @click="cancelFetch()"
         class="btn btn-danger"
         x-show="status === 'running' || status === 'paused'">
-        <i data-feather="x-circle"></i> Abbrechen
+        {{ icon("x-circle") }} Abbrechen
       </button>
     </div>
   </div>
@@ -163,9 +164,8 @@
               .then(data => { chunkResult = data; chunkLoading = false; })
               .catch(e => { chunkResult = { error: e.message }; chunkLoading = false; })
           ">
-          <i data-feather="zap" x-show="!chunkLoading"></i>
-          <span x-show="!chunkLoading">Chunks + Embeddings generieren</span>
-          <span x-show="chunkLoading"><i data-feather="loader" class="icon-spin"></i> Generiere...</span>
+          <span x-show="!chunkLoading">{{ icon("zap") }} Chunks + Embeddings generieren</span>
+          <span x-show="chunkLoading">{{ icon("loader", "icon-spin") }} Generiere...</span>
         </button>
         <p x-show="chunkResult && !chunkResult.error" class="success" style="margin-top: 0.5rem;">
           Chunks: <span x-text="chunkResult?.chunks_created || 0"></span>,
@@ -188,9 +188,8 @@
               .catch(e => { ftsResult = { error: e.message }; ftsLoading = false; })
           "
           style="margin-top: 0.5rem;">
-          <i data-feather="refresh-cw" x-show="!ftsLoading"></i>
-          <span x-show="!ftsLoading">FTS-Index neu aufbauen</span>
-          <span x-show="ftsLoading"><i data-feather="loader" class="icon-spin"></i> Baue Index...</span>
+          <span x-show="!ftsLoading">{{ icon("refresh-cw") }} FTS-Index neu aufbauen</span>
+          <span x-show="ftsLoading">{{ icon("loader", "icon-spin") }} Baue Index...</span>
         </button>
         <p x-show="ftsResult && !ftsResult.error" class="success" style="margin-top: 0.5rem;" x-text="ftsResult?.message"></p>
         <p x-show="ftsResult?.error" class="error" style="margin-top: 0.5rem;" x-text="ftsResult?.error"></p>
@@ -217,7 +216,7 @@
     </div>
     <div style="margin-top: 1rem;">
       <button @click="retryFailed()" class="btn btn-sm">
-        <i data-feather="refresh-cw"></i> Retry-faehige zuruecksetzen
+        {{ icon("refresh-cw") }} Retry-faehige zuruecksetzen
       </button>
       <span class="hint">(timeout, http_5xx)</span>
     </div>

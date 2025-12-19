@@ -1,4 +1,5 @@
 
+{%- from "macros/icons.html" import icon -%}
 <!doctype html>
 <html lang="de">
 <head>
@@ -8,7 +9,6 @@
   <link rel="stylesheet" href="/static/app.css">
   <script defer src="/static/htmx.min.js"></script>
   <script defer src="/static/alpine.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
   <script>
     // Theme-Presets mit CSS-Variable-Mappings
     const themePresets = {
@@ -181,11 +181,6 @@
         document.documentElement.setAttribute('data-theme', saved);
       }
 
-      // Initialize Feather Icons
-      if (typeof feather !== 'undefined') {
-        feather.replace();
-      }
-
       updateThemeIcon(saved);
 
       // Set active nav link
@@ -197,13 +192,6 @@
         }
       });
     });
-
-    // Re-initialize Feather Icons after HTMX swaps
-    document.addEventListener('htmx:afterSwap', () => {
-      if (typeof feather !== 'undefined') {
-        feather.replace();
-      }
-    });
   </script>
 </head>
 <body>
@@ -211,15 +199,15 @@
     <div class="container row">
       <div class="brand"><a href="/">nexus-os</a></div>
       <nav class="nav">
-        <a href="/library"><i data-feather="book-open"></i> Library</a>
-        <a href="/digest"><i data-feather="zap"></i> Digest</a>
-        <a href="/drafts"><i data-feather="edit-3"></i> Drafts</a>
-        <a href="/readwise/preview"><i data-feather="bookmark"></i> Readwise</a>
-        <a href="/sync"><i data-feather="refresh-cw"></i> Sync</a>
-        <a href="/admin"><i data-feather="settings"></i> Admin</a>
+        <a href="/library">{{ icon("book-open") }} Library</a>
+        <a href="/digest">{{ icon("zap") }} Digest</a>
+        <a href="/drafts">{{ icon("edit-3") }} Drafts</a>
+        <a href="/readwise/preview">{{ icon("bookmark") }} Readwise</a>
+        <a href="/sync">{{ icon("refresh-cw") }} Sync</a>
+        <a href="/admin">{{ icon("settings") }} Admin</a>
         <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">
-          <i data-feather="moon" class="icon-moon"></i>
-          <i data-feather="sun" class="icon-sun"></i>
+          {{ icon("moon", "icon-moon") }}
+          {{ icon("sun", "icon-sun") }}
         </button>
       </nav>
     </div>
@@ -232,5 +220,110 @@
   <footer class="container footer">
     <div>Local-first. Single user. Guardrails on.</div>
   </footer>
+
+  <!-- HTMX Toast Container -->
+  <div id="htmx-toast-container" class="htmx-toast-container"></div>
+
+  <!-- HTMX Error Handling -->
+  <script>
+    (function() {
+      // SVG Icons als Strings (für Toast-Notifications)
+      const icons = {
+        error: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>',
+        success: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>',
+        retry: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>'
+      };
+
+      // Toast anzeigen
+      function showToast(message, type = 'error', duration = 4000) {
+        const container = document.getElementById('htmx-toast-container');
+        if (!container) return;
+
+        const toast = document.createElement('div');
+        toast.className = 'htmx-toast toast-' + type;
+        toast.innerHTML = icons[type] + '<span>' + message + '</span>';
+        container.appendChild(toast);
+
+        // Auto-remove
+        setTimeout(() => {
+          toast.classList.add('removing');
+          setTimeout(() => toast.remove(), 300);
+        }, duration);
+      }
+
+      // Error-HTML für Target-Replacement
+      function createErrorHTML(message, retryUrl, retryTarget) {
+        return '<div class="htmx-error-container">' +
+          icons.error.replace('width="24"', 'class="error-icon" width="40"').replace('height="24"', 'height="40"') +
+          '<div class="error-title">Fehler beim Laden</div>' +
+          '<div class="error-message">' + message + '</div>' +
+          (retryUrl ? '<button class="btn btn-retry" onclick="htmxRetry(this, \'' + retryUrl + '\', \'' + retryTarget + '\')">' +
+            icons.retry.replace('width="24"', 'width="16"').replace('height="24"', 'height="16"') +
+            ' Erneut versuchen</button>' : '') +
+          '</div>';
+      }
+
+      // Retry-Funktion global verfügbar machen
+      window.htmxRetry = function(btn, url, target) {
+        const targetEl = document.querySelector(target);
+        if (targetEl && window.htmx) {
+          btn.disabled = true;
+          btn.innerHTML = '<span class="spinner"></span> Lädt...';
+          htmx.ajax('GET', url, { target: target, swap: 'innerHTML' });
+        }
+      };
+
+      // HTMX Response Error (4xx, 5xx)
+      document.body.addEventListener('htmx:responseError', function(evt) {
+        const xhr = evt.detail.xhr;
+        const target = evt.detail.target;
+        const path = evt.detail.pathInfo?.requestPath || '';
+
+        let message = 'Server-Fehler';
+        if (xhr.status === 404) {
+          message = 'Nicht gefunden';
+        } else if (xhr.status === 500) {
+          message = 'Interner Server-Fehler';
+        } else if (xhr.status >= 400) {
+          message = 'Fehler ' + xhr.status;
+        }
+
+        // Für größere Container: Error-HTML anzeigen
+        if (target && target.offsetHeight > 50) {
+          target.innerHTML = createErrorHTML(message, path, '#' + (target.id || ''));
+        } else {
+          // Für kleine Elemente: Toast anzeigen
+          showToast(message + ': ' + path, 'error');
+        }
+      });
+
+      // HTMX Send Error (Netzwerk-Fehler)
+      document.body.addEventListener('htmx:sendError', function(evt) {
+        const target = evt.detail.target;
+        const path = evt.detail.pathInfo?.requestPath || '';
+
+        if (target && target.offsetHeight > 50) {
+          target.innerHTML = createErrorHTML('Netzwerkfehler - Verbindung prüfen', path, '#' + (target.id || ''));
+        } else {
+          showToast('Netzwerkfehler - Verbindung prüfen', 'error');
+        }
+      });
+
+      // HTMX After Swap Success (optional: für Erfolgs-Feedback)
+      document.body.addEventListener('htmx:afterSwap', function(evt) {
+        // Nur für POST/DELETE/PUT Requests Erfolg anzeigen
+        const verb = evt.detail.requestConfig?.verb;
+        if (verb && ['post', 'delete', 'put'].includes(verb.toLowerCase())) {
+          const path = evt.detail.pathInfo?.requestPath || '';
+          if (path.includes('/cancel') || path.includes('/delete')) {
+            showToast('Aktion erfolgreich', 'success', 2000);
+          }
+        }
+      });
+
+      // Global verfügbar machen
+      window.htmxShowToast = showToast;
+    })();
+  </script>
 </body>
 </html>

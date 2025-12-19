@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros/icons.html" import icon %}
 {% block content %}
 
 <h1>Gespeicherte Queries</h1>
@@ -6,7 +7,7 @@
 
 <!-- Default Digest: Neueste Highlights -->
 <section class="card digest-section">
-  <h2><i data-feather="bookmark"></i> Neueste Highlights</h2>
+  <h2>{{ icon("bookmark") }} Neueste Highlights</h2>
   <p class="muted">Die letzten 10 markierten Stellen aus deinen Dokumenten</p>
 
   {% if highlights %}
@@ -34,7 +35,7 @@
 
 <!-- Gespeicherte Queries -->
 <section class="digest-section">
-  <h2><i data-feather="search"></i> Gespeicherte Queries</h2>
+  <h2>{{ icon("search") }} Gespeicherte Queries</h2>
   <p class="muted">Klicke auf eine Query, um die Ergebnisse zu sehen</p>
 
   {% if digests %}
@@ -44,8 +45,8 @@
       <!-- Header - Click to expand -->
       <div class="digest-header" @click="open = !open; if(!loaded) { $refs.results.dispatchEvent(new Event('load-results')); loaded = true; }">
         <span class="digest-toggle">
-          <i data-feather="chevron-right" x-show="!open"></i>
-          <i data-feather="chevron-down" x-show="open"></i>
+          <span x-show="!open">{{ icon("chevron-right") }}</span>
+          <span x-show="open">{{ icon("chevron-down") }}</span>
         </span>
         <span class="digest-name">{{ d.name }}</span>
         <span class="digest-badge badge"
@@ -63,14 +64,14 @@
       <!-- Actions -->
       <div class="digest-actions">
         <button class="btn btn-sm btn-ghost" @click.stop="editing = !editing">
-          <i data-feather="x" x-show="editing"></i>
-          <i data-feather="edit-2" x-show="!editing"></i>
+          <span x-show="editing">{{ icon("x") }}</span>
+          <span x-show="!editing">{{ icon("edit-2") }}</span>
           <span x-text="editing ? 'Abbrechen' : 'Bearbeiten'"></span>
         </button>
         <form method="post" action="/admin/queries/{{ d.id }}/delete" style="display: inline;">
           <button type="submit" class="btn btn-sm btn-ghost btn-danger-text"
                   onclick="return confirm('Wirklich loeschen?')">
-            <i data-feather="trash-2"></i> Loeschen
+            {{ icon("trash-2") }} Loeschen
           </button>
         </form>
       </div>
@@ -84,7 +85,7 @@
             <option value="fts" {% if d.mode == 'fts' %}selected{% endif %}>Keyword (FTS)</option>
             <option value="semantic" {% if d.mode == 'semantic' %}selected{% endif %}>Semantic</option>
           </select>
-          <button type="submit" class="btn btn-primary btn-sm"><i data-feather="check"></i> Speichern</button>
+          <button type="submit" class="btn btn-primary btn-sm">{{ icon("check") }} Speichern</button>
         </form>
       </div>
 
@@ -108,7 +109,7 @@
 
 <!-- Neue Query erstellen -->
 <section class="card digest-section">
-  <h2><i data-feather="plus-circle"></i> Neue Query</h2>
+  <h2>{{ icon("plus-circle") }} Neue Query</h2>
   <form method="post" action="/admin/queries/create" class="create-form">
     <div class="form-row">
       <input type="text" name="name" class="input" placeholder="Name (z.B. 'Machine Learning')" required>
@@ -117,7 +118,7 @@
         <option value="fts">Keyword (FTS)</option>
         <option value="semantic">Semantic</option>
       </select>
-      <button type="submit" class="btn btn-primary"><i data-feather="plus"></i> Erstellen</button>
+      <button type="submit" class="btn btn-primary">{{ icon("plus") }} Erstellen</button>
     </div>
   </form>
 </section>

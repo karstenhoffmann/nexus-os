@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros/icons.html" import icon %}
 {% block content %}
 
 <h1>Embedding Generator</h1>
@@ -53,7 +54,7 @@
 
     <!-- All Done Banner -->
     <div class="status-banner status-success" x-show="pendingChunks === 0 && stats.total_chunks > 0">
-      <div class="status-icon"><i data-feather="check-circle"></i></div>
+      <div class="status-icon">{{ icon("check-circle") }}</div>
       <div class="status-text">
         <strong>Alle Chunks haben Embeddings!</strong>
         <span>Semantische Suche ist vollstaendig einsatzbereit.</span>
@@ -62,7 +63,7 @@
 
     <!-- Pending Banner -->
     <div class="status-banner status-pending" x-show="pendingChunks > 0">
-      <div class="status-icon"><i data-feather="clock"></i></div>
+      <div class="status-icon">{{ icon("clock") }}</div>
       <div class="status-text">
         <strong x-text="pendingChunks.toLocaleString() + ' Chunks ohne Embedding'"></strong>
         <span>Diese Chunks sind noch nicht semantisch durchsuchbar.</span>
@@ -71,7 +72,7 @@
 
     <!-- No Chunks Banner -->
     <div class="status-banner status-empty" x-show="stats.total_chunks === 0">
-      <div class="status-icon"><i data-feather="inbox"></i></div>
+      <div class="status-icon">{{ icon("inbox") }}</div>
       <div class="status-text">
         <strong>Keine Chunks vorhanden</strong>
         <span>Importiere zuerst Dokumente und erstelle Chunks.</span>
@@ -96,7 +97,7 @@
 
     <!-- Orphaned Warning -->
     <div class="orphan-warning" x-show="stats.orphaned_embeddings > 0">
-      <span class="warning-icon"><i data-feather="alert-triangle"></i></span>
+      <span class="warning-icon">{{ icon("alert-triangle") }}</span>
       <span x-text="stats.orphaned_embeddings + ' verwaiste Embeddings (geloeschte Chunks) - koennen spaeter bereinigt werden'"></span>
     </div>
   </div>
@@ -146,7 +147,7 @@
 
     <!-- Completion Summary -->
     <div class="completion-summary" x-show="status === 'completed'">
-      <div class="summary-icon"><i data-feather="check-circle"></i></div>
+      <div class="summary-icon">{{ icon("check-circle") }}</div>
       <div class="summary-text">
         <strong>Erfolgreich abgeschlossen!</strong>
         <span x-text="itemsSucceeded.toLocaleString() + ' Chunks verarbeitet'"></span>
@@ -177,7 +178,7 @@
         @click="pauseEmbed()"
         class="btn btn-warning"
         x-show="status === 'running'">
-        <i data-feather="pause"></i> Pausieren
+        {{ icon("pause") }} Pausieren
       </button>
 
       <!-- Resume Button -->
@@ -185,7 +186,7 @@
         @click="resumeEmbed()"
         class="btn btn-primary"
         x-show="status === 'paused'">
-        <i data-feather="play"></i> Fortsetzen
+        {{ icon("play") }} Fortsetzen
       </button>
 
       <!-- Cancel Button -->
@@ -193,7 +194,7 @@
         @click="cancelEmbed()"
         class="btn btn-danger"
         x-show="status === 'running' || status === 'paused'">
-        <i data-feather="x-circle"></i> Abbrechen
+        {{ icon("x-circle") }} Abbrechen
       </button>
 
       <!-- Refresh Button (when all done) -->
@@ -201,7 +202,7 @@
         @click="refreshStats()"
         class="btn btn-secondary"
         x-show="status === 'idle' && pendingChunks === 0 && stats.total_chunks > 0">
-        <i data-feather="refresh-cw"></i> Auf neue Chunks pruefen
+        {{ icon("refresh-cw") }} Auf neue Chunks pruefen
       </button>
     </div>
 
@@ -231,7 +232,7 @@
       <span><strong>Kosten bisher:</strong> ${{ "%.4f"|format(resumable_job.cost_usd) }}</span>
     </div>
     <button @click="resumeJob('{{ resumable_job.id }}')" class="btn btn-primary">
-      <i data-feather="play"></i> Job fortsetzen
+      {{ icon("play") }} Job fortsetzen
     </button>
   </div>
   {% endif %}

@@ -1,8 +1,9 @@
 {% extends "base.html" %}
+{% from "macros/icons.html" import icon %}
 {% block content %}
 
 <div class="breadcrumb">
-  <a href="/drafts"><i data-feather="arrow-left"></i> Drafts</a>
+  <a href="/drafts">{{ icon("arrow-left") }} Drafts</a>
 </div>
 
 <h1>Neuer Draft</h1>
@@ -34,7 +35,7 @@
   <div class="form-actions">
     <a href="/drafts" class="btn btn-secondary">Abbrechen</a>
     <button type="submit" class="btn btn-primary">
-      <i data-feather="plus"></i> Draft erstellen
+      {{ icon("plus") }} Draft erstellen
     </button>
   </div>
 </form>

@@ -1,10 +1,11 @@
 {% extends "base.html" %}
+{% from "macros/icons.html" import icon %}
 {% block content %}
 
 <div class="page-header">
   <h1>Drafts</h1>
   <a href="/drafts/new" class="btn btn-primary">
-    <i data-feather="plus"></i> Neuer Draft
+    {{ icon("plus") }} Neuer Draft
   </a>
 </div>
 
@@ -27,9 +28,9 @@
     {% for k in kinds %}
       <a href="/drafts?kind={{ k }}{% if current_status %}&status={{ current_status }}{% endif %}"
          class="filter-pill {% if current_kind == k %}active{% endif %}">
-        {% if k == 'linkedin' %}<i data-feather="linkedin"></i>{% endif %}
-        {% if k == 'article' %}<i data-feather="file-text"></i>{% endif %}
-        {% if k == 'note' %}<i data-feather="edit-3"></i>{% endif %}
+        {% if k == 'linkedin' %}{{ icon("linkedin") }}{% endif %}
+        {% if k == 'article' %}{{ icon("file-text") }}{% endif %}
+        {% if k == 'note' %}{{ icon("edit-3") }}{% endif %}
         {{ k|capitalize }}
       </a>
     {% endfor %}
@@ -45,9 +46,9 @@
   {% for d in drafts %}
     <a href="/drafts/{{ d.id }}" class="draft-card">
       <div class="draft-icon">
-        {% if d.kind == 'linkedin' %}<i data-feather="linkedin"></i>
-        {% elif d.kind == 'article' %}<i data-feather="file-text"></i>
-        {% else %}<i data-feather="edit-3"></i>{% endif %}
+        {% if d.kind == 'linkedin' %}{{ icon("linkedin") }}
+        {% elif d.kind == 'article' %}{{ icon("file-text") }}
+        {% else %}{{ icon("edit-3") }}{% endif %}
       </div>
       <div class="draft-content">
         <div class="draft-title">{{ d.title or ("Draft #" ~ d.id) }}</div>
@@ -56,13 +57,13 @@
           <span class="draft-date">{{ d.updated_at[:10] if d.updated_at else '' }}</span>
         </div>
       </div>
-      <i data-feather="chevron-right" class="draft-arrow"></i>
+      {{ icon("chevron-right", "draft-arrow") }}
     </a>
   {% endfor %}
 </div>
 {% else %}
 <div class="empty-state">
-  <i data-feather="file-plus"></i>
+  {{ icon("file-plus") }}
   <p>Noch keine Drafts vorhanden.</p>
   <a href="/drafts/new" class="btn btn-primary">Ersten Draft erstellen</a>
 </div>

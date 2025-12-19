@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros/icons.html" import icon %}
 {% block content %}
 
 <h1>Prompt-Vorlagen</h1>
@@ -29,7 +30,7 @@
     <div class="card">
       <div class="category-header">
         <div class="category-icon">
-          <i :data-feather="cat.icon"></i>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
         </div>
         <div class="category-info">
           <h2 x-text="cat.name"></h2>
@@ -50,18 +51,18 @@
               <div class="prompt-desc text-muted" x-text="prompt.description"></div>
               <div class="prompt-meta">
                 <span class="meta-item">
-                  <i data-feather="thermometer"></i>
+                  {{ icon("thermometer") }}
                   <span x-text="'Temp: ' + prompt.temperature"></span>
                 </span>
                 <span class="meta-item">
-                  <i data-feather="hash"></i>
+                  {{ icon("hash") }}
                   <span x-text="'Max: ' + prompt.max_tokens + ' Tokens'"></span>
                 </span>
               </div>
             </div>
             <div class="prompt-actions">
               <button class="btn btn-sm" @click="editPrompt(prompt.key)">
-                <i data-feather="edit-2"></i>
+                {{ icon("edit-2") }}
                 Bearbeiten
               </button>
             </div>
@@ -71,7 +72,7 @@
 
       <!-- Coming Soon Message -->
       <div class="coming-soon-msg" x-show="cat.coming_soon">
-        <i data-feather="clock"></i>
+        {{ icon("clock") }}
         <span>Diese Kategorie wird in einer zukuenftigen Version verfuegbar sein.</span>
       </div>
     </div>
@@ -83,7 +84,7 @@
       <div class="modal-header">
         <h2 x-text="editingPrompt?.name"></h2>
         <button class="modal-close" @click="closeModal()">
-          <i data-feather="x"></i>
+          {{ icon("x") }}
         </button>
       </div>
 
@@ -149,7 +150,7 @@
 
         <!-- Changed Indicator -->
         <div class="change-indicator" x-show="hasChanges()">
-          <i data-feather="alert-circle"></i>
+          {{ icon("alert-circle") }}
           <span>Ungespeicherte Aenderungen</span>
         </div>
       </div>
@@ -161,7 +162,7 @@
           :disabled="!editingPrompt?.is_custom && !hasChanges()"
           x-show="editingPrompt?.is_custom || hasChanges()"
         >
-          <i data-feather="rotate-ccw"></i>
+          {{ icon("rotate-ccw") }}
           Auf Standard zuruecksetzen
         </button>
         <div class="modal-footer-right">
@@ -510,7 +511,6 @@ function promptsApp() {
     async init() {
       await this.loadPrompts();
       this.loading = false;
-      this.$nextTick(() => feather.replace());
     },
 
     async loadPrompts() {
@@ -518,7 +518,6 @@ function promptsApp() {
         const res = await fetch('/api/admin/prompts');
         const data = await res.json();
         this.categories = data.categories || {};
-        this.$nextTick(() => feather.replace());
       } catch (e) {
         console.error('Failed to load prompts:', e);
       }
@@ -530,7 +529,6 @@ function promptsApp() {
         const data = await res.json();
         this.editingPrompt = { ...data };
         this.originalPrompt = { ...data };
-        this.$nextTick(() => feather.replace());
       } catch (e) {
         console.error('Failed to load prompt:', e);
       }

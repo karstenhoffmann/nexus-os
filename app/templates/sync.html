@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros/icons.html" import icon %}
 {% block content %}
 
 <h1>Sync Pipeline</h1>
@@ -10,8 +11,8 @@
     <div class="pipeline-stepper">
       <div class="step" :class="{ active: phase === 'import', done: phaseIndex > 0 }">
         <div class="step-icon">
-          <i data-feather="download"></i>
-          <div class="step-check" x-show="phaseIndex > 0"><i data-feather="check"></i></div>
+          {{ icon("download") }}
+          <div class="step-check" x-show="phaseIndex > 0">{{ icon("check") }}</div>
         </div>
         <div class="step-label">Import</div>
         <div class="step-count" x-text="docsImported > 0 ? docsImported + ' Dokumente' : ''"></div>
@@ -21,8 +22,8 @@
 
       <div class="step" :class="{ active: phase === 'chunk', done: phaseIndex > 1 }">
         <div class="step-icon">
-          <i data-feather="scissors"></i>
-          <div class="step-check" x-show="phaseIndex > 1"><i data-feather="check"></i></div>
+          {{ icon("scissors") }}
+          <div class="step-check" x-show="phaseIndex > 1">{{ icon("check") }}</div>
         </div>
         <div class="step-label">Chunks</div>
         <div class="step-count" x-text="chunksCreated > 0 ? chunksCreated + ' erstellt' : ''"></div>
@@ -32,8 +33,8 @@
 
       <div class="step" :class="{ active: phase === 'embed', done: phaseIndex > 2 }">
         <div class="step-icon">
-          <i data-feather="cpu"></i>
-          <div class="step-check" x-show="phaseIndex > 2"><i data-feather="check"></i></div>
+          {{ icon("cpu") }}
+          <div class="step-check" x-show="phaseIndex > 2">{{ icon("check") }}</div>
         </div>
         <div class="step-label">Embeddings</div>
         <div class="step-count" x-text="chunksEmbedded > 0 ? chunksEmbedded + ' / ' + chunksTotal : ''"></div>
@@ -43,8 +44,8 @@
 
       <div class="step" :class="{ active: phase === 'index', done: phaseIndex > 3 }">
         <div class="step-icon">
-          <i data-feather="search"></i>
-          <div class="step-check" x-show="phaseIndex > 3"><i data-feather="check"></i></div>
+          {{ icon("search") }}
+          <div class="step-check" x-show="phaseIndex > 3">{{ icon("check") }}</div>
         </div>
         <div class="step-label">Index</div>
         <div class="step-count" x-text="phase === 'done' ? 'Fertig' : ''"></div>
@@ -101,7 +102,7 @@
 
     <!-- Current Activity Log -->
     <div class="activity-log" x-show="currentActivity">
-      <span class="activity-icon"><i data-feather="activity"></i></span>
+      <span class="activity-icon">{{ icon("activity") }}</span>
       <span x-text="currentActivity"></span>
     </div>
   </div>
@@ -109,7 +110,7 @@
   <!-- Completion Summary -->
   <div class="card card-success" x-show="status === 'completed'">
     <div class="completion-summary">
-      <div class="summary-icon"><i data-feather="check-circle"></i></div>
+      <div class="summary-icon">{{ icon("check-circle") }}</div>
       <div class="summary-content">
         <h2>Sync abgeschlossen!</h2>
         <div class="summary-stats">
@@ -126,7 +127,7 @@
   <!-- Error Display -->
   <div class="card card-error" x-show="error">
     <div class="error-content">
-      <i data-feather="alert-circle"></i>
+      {{ icon("alert-circle") }}
       <span x-text="error"></span>
     </div>
   </div>
@@ -147,7 +148,7 @@
 
       <!-- Cost Estimate -->
       <div class="cost-estimate" x-show="stats.chunks_without_embeddings > 0">
-        <i data-feather="info"></i>
+        {{ icon("info") }}
         <span>
           Geschaetzte Kosten fuer Embeddings:
           <strong x-text="'$' + (stats.chunks_without_embeddings * 200 * 0.02 / 1000000).toFixed(4)"></strong>
@@ -157,32 +158,32 @@
 
       <div class="button-group">
         <button type="submit" class="btn btn-primary" :disabled="!token">
-          <i data-feather="play"></i> Sync starten
+          {{ icon("play") }} Sync starten
         </button>
       </div>
     </form>
 
     <div class="button-group" x-show="status === 'running'">
       <button type="button" class="btn btn-secondary" @click="pauseSync">
-        <i data-feather="pause"></i> Pause
+        {{ icon("pause") }} Pause
       </button>
       <button type="button" class="btn btn-danger" @click="cancelSync">
-        <i data-feather="x"></i> Abbrechen
+        {{ icon("x") }} Abbrechen
       </button>
     </div>
 
     <div class="button-group" x-show="status === 'paused'">
       <button type="button" class="btn btn-primary" @click="resumeSync">
-        <i data-feather="play"></i> Fortsetzen
+        {{ icon("play") }} Fortsetzen
       </button>
       <button type="button" class="btn btn-danger" @click="cancelSync">
-        <i data-feather="x"></i> Abbrechen
+        {{ icon("x") }} Abbrechen
       </button>
     </div>
 
     <div class="button-group" x-show="status === 'completed' || status === 'cancelled' || status === 'failed'">
       <button type="button" class="btn btn-primary" @click="resetSync">
-        <i data-feather="refresh-cw"></i> Neue Sync starten
+        {{ icon("refresh-cw") }} Neue Sync starten
       </button>
     </div>
   </div>
@@ -273,7 +274,6 @@ function syncApp() {
 
     // Lifecycle
     init() {
-      feather.replace();
     },
 
     // Actions
@@ -322,7 +322,6 @@ function syncApp() {
         this.phase = data.phase;
         this.currentActivity = data.message || '';
         this.addLog('info', data.message || `Phase ${data.phase} gestartet`);
-        feather.replace();
       });
 
       this.eventSource.addEventListener('phase_progress', (e) => {
@@ -345,7 +344,6 @@ function syncApp() {
         this.addLog('success', 'Sync erfolgreich abgeschlossen!');
         this.eventSource.close();
         this.refreshStats();
-        feather.replace();
       });
 
       this.eventSource.addEventListener('pipeline_paused', (e) => {
@@ -353,14 +351,12 @@ function syncApp() {
         this.status = 'paused';
         this.addLog('warning', 'Pipeline pausiert');
         this.eventSource.close();
-        feather.replace();
       });
 
       this.eventSource.addEventListener('pipeline_cancelled', (e) => {
         this.status = 'cancelled';
         this.addLog('warning', 'Pipeline abgebrochen');
         this.eventSource.close();
-        feather.replace();
       });
 
       this.eventSource.addEventListener('pipeline_failed', (e) => {
@@ -369,7 +365,6 @@ function syncApp() {
         this.error = data.error;
         this.addLog('error', 'Fehler: ' + data.error);
         this.eventSource.close();
-        feather.replace();
       });
 
       this.eventSource.onerror = (e) => {
