@@ -8,14 +8,27 @@ Stand (kurz)
 - Drafts-Seite mit Versionierung (LinkedIn, Article, Note)
 
 Aktuelles Ziel
-- Drafts weiter ausbauen (optional: LLM-Unterstuetzung)
+- LLM-Powered Default Digest implementieren
 
 Naechste Schritte (Claude Code, max 3)
-1) Optional: Digests-Feedback einarbeiten
-2) Optional: 11 Docs ohne Chunks pruefen
-3) Optional: Drafts mit LLM-Vorschlaegen erweitern
+1) Digest Phase 1: LLM Provider + DB-Schema
+2) Digest Phase 2: Pipeline (Fetch, Cluster, Summarize, Compile)
+3) Digest Phase 3-4: API + UI
+
+Geplant (Detail-Plan)
+- /Users/karsten/.claude/plans/luminous-juggling-biscuit.md
+- Multi-Modell: GPT-4.1 nano/mini, GPT-4o-mini, GPT-5.x
+- Zwei Strategien: Hybrid (Embedding->LLM) und Pure LLM
+- Cached + Refresh, Admin-Konfiguration, Usage-Stats
+- ~10 Tage in 6 Phasen
 
 Handoff
+- Digest-Plan erstellt (2025-12-19):
+  - Vision: Wochenübersicht mit LLM-Summaries, Themen-Cluster, Highlights
+  - Route: /digest (eigene Seite, nicht Startseite)
+  - Neue Dateien: llm_providers.py, digest_job.py, digest_pipeline.py, digest_clustering.py
+  - Kosten pro Digest: ~$0.003 (nano) bis ~$0.10 (GPT-5.2)
+
 - Drafts-Seite implementiert (2025-12-19):
   - Listenansicht mit Status- und Typ-Filtern
   - Neuer Draft erstellen (linkedin, article, note)
