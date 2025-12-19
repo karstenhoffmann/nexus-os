@@ -5,16 +5,27 @@ Stand (kurz)
 - UI/Design System mit CSS-Variablen, Dark Mode, Feather Icons
 - Library-Seite mit Tabellenansicht, Filtern und Sortierung (FTS + Semantic)
 - Unified Sync Pipeline: Import -> Chunk -> Embed -> Index in einem Flow
+- Drafts-Seite mit Versionierung (LinkedIn, Article, Note)
 
 Aktuelles Ziel
-- Drafts-Seite implementieren
+- Drafts weiter ausbauen (optional: LLM-Unterstuetzung)
 
 Naechste Schritte (Claude Code, max 3)
-1) Feature Development: Drafts-Seite
-2) Optional: Digests-Feedback einarbeiten
-3) Optional: 11 Docs ohne Chunks pruefen
+1) Optional: Digests-Feedback einarbeiten
+2) Optional: 11 Docs ohne Chunks pruefen
+3) Optional: Drafts mit LLM-Vorschlaegen erweitern
 
 Handoff
+- Drafts-Seite implementiert (2025-12-19):
+  - Listenansicht mit Status- und Typ-Filtern
+  - Neuer Draft erstellen (linkedin, article, note)
+  - Draft-Detail mit Titel-Edit, Status-Wechsel
+  - Versionierung: neue Versionen mit Notizen speichern
+  - Versionshistorie mit Expand/Collapse und Copy
+  - Zeichenzaehler fuer LinkedIn (3000 Zeichen Limit)
+  - Routes: /drafts, /drafts/new, /drafts/{id}
+  - DB-Methoden: create_draft, get_draft, add_draft_version, update_draft_status/title
+
 - Unified Sync Pipeline implementiert (2025-12-19):
   - Neue Seite /sync ersetzt /readwise/import
   - 4-Phasen Stepper: Import -> Chunk -> Embed -> Index

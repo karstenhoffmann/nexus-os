@@ -5,7 +5,7 @@ from pathlib import Path
 
 import markdown2
 
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -356,10 +356,75 @@ async def api_digest_count(digest_id: int):
 
 
 @app.get("/drafts", response_class=HTMLResponse)
-def drafts(request: Request):
+def drafts_list(request: Request, status: str | None = None, kind: str | None = None):
     db = get_db()
-    drafts = db.list_drafts()
-    return render("drafts.html", request=request, drafts=drafts)
+    drafts = db.list_drafts(status=status, kind=kind)
+    # Available statuses and kinds for filters
+    statuses = ["working", "published", "archived"]
+    kinds = ["linkedin", "article", "note"]
+    return render(
+        "drafts.html",
+        request=request,
+        drafts=drafts,
+        statuses=statuses,
+        kinds=kinds,
+        current_status=status,
+        current_kind=kind,
+    )
+
+
+@app.get("/drafts/new", response_class=HTMLResponse)
+def draft_new(request: Request):
+    """Show form to create a new draft."""
+    kinds = ["linkedin", "article", "note"]
+    return render("draft_new.html", request=request, kinds=kinds)
+
+
+@app.post("/drafts", response_class=HTMLResponse)
+def draft_create(request: Request, kind: str = Form(...), title: str = Form(""), text: str = Form("")):
+    """Create a new draft and redirect to edit page."""
+    db = get_db()
+    draft_id = db.create_draft(kind=kind, title=title or None, text=text)
+    return RedirectResponse(f"/drafts/{draft_id}", status_code=303)
+
+
+@app.get("/drafts/{draft_id}", response_class=HTMLResponse)
+def draft_detail(request: Request, draft_id: int):
+    """Show draft with all versions and edit form."""
+    db = get_db()
+    draft = db.get_draft(draft_id)
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    return render("draft_detail.html", request=request, draft=draft)
+
+
+@app.post("/drafts/{draft_id}/version", response_class=HTMLResponse)
+def draft_add_version(request: Request, draft_id: int, text: str = Form(...), note: str = Form("")):
+    """Add a new version to an existing draft."""
+    db = get_db()
+    draft = db.get_draft(draft_id)
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    db.add_draft_version(draft_id, text=text, note=note or None)
+    return RedirectResponse(f"/drafts/{draft_id}", status_code=303)
+
+
+@app.post("/drafts/{draft_id}/status", response_class=HTMLResponse)
+def draft_update_status(request: Request, draft_id: int, status: str = Form(...)):
+    """Update draft status."""
+    db = get_db()
+    if status not in ["working", "published", "archived"]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    db.update_draft_status(draft_id, status)
+    return RedirectResponse(f"/drafts/{draft_id}", status_code=303)
+
+
+@app.post("/drafts/{draft_id}/title", response_class=HTMLResponse)
+def draft_update_title(request: Request, draft_id: int, title: str = Form(...)):
+    """Update draft title."""
+    db = get_db()
+    db.update_draft_title(draft_id, title)
+    return RedirectResponse(f"/drafts/{draft_id}", status_code=303)
 
 
 @app.get("/admin", response_class=HTMLResponse)

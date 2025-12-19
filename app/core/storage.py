@@ -925,9 +925,103 @@ class DB:
         """)
         return {r[0]: r[1] for r in cur.fetchall()}
 
-    def list_drafts(self) -> list[dict[str, Any]]:
-        cur = self.conn.execute("select id, status, kind, title, updated_at from drafts order by id desc")
-        return [{"id": r[0], "status": r[1], "kind": r[2], "title": r[3], "updated_at": r[4]} for r in cur.fetchall()]
+    def list_drafts(self, status: str | None = None, kind: str | None = None) -> list[dict[str, Any]]:
+        """List all drafts, optionally filtered by status or kind."""
+        sql = "SELECT id, status, kind, title, created_at, updated_at FROM drafts"
+        conditions = []
+        params: list[str] = []
+        if status:
+            conditions.append("status = ?")
+            params.append(status)
+        if kind:
+            conditions.append("kind = ?")
+            params.append(kind)
+        if conditions:
+            sql += " WHERE " + " AND ".join(conditions)
+        sql += " ORDER BY updated_at DESC"
+        cur = self.conn.execute(sql, params)
+        return [
+            {"id": r[0], "status": r[1], "kind": r[2], "title": r[3], "created_at": r[4], "updated_at": r[5]}
+            for r in cur.fetchall()
+        ]
+
+    def create_draft(self, kind: str, title: str | None = None, text: str = "", note: str | None = None) -> int:
+        """Create a new draft with its first version. Returns the draft id."""
+        cur = self.conn.execute(
+            "INSERT INTO drafts (status, kind, title) VALUES (?, ?, ?)",
+            ("working", kind, title),
+        )
+        draft_id = cur.lastrowid
+        assert draft_id is not None
+        self.conn.execute(
+            "INSERT INTO draft_versions (draft_id, version_index, text, note) VALUES (?, ?, ?, ?)",
+            (draft_id, 1, text, note),
+        )
+        self.conn.commit()
+        return draft_id
+
+    def get_draft(self, draft_id: int) -> dict[str, Any] | None:
+        """Get a draft with all its versions."""
+        cur = self.conn.execute(
+            "SELECT id, status, kind, title, created_at, updated_at FROM drafts WHERE id = ?",
+            (draft_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        draft = {
+            "id": row[0],
+            "status": row[1],
+            "kind": row[2],
+            "title": row[3],
+            "created_at": row[4],
+            "updated_at": row[5],
+            "versions": [],
+        }
+        vcur = self.conn.execute(
+            "SELECT id, version_index, text, note, created_at FROM draft_versions WHERE draft_id = ? ORDER BY version_index DESC",
+            (draft_id,),
+        )
+        draft["versions"] = [
+            {"id": v[0], "version_index": v[1], "text": v[2], "note": v[3], "created_at": v[4]}
+            for v in vcur.fetchall()
+        ]
+        return draft
+
+    def add_draft_version(self, draft_id: int, text: str, note: str | None = None) -> int:
+        """Add a new version to an existing draft. Returns version id."""
+        cur = self.conn.execute(
+            "SELECT MAX(version_index) FROM draft_versions WHERE draft_id = ?",
+            (draft_id,),
+        )
+        max_idx = cur.fetchone()[0] or 0
+        new_idx = max_idx + 1
+        cur = self.conn.execute(
+            "INSERT INTO draft_versions (draft_id, version_index, text, note) VALUES (?, ?, ?, ?)",
+            (draft_id, new_idx, text, note),
+        )
+        self.conn.execute(
+            "UPDATE drafts SET updated_at = datetime('now') WHERE id = ?",
+            (draft_id,),
+        )
+        self.conn.commit()
+        return cur.lastrowid  # type: ignore
+
+    def update_draft_status(self, draft_id: int, status: str) -> None:
+        """Update draft status (working, published, archived)."""
+        self.conn.execute(
+            "UPDATE drafts SET status = ?, updated_at = datetime('now') WHERE id = ?",
+            (status, draft_id),
+        )
+        self.conn.commit()
+
+    def update_draft_title(self, draft_id: int, title: str) -> None:
+        """Update draft title."""
+        self.conn.execute(
+            "UPDATE drafts SET title = ?, updated_at = datetime('now') WHERE id = ?",
+            (title, draft_id),
+        )
+        self.conn.commit()
 
     def save_article(
         self,
