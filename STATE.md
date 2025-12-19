@@ -32,10 +32,22 @@ Handoff
     - --accent -> --primary (7x)
     - --bg-muted/--bg-code/--bg-tertiary -> --bg-secondary (8x)
   - OFFEN: ~80 hardcoded rgba/hex Colors in Templates
-    - Hauptsaechlich in: admin_embeddings, admin_fetch, library_results, document_detail
-    - Pattern: rgba(120,120,120,*) und #dc2626/#22c55e etc.
-  - OFFEN: Fehlende Variablen in app.css (purple, linkedin, twitter, modal-overlay)
-  - OFFEN: Icon-Size Utilities (.icon-xs bis .icon-xl)
+    - admin_embeddings.html (~25x): rgba(120,120,120,*) -> var(--bg-secondary), rgba(59,130,246,*) -> var(--primary-bg)
+    - admin_fetch.html (~15x): gleiche Patterns wie admin_embeddings
+    - partials/library_results.html (~15x): #dc2626 -> var(--error), #d97706 -> var(--warning), #16a34a -> var(--success)
+    - document_detail.html (~20x): Badge-Farben hardcoded, rgba fuer error/warning/success
+    - admin_prompts.html (~10x): Modal-Overlay rgba(0,0,0,0.8), hardcoded #ffffff/#242424
+    - admin_compare.html: inline style="color: #22c55e/#ef4444"
+    - sync.html: var(--success, #22c55e) Fallbacks (ok aber inkonsistent)
+  - OFFEN: Fehlende Variablen in app.css ergaenzen:
+    - --purple: #9333ea, --purple-bg: rgba(168, 85, 247, 0.1)
+    - --pink: #db2777, --pink-bg: rgba(236, 72, 153, 0.1)
+    - --linkedin: #0a66c2, --linkedin-bg: rgba(10, 102, 194, 0.1)
+    - --twitter: #1da1f2, --twitter-bg: rgba(29, 161, 242, 0.1)
+    - --modal-overlay: rgba(0, 0, 0, 0.8)
+    - --gray-05 bis --gray-20 fuer neutrale rgba(120,120,120,*) Werte
+  - OFFEN: Icon-Size Utilities in app.css:
+    - .icon-xs (0.75rem), .icon-sm (1rem), .icon-md (1.25rem), .icon-lg (1.5rem), .icon-xl (2rem)
 
 - Admin Prompt-Management KOMPLETT (2025-12-19):
   - app/core/prompts.py: DEFAULT_PROMPTS Registry mit 3 Prompts
