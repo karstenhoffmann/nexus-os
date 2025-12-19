@@ -143,18 +143,18 @@
 
 <style>
 .progress-bar {
-  background: var(--bg-muted, #e0e0e0);
+  background: var(--bg-secondary, #e0e0e0);
   border-radius: 4px;
   height: 8px;
   overflow: hidden;
 }
 .progress-fill {
-  background: var(--accent, #4a90d9);
+  background: var(--primary, #4a90d9);
   height: 100%;
   transition: width 0.3s ease;
 }
 .log-container {
-  background: var(--bg-code, #f5f5f5);
+  background: var(--bg-secondary, #f5f5f5);
   padding: 0.5rem;
   border-radius: 4px;
 }
@@ -167,7 +167,7 @@
   margin-right: 0.5rem;
 }
 .log-item { color: var(--text, #333); }
-.log-progress { color: var(--accent, #4a90d9); font-weight: bold; }
+.log-progress { color: var(--primary, #4a90d9); font-weight: bold; }
 .log-paused { color: var(--warning, #e6a700); }
 .log-completed { color: var(--success, #2e7d32); font-weight: bold; }
 .log-error { color: var(--error, #c62828); }
@@ -181,7 +181,7 @@
   margin-top: 0;
 }
 .btn-resume {
-  background: var(--accent, #4a90d9);
+  background: var(--primary, #4a90d9);
   color: white;
   border: none;
   padding: 0.5rem 1rem;
@@ -189,7 +189,7 @@
   margin-right: 0.5rem;
 }
 .btn-secondary {
-  background: var(--bg-muted, #e0e0e0);
+  background: var(--bg-secondary, #e0e0e0);
   border: none;
   padding: 0.5rem 1rem;
   cursor: pointer;
@@ -231,7 +231,7 @@
   color: var(--success, #2e7d32);
 }
 .summary-merged .summary-value {
-  color: var(--accent, #4a90d9);
+  color: var(--primary, #4a90d9);
 }
 .summary-failed .summary-value {
   color: var(--error, #c62828);
