@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.core.llm_providers import LLMProvider, ChatResponse
+from app.core.prompts import get_prompt
+from app.core.storage import DB
 
 logger = logging.getLogger(__name__)
 
@@ -163,6 +165,7 @@ def _kmeans_cluster(
 async def hybrid_cluster(
     chunks: list[dict[str, Any]],
     llm: LLMProvider,
+    db: DB,
     num_clusters: int = DEFAULT_NUM_CLUSTERS,
 ) -> ClusteringResult:
     """Cluster chunks using embeddings + LLM for naming.
@@ -174,6 +177,7 @@ async def hybrid_cluster(
     Args:
         chunks: List of chunk dicts with 'id', 'chunk_text', 'embedding', etc.
         llm: LLM provider for naming/summarizing
+        db: Database instance for prompt registry
         num_clusters: Target number of clusters
 
     Returns:
@@ -181,6 +185,11 @@ async def hybrid_cluster(
     """
     if not chunks:
         return ClusteringResult(strategy="hybrid", clusters=[])
+
+    # Get prompt from registry
+    prompt_template = get_prompt("topic_naming_hybrid", db)
+    if prompt_template is None:
+        raise ValueError("Prompt 'topic_naming_hybrid' not found in registry")
 
     # Extract embeddings
     embeddings = [c["embedding"] for c in chunks]
@@ -195,11 +204,11 @@ async def hybrid_cluster(
     assignments = _kmeans_cluster(embeddings, k)
 
     # Group chunks by cluster
-    cluster_chunks: dict[int, list[dict[str, Any]]] = {}
+    cluster_chunks_map: dict[int, list[dict[str, Any]]] = {}
     for chunk, cluster_id in zip(chunks, assignments):
-        if cluster_id not in cluster_chunks:
-            cluster_chunks[cluster_id] = []
-        cluster_chunks[cluster_id].append(chunk)
+        if cluster_id not in cluster_chunks_map:
+            cluster_chunks_map[cluster_id] = []
+        cluster_chunks_map[cluster_id].append(chunk)
 
     # Generate topic names and summaries for each cluster
     clusters: list[TopicCluster] = []
@@ -207,8 +216,8 @@ async def hybrid_cluster(
     total_output = 0
     total_cost = 0.0
 
-    for cluster_id in sorted(cluster_chunks.keys()):
-        chunk_list = cluster_chunks[cluster_id]
+    for cluster_id in sorted(cluster_chunks_map.keys()):
+        chunk_list = cluster_chunks_map[cluster_id]
 
         # Skip very small clusters
         if len(chunk_list) < MIN_CLUSTER_SIZE // 2:
@@ -223,23 +232,14 @@ async def hybrid_cluster(
 
         samples_joined = "\n---\n".join(sample_texts)
 
-        # Call LLM to name and summarize the cluster
-        prompt = f"""Analysiere diese zusammengehoerigen Textauszuege und erstelle:
-1. Einen kurzen, praezianten Themennamen (max 4 Worte)
-2. Eine Zusammenfassung des Themas (2-3 Saetze)
-3. 2-3 Kernpunkte als Liste
-
-Textauszuege:
-{samples_joined}
-
-Antworte im JSON-Format:
-{{"topic_name": "...", "summary": "...", "key_points": ["...", "..."]}}"""
+        # Format prompt with variables
+        prompt = prompt_template.template.format(samples_joined=samples_joined)
 
         try:
             response = await llm.chat(
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
-                max_tokens=300,
+                temperature=prompt_template.temperature,
+                max_tokens=prompt_template.max_tokens,
             )
 
             total_input += response.tokens_input
@@ -296,6 +296,7 @@ Antworte im JSON-Format:
 async def pure_llm_cluster(
     chunks: list[dict[str, Any]],
     llm: LLMProvider,
+    db: DB,
     num_clusters: int = DEFAULT_NUM_CLUSTERS,
 ) -> ClusteringResult:
     """Cluster chunks using pure LLM analysis.
@@ -308,6 +309,7 @@ async def pure_llm_cluster(
     Args:
         chunks: List of chunk dicts with 'id', 'chunk_text', etc.
         llm: LLM provider
+        db: Database instance for prompt registry
         num_clusters: Target number of clusters
 
     Returns:
@@ -315,6 +317,11 @@ async def pure_llm_cluster(
     """
     if not chunks:
         return ClusteringResult(strategy="pure_llm", clusters=[])
+
+    # Get prompt from registry
+    prompt_template = get_prompt("clustering_pure_llm", db)
+    if prompt_template is None:
+        raise ValueError("Prompt 'clustering_pure_llm' not found in registry")
 
     # Prepare chunk summaries for LLM
     chunk_summaries = []
@@ -325,35 +332,18 @@ async def pure_llm_cluster(
 
     summaries_text = "\n".join(chunk_summaries)
 
-    prompt = f"""Analysiere diese {len(chunk_summaries)} Textauszuege und gruppiere sie in {num_clusters} thematische Cluster.
-
-Fuer jeden Cluster:
-1. Vergib einen kurzen Themennamen (max 4 Worte)
-2. Schreibe eine Zusammenfassung (2-3 Saetze)
-3. Liste 2-3 Kernpunkte
-4. Liste die Chunk-Indizes (Zahlen in eckigen Klammern)
-
-Textauszuege:
-{summaries_text}
-
-Antworte im JSON-Format:
-{{
-  "clusters": [
-    {{
-      "topic_name": "...",
-      "summary": "...",
-      "key_points": ["...", "..."],
-      "chunk_indices": [0, 5, 12, ...]
-    }},
-    ...
-  ]
-}}"""
+    # Format prompt with variables
+    prompt = prompt_template.template.format(
+        chunk_count=len(chunk_summaries),
+        num_clusters=num_clusters,
+        summaries_text=summaries_text,
+    )
 
     try:
         response = await llm.chat(
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=2000,
+            temperature=prompt_template.temperature,
+            max_tokens=prompt_template.max_tokens,
         )
 
         # Parse response
@@ -414,6 +404,7 @@ Antworte im JSON-Format:
 async def cluster_chunks(
     chunks: list[dict[str, Any]],
     llm: LLMProvider,
+    db: DB,
     strategy: str = "hybrid",
     num_clusters: int = DEFAULT_NUM_CLUSTERS,
 ) -> ClusteringResult:
@@ -422,6 +413,7 @@ async def cluster_chunks(
     Args:
         chunks: List of chunk dicts. For hybrid, must include 'embedding'.
         llm: LLM provider for naming/summarizing
+        db: Database instance for prompt registry
         strategy: 'hybrid' or 'pure_llm'
         num_clusters: Target number of clusters
 
@@ -432,8 +424,8 @@ async def cluster_chunks(
         # Verify embeddings are present
         if chunks and "embedding" not in chunks[0]:
             raise ValueError("Hybrid strategy requires chunks with embeddings")
-        return await hybrid_cluster(chunks, llm, num_clusters)
+        return await hybrid_cluster(chunks, llm, db, num_clusters)
     elif strategy == "pure_llm":
-        return await pure_llm_cluster(chunks, llm, num_clusters)
+        return await pure_llm_cluster(chunks, llm, db, num_clusters)
     else:
         raise ValueError(f"Unknown clustering strategy: {strategy}")

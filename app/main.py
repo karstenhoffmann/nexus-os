@@ -1131,6 +1131,104 @@ def api_set_theme(
     return {"success": True, "theme": db.get_theme()}
 
 
+# ==================== Prompt Admin Endpoints ====================
+
+
+@app.get("/api/admin/prompts")
+def api_list_prompts():
+    """List all prompts with their current values (custom or default)."""
+    from app.core.prompts import list_prompts, PROMPT_CATEGORIES
+
+    db = get_db()
+    prompts = list_prompts(db)
+
+    # Group by category
+    by_category = {}
+    for prompt in prompts:
+        if prompt.category not in by_category:
+            cat_meta = PROMPT_CATEGORIES.get(prompt.category, {})
+            by_category[prompt.category] = {
+                "name": cat_meta.get("name", prompt.category),
+                "description": cat_meta.get("description", ""),
+                "icon": cat_meta.get("icon", "file-text"),
+                "coming_soon": cat_meta.get("coming_soon", False),
+                "prompts": [],
+            }
+        by_category[prompt.category]["prompts"].append({
+            "key": prompt.key,
+            "name": prompt.name,
+            "description": prompt.description,
+            "is_custom": prompt.is_custom,
+            "temperature": prompt.temperature,
+            "max_tokens": prompt.max_tokens,
+        })
+
+    return {"categories": by_category}
+
+
+@app.get("/api/admin/prompts/{key}")
+def api_get_prompt(key: str):
+    """Get a single prompt with full template."""
+    from app.core.prompts import get_prompt, get_default_prompt
+
+    db = get_db()
+    prompt = get_prompt(key, db)
+
+    if prompt is None:
+        return {"error": f"Prompt '{key}' not found"}, 404
+
+    # Also get default for comparison
+    default = get_default_prompt(key)
+
+    return {
+        "key": prompt.key,
+        "category": prompt.category,
+        "name": prompt.name,
+        "description": prompt.description,
+        "template": prompt.template,
+        "variables": prompt.variables,
+        "temperature": prompt.temperature,
+        "max_tokens": prompt.max_tokens,
+        "is_custom": prompt.is_custom,
+        "default_template": default.template if default else None,
+        "default_temperature": default.temperature if default else None,
+        "default_max_tokens": default.max_tokens if default else None,
+    }
+
+
+@app.put("/api/admin/prompts/{key}")
+def api_update_prompt(
+    key: str,
+    template: str = Form(...),
+    temperature: float = Form(0.3),
+    max_tokens: int = Form(500),
+):
+    """Update a prompt template."""
+    from app.core.prompts import save_prompt, DEFAULT_PROMPTS
+
+    if key not in DEFAULT_PROMPTS:
+        return {"error": f"Prompt '{key}' not found"}, 404
+
+    db = get_db()
+    save_prompt(key, template, temperature, max_tokens, db)
+
+    return {"success": True, "key": key}
+
+
+@app.post("/api/admin/prompts/{key}/reset")
+def api_reset_prompt(key: str):
+    """Reset a prompt to its default."""
+    from app.core.prompts import reset_prompt, DEFAULT_PROMPTS
+
+    if key not in DEFAULT_PROMPTS:
+        return {"error": f"Prompt '{key}' not found"}, 404
+
+    db = get_db()
+    was_custom = reset_prompt(key, db)
+
+    return {"success": True, "key": key, "was_custom": was_custom}
+
+
 @app.get("/api/usage/stats")
 def api_usage_stats(period: str = "today"):
     """Get API usage statistics.
@@ -1215,6 +1313,12 @@ def admin_embeddings(request: Request):
         running_job=running_job,
         resumable_job=resumable_job,
     )
+
+
+@app.get("/admin/prompts", response_class=HTMLResponse)
+def admin_prompts(request: Request):
+    """Prompt template management page."""
+    return render("admin_prompts.html", request=request)
 
 
 @app.post("/api/fetch/start")

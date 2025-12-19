@@ -1,0 +1,655 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Prompt-Vorlagen</h1>
+
+<div x-data="promptsApp()" x-init="init()">
+
+  <!-- Info Card -->
+  <div class="card info-card">
+    <h2>Was sind Prompt-Vorlagen?</h2>
+    <p>
+      Prompts sind die Anweisungen, die an das LLM (Language Model) gesendet werden.
+      Hier kannst Du die Vorlagen anpassen, um die Qualitaet der generierten Inhalte zu verbessern.
+    </p>
+    <p class="text-muted" style="margin-top: 0.5rem;">
+      <strong>Tipp:</strong> Aenderungen werden sofort wirksam. Du kannst jederzeit zum Standard zuruecksetzen.
+    </p>
+  </div>
+
+  <!-- Loading State -->
+  <div class="card" x-show="loading">
+    <div class="skeleton-text" style="width: 60%; height: 1.5rem;"></div>
+    <div class="skeleton-text" style="width: 80%; height: 1rem; margin-top: 0.5rem;"></div>
+    <div class="skeleton-text" style="width: 40%; height: 1rem; margin-top: 0.5rem;"></div>
+  </div>
+
+  <!-- Categories -->
+  <template x-for="(cat, catKey) in categories" :key="catKey">
+    <div class="card">
+      <div class="category-header">
+        <div class="category-icon">
+          <i :data-feather="cat.icon"></i>
+        </div>
+        <div class="category-info">
+          <h2 x-text="cat.name"></h2>
+          <p class="text-muted" x-text="cat.description"></p>
+        </div>
+        <span class="badge badge-muted" x-show="cat.coming_soon">Demnachst</span>
+      </div>
+
+      <!-- Prompts List -->
+      <div class="prompts-list" x-show="!cat.coming_soon">
+        <template x-for="prompt in cat.prompts" :key="prompt.key">
+          <div class="prompt-item" :class="{'prompt-custom': prompt.is_custom}">
+            <div class="prompt-info">
+              <div class="prompt-name">
+                <span x-text="prompt.name"></span>
+                <span class="badge badge-custom" x-show="prompt.is_custom">Angepasst</span>
+              </div>
+              <div class="prompt-desc text-muted" x-text="prompt.description"></div>
+              <div class="prompt-meta">
+                <span class="meta-item">
+                  <i data-feather="thermometer"></i>
+                  <span x-text="'Temp: ' + prompt.temperature"></span>
+                </span>
+                <span class="meta-item">
+                  <i data-feather="hash"></i>
+                  <span x-text="'Max: ' + prompt.max_tokens + ' Tokens'"></span>
+                </span>
+              </div>
+            </div>
+            <div class="prompt-actions">
+              <button class="btn btn-sm" @click="editPrompt(prompt.key)">
+                <i data-feather="edit-2"></i>
+                Bearbeiten
+              </button>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Coming Soon Message -->
+      <div class="coming-soon-msg" x-show="cat.coming_soon">
+        <i data-feather="clock"></i>
+        <span>Diese Kategorie wird in einer zukuenftigen Version verfuegbar sein.</span>
+      </div>
+    </div>
+  </template>
+
+  <!-- Edit Modal -->
+  <div class="modal-overlay" x-show="editingPrompt" @click.self="closeModal()" x-cloak>
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h2 x-text="editingPrompt?.name"></h2>
+        <button class="modal-close" @click="closeModal()">
+          <i data-feather="x"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Description -->
+        <div class="form-group">
+          <label>Beschreibung</label>
+          <p class="text-muted" x-text="editingPrompt?.description"></p>
+        </div>
+
+        <!-- Variables Reference -->
+        <div class="form-group">
+          <label>Verfuegbare Variablen</label>
+          <div class="variables-list">
+            <template x-for="v in editingPrompt?.variables || []" :key="v">
+              <code class="variable-tag" x-text="'{' + v + '}'"></code>
+            </template>
+          </div>
+          <p class="text-muted small">Diese Variablen werden zur Laufzeit mit den entsprechenden Werten ersetzt.</p>
+        </div>
+
+        <!-- Template Editor -->
+        <div class="form-group">
+          <label for="prompt-template">Template</label>
+          <textarea
+            id="prompt-template"
+            class="prompt-textarea"
+            x-model="editingPrompt.template"
+            rows="12"
+            spellcheck="false"
+          ></textarea>
+        </div>
+
+        <!-- Settings -->
+        <div class="form-row">
+          <div class="form-group half">
+            <label for="prompt-temperature">Temperature</label>
+            <input
+              type="number"
+              id="prompt-temperature"
+              x-model.number="editingPrompt.temperature"
+              min="0"
+              max="2"
+              step="0.1"
+              class="form-input"
+            >
+            <p class="text-muted small">0 = deterministisch, 1 = kreativ, 2 = sehr kreativ</p>
+          </div>
+          <div class="form-group half">
+            <label for="prompt-max-tokens">Max Tokens</label>
+            <input
+              type="number"
+              id="prompt-max-tokens"
+              x-model.number="editingPrompt.max_tokens"
+              min="50"
+              max="4000"
+              step="50"
+              class="form-input"
+            >
+            <p class="text-muted small">Maximale Laenge der Antwort</p>
+          </div>
+        </div>
+
+        <!-- Changed Indicator -->
+        <div class="change-indicator" x-show="hasChanges()">
+          <i data-feather="alert-circle"></i>
+          <span>Ungespeicherte Aenderungen</span>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button
+          class="btn btn-outline"
+          @click="resetPrompt()"
+          :disabled="!editingPrompt?.is_custom && !hasChanges()"
+          x-show="editingPrompt?.is_custom || hasChanges()"
+        >
+          <i data-feather="rotate-ccw"></i>
+          Auf Standard zuruecksetzen
+        </button>
+        <div class="modal-footer-right">
+          <button class="btn btn-outline" @click="closeModal()">Abbrechen</button>
+          <button
+            class="btn btn-primary"
+            @click="savePrompt()"
+            :disabled="saving || !hasChanges()"
+          >
+            <span x-show="!saving">Speichern</span>
+            <span x-show="saving">Speichern...</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<style>
+/* Category Header */
+.category-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.category-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.category-icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--text-secondary);
+}
+
+.category-info {
+  flex: 1;
+}
+
+.category-info h2 {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.category-info p {
+  margin: 0.25rem 0 0;
+}
+
+/* Prompts List */
+.prompts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.prompt-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+}
+
+.prompt-item.prompt-custom {
+  border-color: var(--primary);
+  background: var(--primary-bg);
+}
+
+.prompt-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.prompt-name {
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.prompt-desc {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.prompt-meta {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.meta-item svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.prompt-actions {
+  flex-shrink: 0;
+  margin-left: 1rem;
+}
+
+/* Badge */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: var(--radius-full);
+}
+
+.badge-custom {
+  background: var(--primary);
+  color: white;
+}
+
+.badge-muted {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+/* Coming Soon */
+.coming-soon-msg {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+}
+
+.coming-soon-msg svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  isolation: isolate;
+}
+
+.modal-content {
+  background-color: #ffffff;
+  background-color: var(--bg-card);
+  border-radius: var(--radius-lg, 12px);
+  width: 100%;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--border-color, rgba(0,0,0,0.1));
+}
+
+/* Dark mode - explicit overrides */
+[data-theme="dark"] .modal-content,
+.dark .modal-content {
+  background-color: #242424;
+  background-color: var(--bg-card);
+}
+
+@media (prefers-color-scheme: dark) {
+  .modal-content {
+    background-color: #242424;
+    background-color: var(--bg-card);
+  }
+}
+
+.modal-large {
+  max-width: 800px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  background-color: #ffffff;
+  background-color: var(--bg-card);
+}
+
+@media (prefers-color-scheme: dark) {
+  .modal-header {
+    background-color: #242424;
+    background-color: var(--bg-card);
+  }
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  padding: 0.5rem;
+  cursor: pointer;
+  color: var(--text-muted);
+  border-radius: var(--radius-md);
+}
+
+.modal-close:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+  background-color: #ffffff;
+  background-color: var(--bg-card);
+}
+
+@media (prefers-color-scheme: dark) {
+  .modal-body {
+    background-color: #242424;
+    background-color: var(--bg-card);
+  }
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border-color);
+  background-color: #f5f5f5;
+  background-color: var(--bg-secondary);
+}
+
+@media (prefers-color-scheme: dark) {
+  .modal-footer {
+    background-color: #2d2d2d;
+    background-color: var(--bg-secondary);
+  }
+}
+
+.modal-footer-right {
+  display: flex;
+  gap: 0.75rem;
+}
+
+/* Form Elements */
+.form-group {
+  margin-bottom: 1.25rem;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.form-row {
+  display: flex;
+  gap: 1rem;
+}
+
+.form-group.half {
+  flex: 1;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-bg);
+}
+
+.prompt-textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 200px;
+}
+
+.prompt-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-bg);
+}
+
+/* Variables List */
+.variables-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.variable-tag {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  color: var(--primary);
+}
+
+/* Change Indicator */
+.change-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: var(--warning-bg);
+  color: var(--warning);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+}
+
+.change-indicator svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Small Text */
+.small {
+  font-size: 0.75rem;
+}
+</style>
+
+<script>
+function promptsApp() {
+  return {
+    loading: true,
+    categories: {},
+    editingPrompt: null,
+    originalPrompt: null,
+    saving: false,
+
+    async init() {
+      await this.loadPrompts();
+      this.loading = false;
+      this.$nextTick(() => feather.replace());
+    },
+
+    async loadPrompts() {
+      try {
+        const res = await fetch('/api/admin/prompts');
+        const data = await res.json();
+        this.categories = data.categories || {};
+        this.$nextTick(() => feather.replace());
+      } catch (e) {
+        console.error('Failed to load prompts:', e);
+      }
+    },
+
+    async editPrompt(key) {
+      try {
+        const res = await fetch(`/api/admin/prompts/${key}`);
+        const data = await res.json();
+        this.editingPrompt = { ...data };
+        this.originalPrompt = { ...data };
+        this.$nextTick(() => feather.replace());
+      } catch (e) {
+        console.error('Failed to load prompt:', e);
+      }
+    },
+
+    closeModal() {
+      if (this.hasChanges()) {
+        if (!confirm('Ungespeicherte Aenderungen verwerfen?')) {
+          return;
+        }
+      }
+      this.editingPrompt = null;
+      this.originalPrompt = null;
+    },
+
+    hasChanges() {
+      if (!this.editingPrompt || !this.originalPrompt) return false;
+      return (
+        this.editingPrompt.template !== this.originalPrompt.template ||
+        this.editingPrompt.temperature !== this.originalPrompt.temperature ||
+        this.editingPrompt.max_tokens !== this.originalPrompt.max_tokens
+      );
+    },
+
+    async savePrompt() {
+      if (!this.editingPrompt || this.saving) return;
+
+      this.saving = true;
+      try {
+        const formData = new FormData();
+        formData.append('template', this.editingPrompt.template);
+        formData.append('temperature', this.editingPrompt.temperature);
+        formData.append('max_tokens', this.editingPrompt.max_tokens);
+
+        const res = await fetch(`/api/admin/prompts/${this.editingPrompt.key}`, {
+          method: 'PUT',
+          body: formData,
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          await this.loadPrompts();
+          this.editingPrompt = null;
+          this.originalPrompt = null;
+        } else {
+          alert('Fehler: ' + (data.error || 'Unbekannter Fehler'));
+        }
+      } catch (e) {
+        console.error('Failed to save prompt:', e);
+        alert('Fehler beim Speichern');
+      } finally {
+        this.saving = false;
+      }
+    },
+
+    async resetPrompt() {
+      if (!this.editingPrompt) return;
+
+      if (!confirm('Prompt auf Standardwerte zuruecksetzen?')) {
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/admin/prompts/${this.editingPrompt.key}/reset`, {
+          method: 'POST',
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          await this.loadPrompts();
+          this.editingPrompt = null;
+          this.originalPrompt = null;
+        }
+      } catch (e) {
+        console.error('Failed to reset prompt:', e);
+        alert('Fehler beim Zuruecksetzen');
+      }
+    }
+  };
+}
+</script>
+
+{% endblock %}

@@ -329,6 +329,15 @@ CREATE TABLE IF NOT EXISTS digest_citations (
 
 CREATE INDEX IF NOT EXISTS idx_digest_citations_digest_id ON digest_citations(digest_id);
 CREATE INDEX IF NOT EXISTS idx_digest_citations_topic_id ON digest_citations(topic_id);
+
+-- Custom Prompt Templates (user-modified prompts)
+CREATE TABLE IF NOT EXISTS prompt_templates (
+  key TEXT PRIMARY KEY,
+  template TEXT NOT NULL,
+  temperature REAL,
+  max_tokens INTEGER,
+  updated_at TEXT DEFAULT (datetime('now'))
+);
 """
 
 def _backfill_document_metadata(conn: sqlite3.Connection) -> None:
@@ -2621,6 +2630,76 @@ class DB:
         )
         return [
             {"id": r[0], "task_type": r[1], "provider": r[2], "model": r[3], "is_default": bool(r[4])}
+            for r in cur.fetchall()
+        ]
+
+    # ==================== Custom Prompt Methods ====================
+
+    def get_custom_prompt(self, key: str) -> dict[str, Any] | None:
+        """Get a custom prompt template by key.
+
+        Returns None if no custom prompt exists (use default).
+        """
+        cur = self.conn.execute(
+            "SELECT template, temperature, max_tokens FROM prompt_templates WHERE key = ?",
+            (key,),
+        )
+        row = cur.fetchone()
+        if row is None:
+            return None
+        return {
+            "template": row[0],
+            "temperature": row[1],
+            "max_tokens": row[2],
+        }
+
+    def save_custom_prompt(
+        self,
+        key: str,
+        template: str,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> None:
+        """Save or update a custom prompt template."""
+        self.conn.execute(
+            """
+            INSERT INTO prompt_templates (key, template, temperature, max_tokens, updated_at)
+            VALUES (?, ?, ?, ?, datetime('now'))
+            ON CONFLICT(key) DO UPDATE SET
+                template = excluded.template,
+                temperature = excluded.temperature,
+                max_tokens = excluded.max_tokens,
+                updated_at = datetime('now')
+            """,
+            (key, template, temperature, max_tokens),
+        )
+        self.conn.commit()
+
+    def delete_custom_prompt(self, key: str) -> bool:
+        """Delete a custom prompt (resets to default).
+
+        Returns True if a prompt was deleted, False if it didn't exist.
+        """
+        cur = self.conn.execute(
+            "DELETE FROM prompt_templates WHERE key = ?",
+            (key,),
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def list_custom_prompts(self) -> list[dict[str, Any]]:
+        """List all custom prompt templates."""
+        cur = self.conn.execute(
+            "SELECT key, template, temperature, max_tokens, updated_at FROM prompt_templates ORDER BY key"
+        )
+        return [
+            {
+                "key": r[0],
+                "template": r[1],
+                "temperature": r[2],
+                "max_tokens": r[3],
+                "updated_at": r[4],
+            }
             for r in cur.fetchall()
         ]
 

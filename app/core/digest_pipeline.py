@@ -30,6 +30,7 @@ from app.core.digest_job import (
     get_digest_store,
 )
 from app.core.llm_providers import LLMProvider, get_chat_provider
+from app.core.prompts import get_prompt
 from app.core.storage import DB
 
 logger = logging.getLogger(__name__)
@@ -97,7 +98,7 @@ async def run_digest_pipeline(
             phase=DigestPhase.CLUSTER,
             data={"message": f"Gruppiere {len(chunks)} Chunks in Themen..."},
         )
-        clustering_result = await _cluster_phase(job, chunks, llm, store)
+        clustering_result = await _cluster_phase(job, chunks, llm, store, db)
         yield DigestEvent(
             type=DigestEventType.PHASE_COMPLETE,
             phase=DigestPhase.CLUSTER,
@@ -116,7 +117,7 @@ async def run_digest_pipeline(
             data={"message": "Generiere Titel, Zusammenfassung und Highlights..."},
         )
         title, overall_summary, highlights = await _summarize_phase(
-            job, clustering_result, llm, store
+            job, clustering_result, llm, store, db
         )
         yield DigestEvent(
             type=DigestEventType.PHASE_COMPLETE,
@@ -224,6 +225,7 @@ async def _cluster_phase(
     chunks: list[dict[str, Any]],
     llm: LLMProvider,
     store: Any,
+    db: DB,
 ) -> ClusteringResult:
     """Cluster chunks into topics using the configured strategy."""
     job.phase = DigestPhase.CLUSTER
@@ -234,6 +236,7 @@ async def _cluster_phase(
     result = await cluster_chunks(
         chunks=chunks,
         llm=llm,
+        db=db,
         strategy=job.strategy,
         num_clusters=7,  # Default number of topics
     )
@@ -257,6 +260,7 @@ async def _summarize_phase(
     clustering_result: ClusteringResult,
     llm: LLMProvider,
     store: Any,
+    db: DB,
 ) -> tuple[str, str, list[str]]:
     """Generate title, overall summary and highlights from clustered topics.
 
@@ -278,27 +282,17 @@ async def _summarize_phase(
 
     topics_joined = "\n\n".join(topics_text)
 
-    # Generate title, summary and highlights
-    prompt = f"""Du bist ein persoenlicher Wissensassistent. Der Nutzer hat diese Woche folgende Themen gelesen:
+    # Get prompt from registry (custom or default)
+    prompt_template = get_prompt("digest_summary", db)
+    if prompt_template is None:
+        raise ValueError("Prompt 'digest_summary' not found in registry")
 
-{topics_joined}
-
-Erstelle:
-1. Einen aussagekraeftigen Titel (max 60 Zeichen): Was war das Hauptthema dieser Woche? Der Titel sollte die wichtigsten 2-3 Themen nennen, z.B. "KI-Tools, Produktivitaet & Coding"
-2. Eine Zusammenfassung (3-5 Saetze): Was hat den Nutzer diese Woche beschaeftigt?
-3. 3-5 Highlights: Die wichtigsten Erkenntnisse oder interessantesten Punkte
-
-Antworte im JSON-Format:
-{{
-  "title": "...",
-  "summary": "...",
-  "highlights": ["...", "...", "..."]
-}}"""
+    prompt = prompt_template.template.format(topics_joined=topics_joined)
 
     response = await llm.chat(
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.4,
-        max_tokens=900,
+        temperature=prompt_template.temperature,
+        max_tokens=prompt_template.max_tokens,
     )
 
     # Track token usage

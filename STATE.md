@@ -6,14 +6,14 @@ Stand (kurz)
 - Library-Seite mit Tabellenansicht, Filtern und Sortierung (FTS + Semantic)
 - Unified Sync Pipeline: Import -> Chunk -> Embed -> Index in einem Flow
 - Drafts-Seite mit Versionierung (LinkedIn, Article, Note)
+- Admin Prompt-Management mit Registry-Pattern (getestet, funktioniert)
 
 Aktuelles Ziel
-- Digest UX verfeinern und testen
+- Feature komplett: Admin Prompt-Management
 
 Naechste Schritte (Claude Code, max 3)
-1) Manueller Test im Browser: /digest oeffnen, neuen Digest generieren
-2) Pruefen: Wird LLM-Titel korrekt angezeigt? Funktioniert Favorit-Toggle?
-3) Dark Mode testen
+1) Commit + Push (Feature fertig)
+2) Naechstes Feature: Draft-Generierung mit LLM?
 
 Geplant (Detail-Plan)
 - /Users/karsten/.claude/plans/floating-strolling-biscuit.md
@@ -22,94 +22,20 @@ Geplant (Detail-Plan)
 - Cached + Refresh, Admin-Konfiguration, Usage-Stats
 
 Handoff
-- Digest Phase 7: UX Overhaul (2025-12-19):
-  - Komplett neues UI: "Neue Digest generieren" oben, History darunter
-  - Digest History: Alle Digests mit Expand/Collapse, Skeleton-Loading
-  - LLM-generierter Titel: Pipeline generiert aussagekraeftigen Titel aus Themen
-  - Favoriten-System: is_favorite Feld, Toggle-Button, Filter-Pill
-  - Soft-Delete: deleted_at Feld statt Hard-Delete
-  - Metadaten in Cards: Zeitraum, Chunks, Modell, Kosten
-  - Saved Queries verschoben: /digests -> /admin/queries (Redirect)
-  - DB-Migration: title, is_favorite, deleted_at Felder automatisch hinzugefuegt
-  - Neue APIs: POST /api/digest/{id}/favorite, GET /api/digest/history?favorites_only=true
-  - DoD: Keine hardcoded Farben, nur CSS-Variablen, Dark-Mode-kompatibel
-  - Naechster Schritt: Manueller Test im Browser
+- Admin Prompt-Management KOMPLETT (2025-12-19):
+  - app/core/prompts.py: DEFAULT_PROMPTS Registry mit 3 Prompts
+  - DB-Tabelle prompt_templates fuer Custom Overrides
+  - Admin-UI /admin/prompts: Modal-Editor, Variablen-Referenz, Reset-to-Default
+  - APIs: GET/PUT /api/admin/prompts/{key}, POST /reset
+  - Playwright-Test erfolgreich: Edit, Save, Reset, Digest-Generierung
+  - Neuer Digest mit Registry: "KI, Vorhersagbarkeit & Verantwortlichkeit", $0.0018
 
-- Digest Phase 6: SSE-Progress Fix (2025-12-19):
-  - Problem: PHASE_START Events fehlten in digest_pipeline.py
-  - Fix: Jede Phase sendet jetzt PHASE_START mit Aktivitaets-Nachricht
-  - Frontend zeigt currentActivity aus message-Feld
-  - Token/Cost-Updates in PHASE_COMPLETE Events
-  - UI zeigt live: Phase-Label, Activity-Text, Tokens, Kosten
-  - Log zeigt: Chunks gefunden, Themen erstellt, Highlights generiert
-  - Naechster Schritt: Manueller Test im Browser
-
-- Digest Phase 5: Test mit echten Daten erfolgreich (2025-12-19):
-  - Bugfixes: Storage->DB import, json import, total_cost_usd field name
-  - JSON-Parsing fuer Topics und Highlights im Backend (nicht Template)
-  - Erster Digest generiert: 428 Chunks -> 7 Topics, $0.007 (GPT-4.1-mini)
-  - Themen: Claude Code, KI-Vertrauen, Vorhersagbarkeit, Codewandel, Bias, Schreibmuster
-  - UI zeigt Summary, Highlights (5), Topics mit Chunk-Counts
-  - Bekanntes Problem: SSE-Progress wird im UI nicht live angezeigt (Phase 6)
-
-- Digest Phase 3+4: API Routes + UI erstellt (2025-12-19):
-  - GET /digest: Hauptseite mit latest digest, generation controls
-  - GET /api/digest/estimate: Kosten-Schaetzung (days, model)
-  - POST /api/digest/generate: Startet Job, returns job_id
-  - GET /api/digest/{job_id}/stream: SSE fuer Progress
-  - GET /api/digest/{job_id}/status: Job-Status abrufen
-  - GET /api/digest/latest: Letzten Digest abrufen
-  - GET /api/digest/{digest_id}: Digest by ID
-  - GET /api/digest/history: Liste aller Digests
-  - DELETE /api/digest/{digest_id}: Digest loeschen
-  - digest_home.html: Komplettes UI mit Alpine.js
-    - Zeigt letzten Digest (Summary, Highlights, Topics)
-    - Generation Form (Days, Model, Strategy)
-    - Live Cost Estimate
-    - SSE Progress mit Phasen
-  - Navigation: /digests -> /digest (LLM Digest statt Saved Queries)
-  - Naechster Schritt: Mit echten Daten testen
-
-- Digest Phase 2c: digest_pipeline.py erstellt (2025-12-19):
-  - run_digest_pipeline(): Async Generator fuer SSE-Streaming
-  - 4 Phasen: _fetch_phase, _cluster_phase, _summarize_phase, _compile_phase
-  - FETCH: Holt Chunks mit Embeddings (hybrid) oder ohne (pure_llm)
-  - CLUSTER: Ruft cluster_chunks() auf, trackt Tokens/Cost
-  - SUMMARIZE: Generiert Overall Summary + Highlights per LLM
-  - COMPILE: Speichert Digest in DB via save_generated_digest()
-  - estimate_digest(): Kosten-Schaetzung ohne LLM-Call
-  - Tests: tests/test_digest_pipeline.py mit Mocks
-  - Naechster Schritt: API Routes (Phase 3)
-
-- Digest Phase 2b: digest_clustering.py erstellt (2025-12-19):
-  - TopicCluster Dataclass mit topic_name, summary, chunk_ids, key_points
-  - ClusteringResult mit Token/Cost-Tracking
-  - hybrid_cluster(): k-means auf Embeddings + LLM fuer Naming/Summary
-  - pure_llm_cluster(): LLM macht Clustering + Naming in einem Call
-  - Neue DB-Methode: get_chunk_embeddings_in_date_range()
-  - Test: 30 Chunks -> 5 Cluster in 0.7ms, $0.0007 (gpt-4.1-nano)
-  - Naechster Schritt: digest_pipeline.py
-
-- Digest Phase 2a: digest_job.py erstellt (2025-12-19):
-  - DigestPhase: IDLE, FETCH, CLUSTER, SUMMARIZE, COMPILE, DONE
-  - DigestStatus: PENDING, RUNNING, COMPLETED, FAILED
-  - DigestEvent mit SSE-Serialisierung
-  - DigestJob mit Token/Cost-Tracking
-  - DigestJobStore (thread-safe, in-memory)
-
-- Digest Phase 1 implementiert (2025-12-19):
-  - llm_providers.py: OpenAIChatProvider (GPT-4.1 nano/mini, GPT-4o-mini, GPT-4o)
-  - DB-Schema: llm_configs, generated_digests, digest_topics, digest_citations
-  - DB-Methoden: get/set_llm_config, save/get_generated_digest, get_chunks_in_date_range
-  - Health Check funktioniert: GPT-4.1-mini verbunden (Latency ~1.7s)
-  - Kosten-Schaetzung: estimate_digest_cost() fuer 2000 Chunks = ~$0.33
-  - Test: 428 Chunks im 7-Tage-Zeitraum verfuegbar
-
-- Digest-Plan erstellt (2025-12-19):
-  - Vision: Wochenübersicht mit LLM-Summaries, Themen-Cluster, Highlights
-  - Route: /digest (eigene Seite, nicht Startseite)
-  - Neue Dateien: llm_providers.py, digest_job.py, digest_pipeline.py, digest_clustering.py
-  - Kosten pro Digest: ~$0.003 (nano) bis ~$0.10 (GPT-5.2)
+- Digest Feature KOMPLETT (2025-12-19):
+  - /digest Seite mit Generierung, History, Favoriten, Soft-Delete
+  - Pipeline: fetch -> cluster -> summarize -> compile mit SSE-Progress
+  - Modelle: GPT-4.1 nano/mini, GPT-4o mini, GPT-4o
+  - Strategien: Hybrid (Embeddings + LLM) und Pure LLM
+  - Kosten: $0.002 (nano) bis $0.03 (GPT-4o) pro Digest
 
 - Drafts-Seite implementiert (2025-12-19):
   - Listenansicht mit Status- und Typ-Filtern
