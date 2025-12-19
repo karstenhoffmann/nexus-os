@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 import sqlite3
+import struct
 import unicodedata
 from dataclasses import dataclass
 from typing import Any
@@ -2887,6 +2888,61 @@ class DB:
         )
         row = cur.fetchone()
         return {"docs": row[0], "chunks": row[1]}
+
+    def get_chunk_embeddings_in_date_range(
+        self,
+        date_from: str,
+        date_to: str,
+        limit: int = 2000,
+        provider: str = "openai",
+        model: str = "text-embedding-3-small",
+    ) -> list[dict[str, Any]]:
+        """Get chunks with their embedding vectors for clustering.
+
+        Args:
+            date_from: ISO date string (e.g. '2025-12-12')
+            date_to: ISO date string (e.g. '2025-12-19')
+            limit: Max chunks to return
+            provider: Embedding provider
+            model: Embedding model
+
+        Returns:
+            List of chunks with embedding vectors as list[float]
+        """
+        cur = self.conn.execute(
+            """
+            SELECT c.id, c.document_id, c.chunk_index, c.chunk_text, c.token_count,
+                   d.title, d.author, d.category, d.saved_at,
+                   e.embedding, e.dimensions
+            FROM document_chunks c
+            JOIN documents d ON d.id = c.document_id
+            JOIN embeddings e ON e.chunk_id = c.id
+            WHERE date(d.saved_at) BETWEEN date(?) AND date(?)
+              AND e.provider = ? AND e.model = ?
+            ORDER BY d.saved_at DESC, c.chunk_index
+            LIMIT ?
+            """,
+            (date_from, date_to, provider, model, limit),
+        )
+        results = []
+        for r in cur.fetchall():
+            # Deserialize embedding from blob
+            embedding_blob = r[9]
+            dimensions = r[10]
+            embedding = list(struct.unpack(f"{dimensions}f", embedding_blob))
+            results.append({
+                "id": r[0],
+                "document_id": r[1],
+                "chunk_index": r[2],
+                "chunk_text": r[3],
+                "token_count": r[4],
+                "title": r[5],
+                "author": r[6],
+                "category": r[7],
+                "saved_at": r[8],
+                "embedding": embedding,
+            })
+        return results
 
 
 _db: DB | None = None

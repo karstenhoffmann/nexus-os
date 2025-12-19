@@ -11,7 +11,7 @@ Aktuelles Ziel
 - LLM-Powered Default Digest implementieren
 
 Naechste Schritte (Claude Code, max 3)
-1) Digest Phase 2: Pipeline (Fetch, Cluster, Summarize, Compile)
+1) Digest Phase 2c: digest_pipeline.py (Fetch, Cluster, Summarize, Compile orchestrieren)
 2) Digest Phase 3: API Routes (/digest, /api/digest/*)
 3) Digest Phase 4: UI (digest_home.html)
 
@@ -23,13 +23,21 @@ Geplant (Detail-Plan)
 - ~10 Tage in 6 Phasen
 
 Handoff
+- Digest Phase 2b: digest_clustering.py erstellt (2025-12-19):
+  - TopicCluster Dataclass mit topic_name, summary, chunk_ids, key_points
+  - ClusteringResult mit Token/Cost-Tracking
+  - hybrid_cluster(): k-means auf Embeddings + LLM fuer Naming/Summary
+  - pure_llm_cluster(): LLM macht Clustering + Naming in einem Call
+  - Neue DB-Methode: get_chunk_embeddings_in_date_range()
+  - Test: 30 Chunks -> 5 Cluster in 0.7ms, $0.0007 (gpt-4.1-nano)
+  - Naechster Schritt: digest_pipeline.py
+
 - Digest Phase 2a: digest_job.py erstellt (2025-12-19):
   - DigestPhase: IDLE, FETCH, CLUSTER, SUMMARIZE, COMPILE, DONE
   - DigestStatus: PENDING, RUNNING, COMPLETED, FAILED
   - DigestEvent mit SSE-Serialisierung
   - DigestJob mit Token/Cost-Tracking
   - DigestJobStore (thread-safe, in-memory)
-  - Naechster Schritt: digest_clustering.py
 
 - Digest Phase 1 implementiert (2025-12-19):
   - llm_providers.py: OpenAIChatProvider (GPT-4.1 nano/mini, GPT-4o-mini, GPT-4o)
