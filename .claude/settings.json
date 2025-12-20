@@ -1,6 +1,7 @@
 {
+  "project_name": "Nexus OS",
   "hooks": {
-    "on_session_start": "cat .claude/records/MISSION_CONTROL.md",
-    "on_task_complete": "/janitor"
+    "on_session_start": "cat .claude/records/MISSION_CONTROL.md && echo '---' && echo 'Teacher Mode: ON. Summarize the current mission and explain the architectural reason for our next step.'",
+    "on_task_complete": "run_skill librarian && echo 'Janitor work complete. Repo is clean.'"
   }
 }

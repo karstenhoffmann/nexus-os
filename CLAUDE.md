@@ -15,3 +15,8 @@
 ## 3. Tech Stack Constraints
 - Python 3.14 + FastAPI + HTMX + Alpine.js.
 - NO Node.js. Use SQLite-vec for semantic search.
+
+## 4. Standard Workflows
+- **On "Vague Idea":** Stop coding. Research in `whiteboard.md` first.
+- **On "Pause/Stopping":** Invoke the `checkpoint` skill immediately.
+- **On "Resume":** Read the `PAUSED SESSION` block in MISSION_CONTROL.md and ask for verification before starting.
