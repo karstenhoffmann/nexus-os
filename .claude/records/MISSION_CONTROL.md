@@ -8,9 +8,10 @@ None - ready for next task
 
 ## Next Steps (Priority Order)
 1. Draft System MVP: Revisions, parking/finalizing
-2. Gradual DaisyUI migration: Convert components from app.css to DaisyUI classes
+2. Continue DaisyUI migration: Convert remaining components (badges, alerts, forms) to DaisyUI classes
 
 ## Recent Completions
+- Dec 2025: DaisyUI cupcake theme configured with dark mode toggle
 - Dec 2025: Python 3.14 upgrade (Dockerfile + Pydantic 2.12.0)
 - Dec 2025: Mobile Audit passed (375px viewport, all pages)
 - Dec 2025: MCP servers verified (Playwright + Context7)
@@ -27,6 +28,7 @@ None - ready for next task
 ## Decisions Made
 | Date | Decision | Rationale |
 |------|----------|-----------|
+| Dec 2025 | Use DaisyUI "cupcake" theme | Built-in theme with warm colors, free via CDN, dark mode pairing with "dark" theme |
 | Dec 2025 | Gradual DaisyUI migration via CDN | Load app.css first, then Tailwind+DaisyUI. DaisyUI takes precedence for migrated components. |
 | Dec 2025 | Add DaisyUI to stack | Semantic component classes, easy theming, no build step |
 | Dec 2025 | Node.js "propose first" policy | Flexibility for genuinely better solutions while maintaining Python preference |
