@@ -88,31 +88,55 @@
     </div>
   </div>
 
-  <!-- Current Phase Detail -->
+  <!-- Current Phase Detail - Progress for ALL phases -->
   <div class="card" x-show="status === 'running' || status === 'paused'">
-    <h2 x-text="phaseLabel"></h2>
+    <template x-if="progressData">
+      <div>
+        <!-- Phase Label with Spinner -->
+        <h2 class="phase-title">
+          <span class="spinner" x-show="status === 'running'"></span>
+          <span x-text="progressData.label"></span>
+        </h2>
 
-    <!-- Progress Bar -->
-    <div x-show="chunksTotal > 0 && phase === 'embed'">
-      <div class="progress-header">
-        <span class="progress-status" x-text="statusText"></span>
-        <span class="progress-percent" x-text="Math.round(progressPercent) + '%'"></span>
-      </div>
-      <div class="progress-bar">
-        <div class="progress-fill" :style="'width: ' + progressPercent + '%'"></div>
-      </div>
-      <div class="progress-details">
-        <span x-text="chunksEmbedded.toLocaleString() + ' / ' + chunksTotal.toLocaleString() + ' Chunks'"></span>
-        <span x-show="tokensUsed > 0" x-text="tokensUsed.toLocaleString() + ' Tokens'"></span>
-        <span x-show="costUsd > 0" x-text="'$' + costUsd.toFixed(4)"></span>
-      </div>
-    </div>
+        <!-- Determinate Progress Bar (when % is known) -->
+        <div class="progress-container" x-show="progressData.percent !== null">
+          <div class="progress-header">
+            <span class="progress-status" x-text="currentActivity || progressData.detail"></span>
+            <span class="progress-percent" x-text="progressData.percent + '%'"></span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" :style="'width: ' + progressData.percent + '%'"></div>
+          </div>
+        </div>
 
-    <!-- Current Activity Log -->
-    <div class="activity-log" x-show="currentActivity">
-      <span class="activity-icon">{{ icon("activity") }}</span>
-      <span x-text="currentActivity"></span>
-    </div>
+        <!-- Indeterminate Progress Bar (when % is unknown) -->
+        <div class="progress-container" x-show="progressData.percent === null">
+          <div class="progress-header">
+            <span class="progress-status" x-text="currentActivity || progressData.detail"></span>
+          </div>
+          <div class="progress-bar indeterminate">
+            <div class="progress-fill-indeterminate"></div>
+          </div>
+        </div>
+
+        <!-- Cost details (only for embed phase) -->
+        <div class="progress-details" x-show="phase === 'embed' && (tokensUsed > 0 || costUsd > 0)">
+          <span x-show="tokensUsed > 0" x-text="tokensUsed.toLocaleString() + ' Tokens'"></span>
+          <span x-show="costUsd > 0" x-text="'$' + costUsd.toFixed(4)"></span>
+        </div>
+      </div>
+    </template>
+
+    <!-- Fallback for idle/done phases -->
+    <template x-if="!progressData && (status === 'running' || status === 'paused')">
+      <div>
+        <h2 x-text="phaseLabel"></h2>
+        <div class="activity-log" x-show="currentActivity">
+          <span class="activity-icon">{{ icon("activity") }}</span>
+          <span x-text="currentActivity"></span>
+        </div>
+      </div>
+    </template>
   </div>
 
   <!-- Completion Summary -->
@@ -228,10 +252,13 @@ function syncApp() {
     docsImported: 0,
     docsMerged: 0,
     chunksCreated: 0,
+    docsProcessed: 0,   // Documents processed in CHUNK phase
+    docsToChunk: 0,     // Total documents needing chunks (denominator)
     chunksEmbedded: 0,
     chunksTotal: 0,
     tokensUsed: 0,
     costUsd: 0,
+    itemsTotal: 0,  // Total items expected from Readwise
 
     // Stats from server
     stats: INITIAL_STATS,
@@ -240,6 +267,10 @@ function syncApp() {
     currentActivity: '',
     error: null,
     log: [],
+
+    // Heartbeat monitoring
+    lastHeartbeat: null,
+    heartbeatTimer: null,
 
     // Computed
     get phaseIndex() {
@@ -274,6 +305,54 @@ function syncApp() {
     get progressPercent() {
       if (this.chunksTotal === 0) return 0;
       return (this.chunksEmbedded / this.chunksTotal) * 100;
+    },
+
+    get progressData() {
+      // Returns { percent, label, detail } based on current phase
+      if (this.phase === 'import') {
+        // Cap at 100% since both APIs may return more items than initial estimate
+        const rawPercent = this.itemsTotal > 0
+          ? Math.round((this.docsImported / this.itemsTotal) * 100)
+          : null;
+        const percent = rawPercent !== null ? Math.min(rawPercent, 100) : null;
+        return {
+          percent,
+          label: 'Importiere von Readwise...',
+          detail: this.itemsTotal > 0
+            ? `${this.docsImported.toLocaleString()} / ${this.itemsTotal.toLocaleString()} Dokumente`
+            : `${this.docsImported.toLocaleString()} Dokumente importiert`
+        };
+      }
+      if (this.phase === 'chunk') {
+        const percent = this.docsToChunk > 0
+          ? Math.round((this.docsProcessed / this.docsToChunk) * 100)
+          : null;
+        return {
+          percent,
+          label: 'Erstelle Chunks...',
+          detail: this.docsToChunk > 0
+            ? `${this.docsProcessed} / ${this.docsToChunk} Dokumente (${this.chunksCreated.toLocaleString()} Chunks)`
+            : `${this.chunksCreated.toLocaleString()} Chunks erstellt`
+        };
+      }
+      if (this.phase === 'embed') {
+        const percent = this.chunksTotal > 0
+          ? Math.round((this.chunksEmbedded / this.chunksTotal) * 100)
+          : 0;
+        return {
+          percent,
+          label: 'Generiere Embeddings...',
+          detail: `${this.chunksEmbedded.toLocaleString()} / ${this.chunksTotal.toLocaleString()} Chunks`
+        };
+      }
+      if (this.phase === 'index') {
+        return {
+          percent: null,
+          label: 'Aktualisiere Index...',
+          detail: 'FTS-Index wird neu aufgebaut'
+        };
+      }
+      return null;
     },
 
     get token() {
@@ -329,17 +408,28 @@ function syncApp() {
         const data = JSON.parse(e.data);
         this.phase = data.phase;
         this.currentActivity = data.message || '';
+        this.lastHeartbeat = Date.now();
         this.addLog('info', data.message || `Phase ${data.phase} gestartet`);
       });
 
       this.eventSource.addEventListener('phase_progress', (e) => {
         const data = JSON.parse(e.data);
         this.updateFromData(data);
+        this.lastHeartbeat = Date.now();
+        // Show message in activity if provided, otherwise clear it for progress display
+        if (data.message) {
+          this.currentActivity = data.message;
+          this.addLog('info', data.message);
+        } else {
+          // Clear currentActivity so progressData.detail is shown instead
+          this.currentActivity = '';
+        }
       });
 
       this.eventSource.addEventListener('phase_complete', (e) => {
         const data = JSON.parse(e.data);
         this.updateFromData(data);
+        this.lastHeartbeat = Date.now();
         this.addLog('success', `Phase ${data.phase} abgeschlossen`);
       });
 
@@ -351,6 +441,7 @@ function syncApp() {
         this.currentActivity = '';
         this.addLog('success', 'Sync erfolgreich abgeschlossen!');
         this.eventSource.close();
+        this.stopHeartbeatMonitor();
         this.refreshStats();
       });
 
@@ -359,12 +450,14 @@ function syncApp() {
         this.status = 'paused';
         this.addLog('warning', 'Pipeline pausiert');
         this.eventSource.close();
+        this.stopHeartbeatMonitor();
       });
 
       this.eventSource.addEventListener('pipeline_cancelled', (e) => {
         this.status = 'cancelled';
         this.addLog('warning', 'Pipeline abgebrochen');
         this.eventSource.close();
+        this.stopHeartbeatMonitor();
       });
 
       this.eventSource.addEventListener('pipeline_failed', (e) => {
@@ -373,6 +466,16 @@ function syncApp() {
         this.error = data.error;
         this.addLog('error', 'Fehler: ' + data.error);
         this.eventSource.close();
+        this.stopHeartbeatMonitor();
+      });
+
+      // Heartbeat events - shows activity during long operations
+      this.eventSource.addEventListener('heartbeat', (e) => {
+        const data = JSON.parse(e.data);
+        this.lastHeartbeat = Date.now();
+        if (data.message) {
+          this.currentActivity = data.message;
+        }
       });
 
       this.eventSource.onerror = (e) => {
@@ -380,13 +483,45 @@ function syncApp() {
         if (this.status === 'running') {
           this.addLog('error', 'Verbindung unterbrochen');
         }
+        this.stopHeartbeatMonitor();
       };
+
+      // Start heartbeat monitor to detect stale connections
+      this.startHeartbeatMonitor();
+    },
+
+    startHeartbeatMonitor() {
+      this.lastHeartbeat = Date.now();
+      this.heartbeatTimer = setInterval(() => {
+        if (this.status === 'running' && this.lastHeartbeat) {
+          const elapsed = Date.now() - this.lastHeartbeat;
+          if (elapsed > 10000) {
+            this.addLog('warning', 'Keine Antwort vom Server seit 10s');
+            this.lastHeartbeat = Date.now(); // Reset to avoid spam
+          }
+        }
+      }, 5000);
+    },
+
+    stopHeartbeatMonitor() {
+      if (this.heartbeatTimer) {
+        clearInterval(this.heartbeatTimer);
+        this.heartbeatTimer = null;
+      }
     },
 
     updateFromData(data) {
+      // Import phase
       if (data.docs_imported !== undefined) this.docsImported = data.docs_imported;
       if (data.docs_merged !== undefined) this.docsMerged = data.docs_merged;
+      if (data.items_total !== undefined) this.itemsTotal = data.items_total;
+
+      // Chunk phase
       if (data.chunks_created !== undefined) this.chunksCreated = data.chunks_created;
+      if (data.docs_processed !== undefined) this.docsProcessed = data.docs_processed;
+      if (data.docs_total !== undefined) this.docsToChunk = data.docs_total;
+
+      // Embed phase
       if (data.chunks_embedded !== undefined) this.chunksEmbedded = data.chunks_embedded;
       if (data.chunks_total !== undefined) this.chunksTotal = data.chunks_total;
       if (data.pending_chunks !== undefined) this.chunksTotal = data.pending_chunks;
@@ -420,19 +555,24 @@ function syncApp() {
     },
 
     resetState() {
+      this.stopHeartbeatMonitor();
       this.status = 'idle';
       this.phase = 'idle';
       this.jobId = null;
       this.docsImported = 0;
       this.docsMerged = 0;
       this.chunksCreated = 0;
+      this.docsProcessed = 0;
+      this.docsToChunk = 0;
       this.chunksEmbedded = 0;
       this.chunksTotal = 0;
       this.tokensUsed = 0;
       this.costUsd = 0;
+      this.itemsTotal = 0;
       this.currentActivity = '';
       this.error = null;
       this.log = [];
+      this.lastHeartbeat = null;
     },
 
     resetSync() {
@@ -643,6 +783,52 @@ function syncApp() {
   background: var(--primary);
   border-radius: var(--radius-full);
   transition: width 0.3s ease;
+}
+
+/* Indeterminate Progress Animation */
+.progress-bar.indeterminate {
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-fill-indeterminate {
+  position: absolute;
+  height: 100%;
+  width: 30%;
+  background: var(--primary);
+  border-radius: var(--radius-full);
+  animation: indeterminate 1.5s ease-in-out infinite;
+}
+
+@keyframes indeterminate {
+  0% { left: -30%; }
+  100% { left: 100%; }
+}
+
+/* Spinner next to phase title */
+.phase-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.progress-container {
+  margin-bottom: var(--space-md);
 }
 
 .progress-details {

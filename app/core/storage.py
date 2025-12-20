@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import sqlite3
 import struct
@@ -11,6 +12,8 @@ from typing import Any
 from urllib.parse import urlparse, urlunparse
 
 import sqlite_vec
+
+logger = logging.getLogger(__name__)
 
 from app.core.settings import Settings
 from app.core.categories import normalize_category
@@ -670,6 +673,13 @@ class DB:
         # Run migrations for existing DBs
         _run_migrations(self.conn)
 
+        # Validate and auto-repair FTS if corrupted (SQLite version mismatch)
+        fts_status = self.validate_and_repair_fts()
+        if fts_status["repaired"]:
+            logger.warning("FTS was auto-repaired at startup")
+        elif not fts_status["valid"]:
+            logger.error(f"FTS validation failed: {fts_status['error']}")
+
     def get_stats(self) -> dict[str, Any]:
         cur = self.conn.execute("select count(*) from documents")
         docs = cur.fetchone()[0]
@@ -687,17 +697,21 @@ class DB:
                 (limit,),
             )
         else:
-            cur = self.conn.execute(
-                """
-                SELECT d.id, d.title, d.author, d.url_original, d.saved_at
-                FROM documents_fts f
-                JOIN documents d ON d.id = f.rowid
-                WHERE documents_fts MATCH ?
-                ORDER BY rank
-                LIMIT ?
-                """,
-                (q, limit),
-            )
+            try:
+                cur = self.conn.execute(
+                    """
+                    SELECT d.id, d.title, d.author, d.url_original, d.saved_at
+                    FROM documents_fts f
+                    JOIN documents d ON d.id = f.rowid
+                    WHERE documents_fts MATCH ?
+                    ORDER BY rank
+                    LIMIT ?
+                    """,
+                    (q, limit),
+                )
+            except sqlite3.DatabaseError as e:
+                logger.warning(f"FTS search failed, using LIKE fallback: {e}")
+                return self._search_like_fallback(q, limit)
         rows = []
         for r in cur.fetchall():
             rows.append(
@@ -921,17 +935,30 @@ class DB:
             cur = self.conn.execute(query, params)
 
         elif mode == "fts":
-            # FTS search
-            query = f"""
-                SELECT {select_cols}
-                FROM documents_fts f
-                JOIN documents d ON d.id = f.rowid
-                WHERE documents_fts MATCH ? {content_filter} {cat_filter}
-                ORDER BY {"rank" if sort_by == "distance" else sort_col} {sort_dir.upper()} NULLS LAST
-                LIMIT ?
-            """
-            params = [q] + cat_params + [limit]
-            cur = self.conn.execute(query, params)
+            # FTS search with LIKE fallback
+            try:
+                query = f"""
+                    SELECT {select_cols}
+                    FROM documents_fts f
+                    JOIN documents d ON d.id = f.rowid
+                    WHERE documents_fts MATCH ? {content_filter} {cat_filter}
+                    ORDER BY {"rank" if sort_by == "distance" else sort_col} {sort_dir.upper()} NULLS LAST
+                    LIMIT ?
+                """
+                params = [q] + cat_params + [limit]
+                cur = self.conn.execute(query, params)
+            except sqlite3.DatabaseError as e:
+                logger.warning(f"FTS search failed, using LIKE fallback: {e}")
+                pattern = f"%{q}%"
+                query = f"""
+                    SELECT {select_cols}
+                    FROM documents d
+                    WHERE (d.title LIKE ? OR d.fulltext LIKE ?) {content_filter} {cat_filter}
+                    ORDER BY {sort_col} {sort_dir.upper()} NULLS LAST
+                    LIMIT ?
+                """
+                params = [pattern, pattern] + cat_params + [limit]
+                cur = self.conn.execute(query, params)
 
         else:
             # Semantic search - return empty, caller handles embedding
@@ -1345,14 +1372,19 @@ class DB:
         This is more efficient than updating row-by-row and avoids
         conflicts with sqlite-vec during bulk imports.
 
+        Only indexes documents that have actual searchable content
+        (title or fulltext) to avoid orphaned FTS entries.
+
         Returns the number of documents indexed.
         """
-        # Clear and rebuild the FTS index
+        # Clear and rebuild the FTS index - only documents with content
         self.conn.execute("DELETE FROM documents_fts")
         self.conn.execute(
             """
             INSERT INTO documents_fts (rowid, title, author, fulltext, summary)
-            SELECT id, title, author, fulltext, summary FROM documents
+            SELECT id, title, author, fulltext, summary
+            FROM documents
+            WHERE title IS NOT NULL OR fulltext IS NOT NULL
             """
         )
         # Optimize the FTS index
@@ -1361,6 +1393,81 @@ class DB:
 
         cur = self.conn.execute("SELECT COUNT(*) FROM documents_fts")
         return cur.fetchone()[0]
+
+    def _rebuild_fts_safe(self) -> int:
+        """Rebuild FTS with DROP + CREATE (handles SQLite version mismatch).
+
+        Use this when FTS is corrupted due to SQLite version incompatibility
+        between host and container. Regular rebuild_fts() uses DELETE which
+        fails on corrupted FTS tables.
+
+        Returns the number of documents indexed.
+        """
+        logger.info("Rebuilding FTS (safe mode with DROP + CREATE)")
+
+        self.conn.execute("DROP TABLE IF EXISTS documents_fts")
+        self.conn.execute("""
+            CREATE VIRTUAL TABLE documents_fts USING fts5(
+                title, author, fulltext, summary,
+                content='documents', content_rowid='id'
+            )
+        """)
+        self.conn.execute("""
+            INSERT INTO documents_fts (rowid, title, author, fulltext, summary)
+            SELECT id, title, author, fulltext, summary
+            FROM documents
+            WHERE title IS NOT NULL OR fulltext IS NOT NULL
+        """)
+        self.conn.execute("INSERT INTO documents_fts(documents_fts) VALUES('optimize')")
+        self.conn.commit()
+
+        cur = self.conn.execute("SELECT COUNT(*) FROM documents_fts")
+        count = cur.fetchone()[0]
+        logger.info(f"FTS rebuilt: {count} documents indexed")
+        return count
+
+    def validate_and_repair_fts(self) -> dict:
+        """Validate FTS at startup, auto-repair if corrupted.
+
+        Returns dict with keys: valid, repaired, error
+        """
+        result = {"valid": False, "repaired": False, "error": None}
+
+        try:
+            self.conn.execute("SELECT COUNT(*) FROM documents_fts")
+            result["valid"] = True
+        except sqlite3.DatabaseError as e:
+            logger.warning(f"FTS corrupted: {e}")
+            result["error"] = str(e)
+            try:
+                self._rebuild_fts_safe()
+                result["valid"] = True
+                result["repaired"] = True
+            except Exception as repair_error:
+                logger.exception("FTS repair failed")
+                result["error"] = str(repair_error)
+
+        return result
+
+    def _search_like_fallback(
+        self, q: str, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        """Fallback search using LIKE when FTS is unavailable."""
+        pattern = f"%{q}%"
+        cur = self.conn.execute(
+            """
+            SELECT id, title, author, url_original, saved_at
+            FROM documents
+            WHERE title LIKE ? OR fulltext LIKE ?
+            ORDER BY saved_at DESC NULLS LAST
+            LIMIT ?
+            """,
+            (pattern, pattern, limit),
+        )
+        return [
+            {"id": r[0], "title": r[1], "author": r[2], "url": r[3], "saved_at": r[4]}
+            for r in cur.fetchall()
+        ]
 
     def save_highlight(
         self,
@@ -2280,10 +2387,12 @@ class DB:
         pending = cur.fetchone()[0]
 
         # Documents with fulltext but no chunks (ready for chunking)
+        # Only count docs with at least 100 chars (MIN_CHUNK_SIZE)
         cur = self.conn.execute(
             """SELECT COUNT(*) FROM documents d
                LEFT JOIN document_chunks c ON c.document_id = d.id
                WHERE d.fulltext IS NOT NULL AND d.fulltext != ''
+                 AND LENGTH(d.fulltext) >= 100
                  AND c.id IS NULL"""
         )
         without_chunks = cur.fetchone()[0]
@@ -2526,10 +2635,12 @@ class DB:
         docs_with_fulltext = cur.fetchone()[0]
 
         # Documents with fulltext but no chunks
+        # Only count docs with at least 100 chars (MIN_CHUNK_SIZE)
         cur = self.conn.execute(
             """SELECT COUNT(*) FROM documents d
                LEFT JOIN document_chunks c ON c.document_id = d.id
                WHERE d.fulltext IS NOT NULL AND d.fulltext != ''
+                 AND LENGTH(d.fulltext) >= 100
                  AND c.id IS NULL"""
         )
         docs_without_chunks = cur.fetchone()[0]
@@ -2567,8 +2678,12 @@ class DB:
             "orphaned_embeddings": orphaned_embeddings,
         }
 
-    def get_documents_for_chunking(self, limit: int = 100) -> list[dict[str, Any]]:
+    def get_documents_for_chunking(self, limit: int = 100, min_length: int = 100) -> list[dict[str, Any]]:
         """Get documents with fulltext but no chunks (need chunking).
+
+        Args:
+            limit: Maximum number of documents to return
+            min_length: Minimum fulltext length (shorter texts can't be chunked)
 
         Returns:
             List of documents with id, title, fulltext
@@ -2578,10 +2693,11 @@ class DB:
                FROM documents d
                LEFT JOIN document_chunks c ON c.document_id = d.id
                WHERE d.fulltext IS NOT NULL AND d.fulltext != ''
+                 AND LENGTH(d.fulltext) >= ?
                  AND c.id IS NULL
                ORDER BY d.id
                LIMIT ?""",
-            (limit,),
+            (min_length, limit),
         )
         return [
             {"id": row[0], "title": row[1], "fulltext": row[2]}
@@ -3113,6 +3229,11 @@ def init_db() -> None:
 
     # sqlite-vec must be loaded into this connection
     sqlite_vec.load(conn)
+
+    # Log SQLite version for debugging version mismatch issues
+    cur = conn.execute("SELECT sqlite_version()")
+    sqlite_version = cur.fetchone()[0]
+    logger.info(f"SQLite version: {sqlite_version}")
 
     _db = DB(conn=conn)
     _db.init()

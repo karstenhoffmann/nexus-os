@@ -337,6 +337,11 @@ p:last-child { margin-bottom: 0; }
   box-shadow: var(--shadow-card);
   border: 1px solid var(--border);
   transition: box-shadow var(--transition-normal), transform var(--transition-normal);
+  margin-bottom: var(--section-gap);
+}
+
+.card:last-child {
+  margin-bottom: 0;
 }
 
 .card:hover {

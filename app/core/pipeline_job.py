@@ -16,6 +16,7 @@ import json
 import logging
 import sqlite3
 import threading
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -61,6 +62,7 @@ class PipelineEventType(str, Enum):
     PIPELINE_CANCELLED = "pipeline_cancelled"
     PIPELINE_FAILED = "pipeline_failed"
     COST_CONFIRM = "cost_confirm"  # Requires user confirmation before embed
+    HEARTBEAT = "heartbeat"  # Regular status ping during long operations
 
 
 @dataclass
@@ -224,6 +226,41 @@ def get_pipeline_store() -> PipelineJobStore:
     return _pipeline_store
 
 
+def check_control_status(
+    job: PipelineJob,
+    store: PipelineJobStore,
+    phase: PipelinePhase,
+) -> PipelineEvent | None:
+    """Check if job should stop due to pause/cancel.
+
+    Returns event to yield if stopping, None to continue.
+    Call this BEFORE entering loops to ensure responsiveness even with 0 items.
+    """
+    current = store.get(job.id)
+    if not current:
+        return None
+
+    if current.status == PipelineStatus.PAUSED:
+        return PipelineEvent(
+            type=PipelineEventType.PIPELINE_PAUSED,
+            phase=phase,
+            data=job.to_dict(),
+        )
+
+    if current.status == PipelineStatus.CANCELLED:
+        return PipelineEvent(
+            type=PipelineEventType.PIPELINE_CANCELLED,
+            phase=phase,
+            data=job.to_dict(),
+        )
+
+    return None
+
+
+# Constants for heartbeat timing
+HEARTBEAT_INTERVAL = 2.0  # seconds
+
+
 async def run_pipeline(
     job: PipelineJob,
     db: "DB",
@@ -231,7 +268,62 @@ async def run_pipeline(
     token: str,
     skip_import: bool = False,
 ) -> AsyncIterator[PipelineEvent]:
-    """Run the complete sync pipeline.
+    """Async wrapper that runs the pipeline in a thread for proper SSE streaming.
+
+    The actual pipeline contains blocking I/O (HTTP requests to Readwise API).
+    Running it directly in an async generator blocks the event loop and prevents
+    SSE events from being sent. This wrapper runs the pipeline in a thread and
+    yields events through an asyncio Queue.
+    """
+    import asyncio
+    import queue
+
+    # Queue for events from the pipeline thread
+    event_queue: queue.Queue[PipelineEvent | None] = queue.Queue()
+
+    def run_in_thread():
+        """Run the sync pipeline and put events on the queue."""
+        try:
+            for event in _run_pipeline_sync(
+                job=job,
+                db=db,
+                store=store,
+                token=token,
+                skip_import=skip_import,
+            ):
+                event_queue.put(event)
+        except Exception as e:
+            logger.exception("Pipeline error in thread")
+            event_queue.put(PipelineEvent(
+                type=PipelineEventType.PIPELINE_FAILED,
+                phase=job.phase,
+                data={"error": str(e)},
+            ))
+        finally:
+            event_queue.put(None)  # Signal end of stream
+
+    # Start pipeline in background thread
+    thread = threading.Thread(target=run_in_thread, daemon=True)
+    thread.start()
+
+    # Yield events from queue asynchronously
+    loop = asyncio.get_event_loop()
+    while True:
+        # Use run_in_executor to avoid blocking the event loop
+        event = await loop.run_in_executor(None, event_queue.get)
+        if event is None:
+            break
+        yield event
+
+
+def _run_pipeline_sync(
+    job: PipelineJob,
+    db: "DB",
+    store: PipelineJobStore,
+    token: str,
+    skip_import: bool = False,
+):
+    """Run the complete sync pipeline (synchronous generator).
 
     Phases:
     1. IMPORT - Fetch from Readwise (can be skipped)
@@ -266,90 +358,130 @@ async def run_pipeline(
             yield PipelineEvent(
                 type=PipelineEventType.PHASE_START,
                 phase=PipelinePhase.IMPORT,
-                data={"message": "Starte Import von Readwise..."},
+                data={"message": "Verbinde mit Readwise API..."},
             )
+
+            # Check control BEFORE expensive API operation
+            stop_event = check_control_status(job, store, PipelinePhase.IMPORT)
+            if stop_event:
+                yield stop_event
+                return
 
             import_store = get_import_store()
             import_job = import_store.create()
             job.import_job_id = import_job.id
             store.update(job)
 
-            client = ReadwiseClient(token=token)
+            items_processed = 0
+            last_heartbeat = time.monotonic()
 
-            async for event in client.stream_import(import_job, import_store):
-                # Check for pause/cancel
-                current = store.get(job.id)
-                if current and current.status == PipelineStatus.PAUSED:
-                    import_store.pause(import_job.id)
-                    yield PipelineEvent(
-                        type=PipelineEventType.PIPELINE_PAUSED,
-                        phase=PipelinePhase.IMPORT,
-                        data=job.to_dict(),
-                    )
-                    return
+            # Get last sync timestamp for incremental import
+            last_sync_str = db.get_setting("last_sync_at")
+            updated_after = None
+            if last_sync_str:
+                from datetime import datetime
+                try:
+                    updated_after = datetime.fromisoformat(last_sync_str)
+                    logger.info(f"Incremental sync: fetching documents updated after {updated_after}")
+                except ValueError:
+                    logger.warning(f"Invalid last_sync_at value: {last_sync_str}, doing full sync")
 
-                if current and current.status == PipelineStatus.CANCELLED:
-                    import_store.cancel(import_job.id)
-                    yield PipelineEvent(
-                        type=PipelineEventType.PIPELINE_CANCELLED,
-                        phase=PipelinePhase.IMPORT,
-                        data=job.to_dict(),
-                    )
-                    return
-
-                # Process import events
-                if event.type == ImportEventType.ITEM:
-                    # Save article and highlights to DB
-                    article = event.data.get("article")
-                    if article:
-                        doc_id = db.save_article(
-                            source=article.source,
-                            provider_id=article.provider_id,
-                            url_original=article.url,
-                            title=article.title,
-                            author=article.author,
-                            published_at=article.published_at,
-                            saved_at=article.saved_at,
-                            category=article.category,
-                            word_count=article.word_count,
-                            fulltext=article.fulltext,
-                            fulltext_html=article.fulltext_html,
-                            summary=article.summary,
-                            raw_json=article.raw_json,
+            url_index: dict[str, str] = {}
+            with ReadwiseClient(token=token) as client:
+                for event in client.stream_import(import_job, url_index=url_index, updated_after=updated_after):
+                    # Heartbeat for long-running operations
+                    if time.monotonic() - last_heartbeat > HEARTBEAT_INTERVAL:
+                        yield PipelineEvent(
+                            type=PipelineEventType.HEARTBEAT,
+                            phase=PipelinePhase.IMPORT,
+                            data={"items_processed": items_processed, "status": "processing"},
                         )
-                        # Save highlights
-                        for hl in article.highlights:
-                            db.save_highlight(
-                                document_id=doc_id,
-                                provider_highlight_id=hl.provider_id,
-                                text=hl.text,
-                                note=hl.note,
-                                highlighted_at=hl.highlighted_at,
-                                provider=article.source,
+                        last_heartbeat = time.monotonic()
+
+                    # Check for pause/cancel inside loop for responsiveness
+                    stop_event = check_control_status(job, store, PipelinePhase.IMPORT)
+                    if stop_event:
+                        if stop_event.type == PipelineEventType.PIPELINE_PAUSED:
+                            import_store.pause(import_job.id)
+                        else:
+                            import_store.cancel(import_job.id)
+                        yield stop_event
+                        return
+
+                    # Process import events
+                    if event.type == ImportEventType.ITEM:
+                        items_processed += 1
+                        last_heartbeat = time.monotonic()
+                        # Save article and highlights to DB
+                        article_data = event.data.get("article", {})
+                        if article_data.get("provider_id"):
+                            from app.core.content_fetcher import extract_text_from_html
+
+                            html_content = article_data.get("html_content")
+                            clean_text = extract_text_from_html(html_content) if html_content else None
+                            doc_id = db.save_article(
+                                source=article_data.get("provider", "unknown"),
+                                provider_id=article_data.get("provider_id", ""),
+                                url_original=article_data.get("source_url"),
+                                title=article_data.get("title"),
+                                author=article_data.get("author"),
+                                published_at=article_data.get("published_date"),
+                                saved_at=article_data.get("saved_at"),
+                                category=article_data.get("category"),
+                                word_count=article_data.get("word_count"),
+                                fulltext=clean_text,
+                                fulltext_html=html_content,
+                                fulltext_source="readwise" if clean_text else None,
+                                summary=article_data.get("summary"),
                             )
+                            # Save highlights if present
+                            highlights = event.data.get("highlights", [])
+                            for hl in highlights:
+                                if hl.get("provider_id") and hl.get("text"):
+                                    db.save_highlight(
+                                        document_id=doc_id,
+                                        provider_highlight_id=hl["provider_id"],
+                                        text=hl["text"],
+                                        note=hl.get("note"),
+                                        highlighted_at=hl.get("highlighted_at"),
+                                        provider=hl.get("provider"),
+                                    )
 
-                elif event.type == ImportEventType.PROGRESS:
-                    job.docs_imported = import_job.items_imported
-                    job.docs_merged = import_job.items_merged
-                    store.update(job)
+                    elif event.type == ImportEventType.PROGRESS:
+                        job.docs_imported = import_job.items_imported
+                        job.docs_merged = import_job.items_merged
+                        store.update(job)
+                        last_heartbeat = time.monotonic()
 
-                    yield PipelineEvent(
-                        type=PipelineEventType.PHASE_PROGRESS,
-                        phase=PipelinePhase.IMPORT,
-                        data={
-                            "docs_imported": job.docs_imported,
-                            "docs_merged": job.docs_merged,
-                            "items_total": import_job.items_total,
-                        },
-                    )
+                        yield PipelineEvent(
+                            type=PipelineEventType.PHASE_PROGRESS,
+                            phase=PipelinePhase.IMPORT,
+                            data={
+                                "docs_imported": job.docs_imported,
+                                "docs_merged": job.docs_merged,
+                                "items_total": import_job.items_total,
+                            },
+                        )
 
-                elif event.type == ImportEventType.ERROR:
-                    logger.warning(f"Import error: {event.data}")
+                    elif event.type == ImportEventType.ERROR:
+                        logger.warning(f"Import error: {event.data}")
 
-                elif event.type == ImportEventType.COMPLETED:
-                    # Rebuild FTS after import
-                    db.rebuild_fts()
-                    break
+                    elif event.type == ImportEventType.COMPLETED:
+                        # Rebuild FTS after import
+                        db.rebuild_fts()
+                        break
+
+            # Ensure we always send a progress event, even if no items were imported
+            if items_processed == 0:
+                yield PipelineEvent(
+                    type=PipelineEventType.PHASE_PROGRESS,
+                    phase=PipelinePhase.IMPORT,
+                    data={
+                        "docs_imported": 0,
+                        "docs_merged": 0,
+                        "message": "Keine neuen Dokumente gefunden",
+                    },
+                )
 
             yield PipelineEvent(
                 type=PipelineEventType.PHASE_COMPLETE,
@@ -364,70 +496,108 @@ async def run_pipeline(
         job.phase = PipelinePhase.CHUNK
         store.update(job)
 
+        # Get total count BEFORE processing for progress percentage
+        stats = db.count_documents_for_fetch()
+        docs_to_chunk = stats.get("without_chunks", 0)
+
         yield PipelineEvent(
             type=PipelineEventType.PHASE_START,
             phase=PipelinePhase.CHUNK,
-            data={"message": "Erstelle Chunks fuer neue Dokumente..."},
+            data={
+                "message": "Pruefe Dokumente fuer Chunking...",
+                "docs_total": docs_to_chunk,
+            },
         )
+
+        # Check control BEFORE processing
+        stop_event = check_control_status(job, store, PipelinePhase.CHUNK)
+        if stop_event:
+            yield stop_event
+            return
 
         # Get documents that need chunking
         chunks_created = 0
+        docs_processed = 0
         batch_size = 50
 
-        while True:
-            # Check for pause/cancel
-            current = store.get(job.id)
-            if current and current.status == PipelineStatus.PAUSED:
-                yield PipelineEvent(
-                    type=PipelineEventType.PIPELINE_PAUSED,
-                    phase=PipelinePhase.CHUNK,
-                    data=job.to_dict(),
-                )
-                return
+        # First check: Are there any documents to chunk?
+        docs = db.get_documents_for_chunking(limit=batch_size)
 
-            if current and current.status == PipelineStatus.CANCELLED:
-                yield PipelineEvent(
-                    type=PipelineEventType.PIPELINE_CANCELLED,
-                    phase=PipelinePhase.CHUNK,
-                    data=job.to_dict(),
-                )
-                return
-
-            docs = db.get_documents_for_chunking(limit=batch_size)
-            if not docs:
-                break
-
-            for doc in docs:
-                if doc["fulltext"]:
-                    chunks = chunk_document(
-                        fulltext=doc["fulltext"],
-                        title=doc["title"] or "",
-                    )
-                    if chunks:
-                        db.save_chunks(
-                            document_id=doc["id"],
-                            chunks=[c.to_dict() for c in chunks],
-                        )
-                        chunks_created += len(chunks)
-
-            job.chunks_created = chunks_created
-            store.update(job)
-
+        if not docs:
+            # Nothing to do - send explicit feedback
             yield PipelineEvent(
                 type=PipelineEventType.PHASE_PROGRESS,
                 phase=PipelinePhase.CHUNK,
-                data={"chunks_created": chunks_created},
+                data={
+                    "chunks_created": 0,
+                    "docs_processed": 0,
+                    "docs_total": docs_to_chunk,
+                    "message": "Keine Dokumente benoetigen Chunking",
+                },
             )
+        else:
+            while docs:
+                # Check for pause/cancel at start of each batch
+                stop_event = check_control_status(job, store, PipelinePhase.CHUNK)
+                if stop_event:
+                    yield stop_event
+                    return
+
+                for doc in docs:
+                    if doc["fulltext"]:
+                        chunks = chunk_document(
+                            fulltext=doc["fulltext"],
+                            title=doc["title"] or "",
+                        )
+                        if chunks:
+                            db.save_chunks(
+                                document_id=doc["id"],
+                                chunks=[c.to_dict() for c in chunks],
+                            )
+                            chunks_created += len(chunks)
+
+                docs_processed += len(docs)
+                job.chunks_created = chunks_created
+                store.update(job)
+
+                yield PipelineEvent(
+                    type=PipelineEventType.PHASE_PROGRESS,
+                    phase=PipelinePhase.CHUNK,
+                    data={
+                        "chunks_created": chunks_created,
+                        "docs_processed": docs_processed,
+                        "docs_total": docs_to_chunk,
+                    },
+                )
+
+                # Get next batch
+                docs = db.get_documents_for_chunking(limit=batch_size)
 
         yield PipelineEvent(
             type=PipelineEventType.PHASE_COMPLETE,
             phase=PipelinePhase.CHUNK,
-            data={"chunks_created": chunks_created},
+            data={
+                "chunks_created": chunks_created,
+                "docs_processed": docs_processed,
+                "docs_total": docs_to_chunk,
+            },
         )
 
         # ========== PHASE 3: EMBED ==========
         job.phase = PipelinePhase.EMBED
         store.update(job)
+
+        yield PipelineEvent(
+            type=PipelineEventType.PHASE_START,
+            phase=PipelinePhase.EMBED,
+            data={"message": "Pruefe ausstehende Embeddings..."},
+        )
+
+        # Check control BEFORE expensive operation
+        stop_event = check_control_status(job, store, PipelinePhase.EMBED)
+        if stop_event:
+            yield stop_event
+            return
 
         # Get stats for embedding
         stats = db.count_chunks_for_embedding()
@@ -435,9 +605,14 @@ async def run_pipeline(
 
         if pending_chunks == 0:
             yield PipelineEvent(
+                type=PipelineEventType.PHASE_PROGRESS,
+                phase=PipelinePhase.EMBED,
+                data={"chunks_embedded": 0, "message": "Alle Chunks haben bereits Embeddings"},
+            )
+            yield PipelineEvent(
                 type=PipelineEventType.PHASE_COMPLETE,
                 phase=PipelinePhase.EMBED,
-                data={"chunks_embedded": 0, "message": "Keine neuen Chunks zu embedden"},
+                data={"chunks_embedded": 0},
             )
         else:
             # Estimate cost
@@ -445,7 +620,7 @@ async def run_pipeline(
             est_cost = est_tokens * 0.02 / 1_000_000  # text-embedding-3-small price
 
             yield PipelineEvent(
-                type=PipelineEventType.PHASE_START,
+                type=PipelineEventType.PHASE_PROGRESS,
                 phase=PipelinePhase.EMBED,
                 data={
                     "message": f"Generiere Embeddings fuer {pending_chunks} Chunks...",
@@ -463,25 +638,26 @@ async def run_pipeline(
             job.embed_job_id = embed_job.id
             store.update(job)
 
-            async for event in run_embed_job(embed_job, db, embed_store):
-                # Check for pause/cancel
-                current = store.get(job.id)
-                if current and current.status == PipelineStatus.PAUSED:
-                    embed_store.pause(embed_job.id)
-                    yield PipelineEvent(
-                        type=PipelineEventType.PIPELINE_PAUSED,
-                        phase=PipelinePhase.EMBED,
-                        data=job.to_dict(),
-                    )
-                    return
+            # Run async embed job in a new event loop (we're in a thread)
+            import asyncio
 
-                if current and current.status == PipelineStatus.CANCELLED:
-                    embed_store.cancel(embed_job.id)
-                    yield PipelineEvent(
-                        type=PipelineEventType.PIPELINE_CANCELLED,
-                        phase=PipelinePhase.EMBED,
-                        data=job.to_dict(),
-                    )
+            async def collect_embed_events():
+                events = []
+                async for event in run_embed_job(embed_job, db, embed_store):
+                    events.append(event)
+                return events
+
+            embed_events = asyncio.run(collect_embed_events())
+
+            for event in embed_events:
+                # Check for pause/cancel
+                stop_event = check_control_status(job, store, PipelinePhase.EMBED)
+                if stop_event:
+                    if stop_event.type == PipelineEventType.PIPELINE_PAUSED:
+                        embed_store.pause(embed_job.id)
+                    else:
+                        embed_store.cancel(embed_job.id)
+                    yield stop_event
                     return
 
                 # Update pipeline job from embed job
@@ -534,6 +710,11 @@ async def run_pipeline(
         job.phase = PipelinePhase.DONE
         job.status = PipelineStatus.COMPLETED
         store.update(job)
+
+        # Save last_sync_at for incremental sync next time
+        from datetime import datetime
+        db.set_setting("last_sync_at", datetime.utcnow().isoformat())
+        logger.info("Saved last_sync_at timestamp for incremental sync")
 
         yield PipelineEvent(
             type=PipelineEventType.PIPELINE_COMPLETE,

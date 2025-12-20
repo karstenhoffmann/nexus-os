@@ -436,6 +436,7 @@ class ReadwiseClient:
         job: ImportJob,
         *,
         url_index: dict[str, str] | None = None,
+        updated_after: datetime | None = None,
     ) -> Iterator[ImportEvent]:
         """Stream import from both APIs with pause/resume support.
 
@@ -446,6 +447,8 @@ class ReadwiseClient:
             job: ImportJob tracking state (cursors, counters, status)
             url_index: Optional dict mapping normalized URLs to existing IDs
                        for merge detection. Will be populated during import.
+            updated_after: Only fetch documents updated after this datetime
+                          (for incremental sync)
 
         Yields:
             ImportEvent for each item, progress update, or state change
@@ -461,7 +464,7 @@ class ReadwiseClient:
         try:
             # Phase 1: Reader API (has full content, import first)
             if not job.reader_done:
-                yield from self._stream_reader_api(job, url_index)
+                yield from self._stream_reader_api(job, url_index, updated_after)
 
             # Check if paused or cancelled after Reader API
             if job.status == ImportStatus.PAUSED:
@@ -475,7 +478,7 @@ class ReadwiseClient:
 
             # Phase 2: Export API (supplements with highlights)
             if not job.export_done:
-                yield from self._stream_export_api(job, url_index)
+                yield from self._stream_export_api(job, url_index, updated_after)
 
             # Check if paused or cancelled after Export API
             if job.status == ImportStatus.PAUSED:
@@ -511,6 +514,7 @@ class ReadwiseClient:
         self,
         job: ImportJob,
         url_index: dict[str, str],
+        updated_after: datetime | None = None,
     ) -> Iterator[ImportEvent]:
         """Stream items from Reader API."""
         from app.core.import_job import ImportStatus
@@ -519,6 +523,8 @@ class ReadwiseClient:
         params: dict[str, str] = {"withHtmlContent": "true"}
         if job.reader_cursor:
             params["pageCursor"] = job.reader_cursor
+        if updated_after:
+            params["updatedAfter"] = updated_after.isoformat()
 
         is_first_page = job.reader_cursor is None
 
@@ -626,6 +632,7 @@ class ReadwiseClient:
         self,
         job: ImportJob,
         url_index: dict[str, str],
+        updated_after: datetime | None = None,
     ) -> Iterator[ImportEvent]:
         """Stream items from Export API, merging with Reader items by URL."""
         from app.core.import_job import ImportStatus
@@ -633,6 +640,8 @@ class ReadwiseClient:
         params: dict[str, str] = {}
         if job.export_cursor:
             params["pageCursor"] = job.export_cursor
+        if updated_after:
+            params["updatedAfter"] = updated_after.isoformat()
 
         while True:
             # Check for pause or cancel request

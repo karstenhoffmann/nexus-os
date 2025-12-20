@@ -2023,14 +2023,19 @@ async def sync_stream(job_id: str):
 
     async def event_generator():
         """Generate SSE events from pipeline."""
-        async for event in run_pipeline(
-            job=job,
-            db=db,
-            store=store,
-            token=token,
-            skip_import=skip_import,
-        ):
-            yield event.to_sse()
+        try:
+            async for event in run_pipeline(
+                job=job,
+                db=db,
+                store=store,
+                token=token,
+                skip_import=skip_import,
+            ):
+                yield event.to_sse()
+        except Exception as e:
+            import traceback
+            logger.error(f"Pipeline error: {e}\n{traceback.format_exc()}")
+            yield f"event: pipeline_failed\ndata: {{\"error\": \"{e}\"}}\n\n"
 
     return StreamingResponse(
         event_generator(),
