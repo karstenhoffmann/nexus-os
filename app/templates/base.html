@@ -6,7 +6,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>nexus-os</title>
+  <!-- Custom CSS first (existing design system) -->
   <link rel="stylesheet" href="/static/app.css">
+  <!-- Tailwind + DaisyUI last (takes precedence for migrated components) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.23/dist/full.min.css" rel="stylesheet" type="text/css" />
   <script defer src="/static/htmx.min.js"></script>
   <script defer src="/static/alpine.min.js"></script>
   <script>
