@@ -1,87 +1,68 @@
 {% if rows %}
 {% from "macros/icons.html" import icon %}
-<div class="table-wrapper">
-<table class="data-table library-table">
+<div class="overflow-x-auto">
+<table class="table table-zebra">
   <thead>
     <tr>
-      <th class="sortable{% if sort_by == 'title' %} active{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('title')">
-        Titel
-        {% if sort_by == 'title' %}
-          {{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}
-        {% endif %}
+      <th class="cursor-pointer hover:bg-base-200{% if sort_by == 'title' %} bg-base-200{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('title')">
+        <span class="flex items-center gap-1">Titel {% if sort_by == 'title' %}{{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}{% endif %}</span>
       </th>
-      <th class="sortable col-numeric{% if sort_by == 'highlight_count' %} active{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('highlight_count')">
-        {{ icon("bookmark") }}
-        {% if sort_by == 'highlight_count' %}
-          {{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}
-        {% endif %}
+      <th class="cursor-pointer hover:bg-base-200 text-right{% if sort_by == 'highlight_count' %} bg-base-200{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('highlight_count')">
+        <span class="flex items-center justify-end gap-1">{{ icon("bookmark") }} {% if sort_by == 'highlight_count' %}{{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}{% endif %}</span>
       </th>
-      <th class="sortable{% if sort_by == 'author' %} active{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('author')">
-        Autor
-        {% if sort_by == 'author' %}
-          {{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}
-        {% endif %}
+      <th class="cursor-pointer hover:bg-base-200{% if sort_by == 'author' %} bg-base-200{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('author')">
+        <span class="flex items-center gap-1">Autor {% if sort_by == 'author' %}{{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}{% endif %}</span>
       </th>
-      <th class="sortable{% if sort_by == 'category' %} active{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('category')">
-        Typ
-        {% if sort_by == 'category' %}
-          {{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}
-        {% endif %}
+      <th class="cursor-pointer hover:bg-base-200{% if sort_by == 'category' %} bg-base-200{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('category')">
+        <span class="flex items-center gap-1">Typ {% if sort_by == 'category' %}{{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}{% endif %}</span>
       </th>
-      <th class="sortable{% if sort_by == 'saved_at' %} active{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('saved_at')">
-        Datum
-        {% if sort_by == 'saved_at' %}
-          {{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}
-        {% endif %}
+      <th class="cursor-pointer hover:bg-base-200{% if sort_by == 'saved_at' %} bg-base-200{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('saved_at')">
+        <span class="flex items-center gap-1">Datum {% if sort_by == 'saved_at' %}{{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}{% endif %}</span>
       </th>
-      <th class="sortable col-numeric{% if sort_by == 'word_count' %} active{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('word_count')">
-        Woerter
-        {% if sort_by == 'word_count' %}
-          {{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}
-        {% endif %}
+      <th class="cursor-pointer hover:bg-base-200 text-right{% if sort_by == 'word_count' %} bg-base-200{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('word_count')">
+        <span class="flex items-center justify-end gap-1">Woerter {% if sort_by == 'word_count' %}{{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}{% endif %}</span>
       </th>
       {% if mode == 'semantic' %}
-      <th class="sortable col-numeric{% if sort_by == 'distance' %} active{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('distance')">
-        Score
-        {% if sort_by == 'distance' %}
-          {{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}
-        {% endif %}
+      <th class="cursor-pointer hover:bg-base-200 text-right{% if sort_by == 'distance' %} bg-base-200{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('distance')">
+        <span class="flex items-center justify-end gap-1">Score {% if sort_by == 'distance' %}{{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}{% endif %}</span>
       </th>
       {% endif %}
     </tr>
   </thead>
   <tbody>
     {% for r in rows %}
-    <tr>
-      <td class="col-title">
-        <a href="/documents/{{ r.id }}">{{ r.title or ("Doc #" ~ r.id) }}</a>
+    <tr class="hover">
+      <td class="max-w-md">
+        <a href="/documents/{{ r.id }}" class="font-medium link link-hover">{{ r.title or ("Doc #" ~ r.id) }}</a>
         {% if r.url %}
-        <div class="source-url">
+        <div class="flex items-center gap-1 mt-1 text-xs text-base-content/60">
           {{ icon("external-link") }}
-          <a href="{{ r.url }}" target="_blank" rel="noopener" class="url-link">{{ r.url[:60] }}{% if r.url|length > 60 %}...{% endif %}</a>
+          <a href="{{ r.url }}" target="_blank" rel="noopener" class="link link-hover truncate">{{ r.url[:60] }}{% if r.url|length > 60 %}...{% endif %}</a>
         </div>
         {% endif %}
         {% if r.chunk_text %}
-        <div class="chunk-preview">
+        <div class="text-xs text-base-content/60 mt-1 italic line-clamp-2">
           {{ r.chunk_text[:150] }}{% if r.chunk_text|length > 150 %}...{% endif %}
         </div>
         {% endif %}
       </td>
-      <td class="col-numeric col-highlights">
+      <td class="text-right">
         {% if r.highlight_count %}
-        <span class="highlight-count">{{ r.highlight_count }}</span>
+        <span class="badge badge-warning badge-sm">{{ r.highlight_count }}</span>
         {% else %}
-        <span class="highlight-count highlight-count-zero">0</span>
+        <span class="badge badge-ghost badge-sm">0</span>
         {% endif %}
       </td>
       <td>{{ r.author or "-" }}</td>
       <td>
-        <span class="badge badge-{{ r.category or 'article' }}">{{ r.category or "article" }}</span>
+        {# Category badge mapping to DaisyUI semantic colors #}
+        {% set cat = r.category or 'article' %}
+        <span class="badge badge-sm {% if cat == 'article' %}badge-primary{% elif cat == 'pdf' %}badge-error{% elif cat == 'podcast' %}badge-warning{% elif cat == 'video' %}badge-success{% elif cat in ['tweet', 'linkedin'] %}badge-info{% elif cat == 'epub' %}badge-secondary{% elif cat == 'note' %}badge-accent{% else %}badge-ghost{% endif %}">{{ cat }}</span>
       </td>
-      <td class="col-date">{{ r.saved_at | dateformat }}</td>
-      <td class="col-numeric">{{ "{:,}".format(r.word_count).replace(",", ".") if r.word_count else "-" }}</td>
+      <td class="whitespace-nowrap">{{ r.saved_at | dateformat }}</td>
+      <td class="text-right tabular-nums">{{ "{:,}".format(r.word_count).replace(",", ".") if r.word_count else "-" }}</td>
       {% if mode == 'semantic' %}
-      <td class="col-numeric">{{ "%.3f"|format(r.distance) if r.distance is not none else "-" }}</td>
+      <td class="text-right tabular-nums">{{ "%.3f"|format(r.distance) if r.distance is not none else "-" }}</td>
       {% endif %}
     </tr>
     {% endfor %}
@@ -89,189 +70,9 @@
 </table>
 </div>
 
-<script>
-// Re-render feather icons after HTMX swap
-
-</script>
-
 {% else %}
-<div class="empty-state">
-  {{ icon("search", "empty-icon") }}
+<div class="text-center py-12 text-base-content/60">
+  <div class="text-5xl opacity-30 mb-4">{{ icon("search") }}</div>
   <p>Keine Ergebnisse gefunden.</p>
 </div>
-<script></script>
 {% endif %}
-
-<style>
-.library-table {
-  width: 100%;
-}
-
-.library-table th.sortable {
-  cursor: pointer;
-  user-select: none;
-  white-space: nowrap;
-}
-
-.library-table th.sortable:hover {
-  background: var(--bg-hover);
-}
-
-.library-table th svg,
-.library-table th i {
-  width: 0.75rem;
-  height: 0.75rem;
-  margin-left: 0.25rem;
-  vertical-align: middle;
-}
-
-.col-title {
-  max-width: 400px;
-}
-
-.col-title a {
-  font-weight: var(--font-weight-medium);
-}
-
-.source-url {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  margin-top: 0.25rem;
-  font-size: var(--font-size-xs);
-}
-
-.source-url svg {
-  width: 0.75rem;
-  height: 0.75rem;
-  color: var(--primary);
-  flex-shrink: 0;
-}
-
-.url-link {
-  color: var(--text-muted);
-  text-decoration: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.url-link:hover {
-  color: var(--primary);
-  text-decoration: underline;
-}
-
-.chunk-preview {
-  font-size: var(--font-size-xs);
-  color: var(--text-muted);
-  margin-top: 0.25rem;
-  line-height: 1.4;
-  font-style: italic;
-}
-
-.col-date {
-  white-space: nowrap;
-}
-
-.col-numeric {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.col-highlights {
-  width: 3rem;
-}
-
-.highlight-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.5rem;
-  height: 1.5rem;
-  padding: 0 0.375rem;
-  background: var(--warning-bg, rgba(245, 158, 11, 0.1));
-  color: var(--warning, #d97706);
-  border-radius: var(--radius-full, 9999px);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-}
-
-.highlight-count-zero {
-  background: var(--bg-secondary);
-  color: var(--text-muted);
-}
-
-/* Category Badges */
-.badge {
-  display: inline-block;
-  padding: 0.125rem 0.5rem;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  text-transform: lowercase;
-}
-
-.badge-article {
-  background: var(--primary-bg, rgba(59, 130, 246, 0.1));
-  color: var(--primary);
-}
-
-.badge-pdf {
-  background: var(--error-bg);
-  color: var(--error);
-}
-
-.badge-podcast {
-  background: var(--warning-bg);
-  color: var(--warning);
-}
-
-.badge-video {
-  background: var(--success-bg);
-  color: var(--success);
-}
-
-.badge-tweet {
-  background: var(--twitter-bg);
-  color: var(--twitter);
-}
-
-.badge-email, .badge-rss {
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-}
-
-.badge-epub {
-  background: var(--purple-bg);
-  color: var(--purple);
-}
-
-.badge-note {
-  background: var(--pink-bg);
-  color: var(--pink);
-}
-
-.badge-highlight {
-  background: var(--warning-bg);
-  color: var(--warning);
-}
-
-.badge-linkedin {
-  background: var(--linkedin-bg);
-  color: var(--linkedin);
-}
-
-/* Empty State */
-.empty-state {
-  text-align: center;
-  padding: var(--space-xxl) var(--space-lg);
-  color: var(--text-muted);
-}
-
-.empty-icon {
-  width: 3rem;
-  height: 3rem;
-  opacity: 0.3;
-  margin-bottom: var(--space-md);
-}
-</style>

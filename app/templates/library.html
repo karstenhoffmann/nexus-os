@@ -7,40 +7,40 @@
 <h1>Library</h1>
 
 <!-- Search Bar -->
-<form @submit.prevent="search()" class="search-form">
-  <div class="row gap">
+<form @submit.prevent="search()" class="mb-4">
+  <div class="flex flex-wrap gap-2">
     <input
-      class="input flex-1"
+      class="input input-bordered flex-1 min-w-48"
       type="text"
       x-model="q"
       placeholder="Suche..."
       @keyup.enter="search()"
     >
-    <select x-model="mode" class="input" style="width: auto;" @change="search()">
+    <select x-model="mode" class="select select-bordered w-auto" @change="search()">
       <option value="semantic">Semantic</option>
       <option value="fts">Keyword (FTS)</option>
     </select>
-    <button class="btn" type="submit">
+    <button class="btn btn-primary" type="submit">
       {{ icon("search") }} Search
     </button>
   </div>
 </form>
 
 <!-- Filter Section -->
-<div class="filter-section">
+<div class="flex flex-col gap-3 py-4 border-b border-base-300 mb-4">
   <!-- Content Filter -->
-  <div class="filter-group">
-    <span class="filter-label">Inhalt:</span>
+  <div class="flex flex-wrap items-center gap-2">
+    <span class="text-sm text-base-content/70 font-medium min-w-16">Inhalt:</span>
     <button
-      class="filter-pill"
-      :class="{ active: fulltext }"
+      class="btn btn-sm"
+      :class="fulltext ? 'btn-primary' : 'btn-ghost'"
       @click="fulltext = !fulltext; search()"
     >
       {{ icon("file-text") }} Volltext
     </button>
     <button
-      class="filter-pill"
-      :class="{ active: highlights }"
+      class="btn btn-sm"
+      :class="highlights ? 'btn-primary' : 'btn-ghost'"
       @click="highlights = !highlights; search()"
     >
       {{ icon("bookmark") }} Highlights
@@ -48,21 +48,21 @@
   </div>
 
   <!-- Category Filter -->
-  <div class="filter-group">
-    <span class="filter-label">Typ:</span>
+  <div class="flex flex-wrap items-center gap-2">
+    <span class="text-sm text-base-content/70 font-medium min-w-16">Typ:</span>
     <template x-for="cat in allCategories" :key="cat">
       <button
-        class="filter-pill"
-        :class="{ active: categories.includes(cat) }"
+        class="btn btn-sm"
+        :class="categories.includes(cat) ? 'btn-primary' : 'btn-ghost'"
         @click="toggleCategory(cat)"
       >
         <span x-text="cat"></span>
-        <span class="filter-count" x-text="categoryCounts[cat] || 0"></span>
+        <span class="badge badge-sm ml-1" x-text="categoryCounts[cat] || 0"></span>
       </button>
     </template>
     <button
-      class="filter-pill"
-      :class="{ active: categories.length === 0 }"
+      class="btn btn-sm"
+      :class="categories.length === 0 ? 'btn-primary' : 'btn-ghost'"
       @click="categories = []; search()"
     >
       Alle
@@ -71,10 +71,10 @@
 </div>
 
 <!-- Results Count -->
-<p class="results-count" x-show="total > 0">
+<p class="text-sm text-base-content/70 mb-4" x-show="total > 0">
   <span x-text="total"></span> Ergebnisse
-  <span x-show="q && mode === 'semantic'" class="muted"> - Semantische Suche</span>
-  <span x-show="q && mode === 'fts'" class="muted"> - Keyword-Suche</span>
+  <span x-show="q && mode === 'semantic'" class="opacity-70"> - Semantische Suche</span>
+  <span x-show="q && mode === 'fts'" class="opacity-70"> - Keyword-Suche</span>
 </p>
 
 <!-- Results Table -->
@@ -141,83 +141,6 @@ function libraryApp() {
 }
 </script>
 
-<style>
-.search-form {
-  margin-bottom: var(--space-md);
-}
-
-.filter-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  padding: var(--space-md) 0;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: var(--space-md);
-}
-
-.filter-group {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-.filter-label {
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-  font-weight: var(--font-weight-medium);
-  min-width: 4rem;
-}
-
-.filter-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.75rem;
-  border-radius: var(--radius-xl);
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-secondary);
-}
-
-.filter-pill:hover {
-  border-color: var(--primary);
-  color: var(--primary);
-}
-
-.filter-pill.active {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: white;
-}
-
-.filter-pill svg {
-  width: 0.875rem;
-  height: 0.875rem;
-}
-
-.filter-count {
-  font-size: var(--font-size-xs);
-  opacity: 0.7;
-  margin-left: 0.25rem;
-}
-
-.filter-pill.active .filter-count {
-  opacity: 0.9;
-}
-
-.results-count {
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-  margin-bottom: var(--space-md);
-}
-
-.muted {
-  opacity: 0.7;
-}
-</style>
+<!-- Styles migrated to DaisyUI classes -->
 
 {% endblock %}

@@ -2,222 +2,199 @@
 {% block content %}
 
 <h1>Admin</h1>
-<p class="muted">System-Konfiguration und Hintergrund-Jobs verwalten</p>
+<p class="text-base-content/60 mb-4">System-Konfiguration und Hintergrund-Jobs verwalten</p>
 
-<div class="grid">
-  <div class="card">
-    <h2>Umgebung</h2>
-    <p class="muted small">Aktuelle Systemkonfiguration aus Umgebungsvariablen (nur lesbar)</p>
-    <div class="kv"><div>Modus</div><div>{{ settings.app_env }}</div></div>
-    <div class="kv"><div>Datenbank</div><div>{{ settings.db_path }}</div></div>
-    <div class="kv"><div>LLM-Anbieter</div><div>{{ settings.llm_provider }}</div></div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <div class="card bg-base-100 shadow-md">
+    <div class="card-body">
+      <h2 class="card-title">Umgebung</h2>
+      <p class="text-sm text-base-content/60">Aktuelle Systemkonfiguration aus Umgebungsvariablen (nur lesbar)</p>
+      <div class="divider my-2"></div>
+      <div class="flex justify-between py-1"><span>Modus</span><span class="font-medium">{{ settings.app_env }}</span></div>
+      <div class="flex justify-between py-1"><span>Datenbank</span><span class="font-medium">{{ settings.db_path }}</span></div>
+      <div class="flex justify-between py-1"><span>LLM-Anbieter</span><span class="font-medium">{{ settings.llm_provider }}</span></div>
+    </div>
   </div>
 
-  <div class="card">
-    <h2>Datenbestand</h2>
-    <p class="muted small">Anzahl der gespeicherten Inhalte in der Datenbank</p>
-    <div class="kv"><div>Dokumente</div><div>{{ stats.documents }}</div></div>
-    <div class="kv"><div>Highlights</div><div>{{ stats.highlights }}</div></div>
-    <div class="kv"><div>Entwuerfe</div><div>{{ stats.drafts }}</div></div>
+  <div class="card bg-base-100 shadow-md">
+    <div class="card-body">
+      <h2 class="card-title">Datenbestand</h2>
+      <p class="text-sm text-base-content/60">Anzahl der gespeicherten Inhalte in der Datenbank</p>
+      <div class="divider my-2"></div>
+      <div class="flex justify-between py-1"><span>Dokumente</span><span class="font-medium">{{ stats.documents }}</span></div>
+      <div class="flex justify-between py-1"><span>Highlights</span><span class="font-medium">{{ stats.highlights }}</span></div>
+      <div class="flex justify-between py-1"><span>Entwuerfe</span><span class="font-medium">{{ stats.drafts }}</span></div>
+    </div>
   </div>
 </div>
 
 <!-- Embedding Job Card -->
-<div class="card" style="margin-top: 1.5rem;" x-data="embeddingJob()" x-init="init()">
-  <h2>Semantische Suche</h2>
-  <p class="muted small">
-    Embeddings wandeln Text in Vektoren um, damit die Suche nach Bedeutung statt nur nach Worten funktioniert.
-    Jedes Dokument wird in Chunks (~800 Zeichen) aufgeteilt, die einzeln durchsuchbar sind.
-  </p>
+<div class="card bg-base-100 shadow-md mt-6" x-data="embeddingJob()" x-init="init()">
+  <div class="card-body">
+    <h2 class="card-title">Semantische Suche</h2>
+    <p class="text-sm text-base-content/60">
+      Embeddings wandeln Text in Vektoren um, damit die Suche nach Bedeutung statt nur nach Worten funktioniert.
+      Jedes Dokument wird in Chunks (~800 Zeichen) aufgeteilt, die einzeln durchsuchbar sind.
+    </p>
 
-  <!-- Status Overview -->
-  <div style="margin: 1.5rem 0;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-      <span style="font-size: 1.1rem; font-weight: 500;" x-text="statusText"></span>
-      <span style="font-size: 1.5rem; font-weight: 600;" x-text="progress + '%'"></span>
-    </div>
-
-    <!-- Progress Bar -->
-    <div style="background: var(--bg-secondary, #e5e5e5); border-radius: 8px; height: 12px; overflow: hidden;">
-      <div style="background: var(--primary, #3b82f6); height: 100%; transition: width 0.5s ease;"
-           :style="'width: ' + progress + '%'"></div>
-    </div>
-
-    <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary, #666);">
-      <span x-text="totalEmbedded.toLocaleString() + ' von ' + stats.total_chunks.toLocaleString() + ' Chunks'"></span>
-      <span x-show="pending > 0" x-text="pending.toLocaleString() + ' ausstehend'"></span>
-    </div>
-  </div>
-
-  <!-- Provider Info -->
-  <template x-if="stats.by_provider && stats.by_provider.length > 0">
-    <div style="padding: 0.75rem; background: var(--bg-secondary, #f5f5f5); border-radius: 6px; margin-bottom: 1rem;">
-      <div style="font-size: 0.8rem; color: var(--text-secondary, #666); margin-bottom: 0.25rem;">Aktiver Anbieter</div>
-      <template x-for="p in stats.by_provider" :key="p.provider + p.model">
-        <div style="font-weight: 500;" x-text="p.provider + ' / ' + p.model"></div>
-      </template>
-    </div>
-  </template>
-
-  <!-- Job Controls -->
-  <div x-show="pending > 0">
-    <!-- Not Running State -->
-    <div x-show="!jobRunning">
-      <button class="btn" @click="startJob()">
-        Embeddings generieren starten
-      </button>
-      <p class="muted small" style="margin-top: 0.5rem;">
-        Verarbeitet 1000 Chunks pro Welle (~15-20 Sek.). Fortschritt nach jeder Welle sichtbar.
-      </p>
-    </div>
-
-    <!-- Running State -->
-    <div x-show="jobRunning">
-      <div style="display: flex; align-items: center; gap: 1rem;">
-        <div class="spinner"></div>
-        <div>
-          <div style="font-weight: 500;" x-text="jobStatus"></div>
-          <div class="muted small" x-text="'Welle ' + currentBatch + ' von ~' + Math.ceil(pending / 1000)"></div>
-        </div>
+    <!-- Status Overview -->
+    <div class="my-4">
+      <div class="flex justify-between items-center mb-2">
+        <span class="text-lg font-medium" x-text="statusText"></span>
+        <span class="text-2xl font-semibold" x-text="progress + '%'"></span>
       </div>
-      <button class="btn btn-secondary" style="margin-top: 1rem;" @click="stopJob()">
-        Nach dieser Welle stoppen
-      </button>
+
+      <!-- Progress Bar -->
+      <progress class="progress progress-primary w-full" :value="progress" max="100"></progress>
+
+      <div class="flex justify-between mt-2 text-sm text-base-content/60">
+        <span x-text="totalEmbedded.toLocaleString() + ' von ' + stats.total_chunks.toLocaleString() + ' Chunks'"></span>
+        <span x-show="pending > 0" x-text="pending.toLocaleString() + ' ausstehend'"></span>
+      </div>
     </div>
 
-    <!-- Result Message -->
-    <div x-show="lastResult" style="margin-top: 1rem; padding: 0.75rem; background: var(--success-bg, #dcfce7); border-radius: 6px;">
-      <span x-text="lastResult"></span>
+    <!-- Provider Info -->
+    <template x-if="stats.by_provider && stats.by_provider.length > 0">
+      <div class="bg-base-200 p-3 rounded-lg mb-4">
+        <div class="text-xs text-base-content/60 mb-1">Aktiver Anbieter</div>
+        <template x-for="p in stats.by_provider" :key="p.provider + p.model">
+          <div class="font-medium" x-text="p.provider + ' / ' + p.model"></div>
+        </template>
+      </div>
+    </template>
+
+    <!-- Job Controls -->
+    <div x-show="pending > 0">
+      <!-- Not Running State -->
+      <div x-show="!jobRunning">
+        <button class="btn btn-primary" @click="startJob()">
+          Embeddings generieren starten
+        </button>
+        <p class="text-sm text-base-content/60 mt-2">
+          Verarbeitet 1000 Chunks pro Welle (~15-20 Sek.). Fortschritt nach jeder Welle sichtbar.
+        </p>
+      </div>
+
+      <!-- Running State -->
+      <div x-show="jobRunning">
+        <div class="flex items-center gap-4">
+          <span class="loading loading-spinner loading-md"></span>
+          <div>
+            <div class="font-medium" x-text="jobStatus"></div>
+            <div class="text-sm text-base-content/60" x-text="'Welle ' + currentBatch + ' von ~' + Math.ceil(pending / 1000)"></div>
+          </div>
+        </div>
+        <button class="btn btn-outline mt-4" @click="stopJob()">
+          Nach dieser Welle stoppen
+        </button>
+      </div>
+
+      <!-- Result Message -->
+      <div x-show="lastResult" class="alert alert-success mt-4">
+        <span x-text="lastResult"></span>
+      </div>
+
+      <!-- Error Message -->
+      <div x-show="error" class="alert alert-error mt-4">
+        <span x-text="error"></span>
+      </div>
     </div>
 
-    <!-- Error Message -->
-    <div x-show="error" style="margin-top: 1rem; padding: 0.75rem; background: var(--error-bg, #fef2f2); color: var(--error, #dc2626); border-radius: 6px;">
-      <span x-text="error"></span>
+    <!-- All Done State -->
+    <div x-show="pending === 0 && stats.total_chunks > 0" class="alert alert-success">
+      <span class="text-xl">✓</span>
+      <span>Alle Chunks haben Embeddings - Semantische Suche ist bereit!</span>
     </div>
-  </div>
-
-  <!-- All Done State -->
-  <div x-show="pending === 0 && stats.total_chunks > 0" style="padding: 1rem; background: var(--success-bg, #dcfce7); border-radius: 6px; text-align: center;">
-    <span style="font-size: 1.5rem;">✓</span>
-    <span style="font-weight: 500; margin-left: 0.5rem;">Alle Chunks haben Embeddings - Semantische Suche ist bereit!</span>
   </div>
 </div>
 
 <!-- Design Section -->
-<div class="card" style="margin-top: 1.5rem;" x-data="themeEditor()" x-init="loadTheme()">
-  <h2>Design</h2>
-  <p class="muted small">Passe das Erscheinungsbild der App an. Dark Mode wird automatisch vom System uebernommen.</p>
+<div class="card bg-base-100 shadow-md mt-6" x-data="themeEditor()" x-init="loadTheme()">
+  <div class="card-body">
+    <h2 class="card-title">Design</h2>
+    <p class="text-sm text-base-content/60">Passe das Erscheinungsbild der App an. Dark Mode wird automatisch vom System uebernommen.</p>
 
-  <div class="theme-grid">
-    <!-- Primaerfarbe -->
-    <div class="theme-option">
-      <label>Primaerfarbe</label>
-      <div style="display: flex; align-items: center; gap: 0.5rem;">
-        <input type="color" x-model="primary" @change="saveTheme()">
-        <span x-text="primary" style="font-family: monospace; font-size: 0.85rem;"></span>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+      <!-- Primaerfarbe -->
+      <div class="form-control">
+        <label class="label"><span class="label-text">Primaerfarbe</span></label>
+        <div class="flex items-center gap-2">
+          <input type="color" x-model="primary" @change="saveTheme()" class="w-10 h-10 rounded cursor-pointer">
+          <span x-text="primary" class="font-mono text-sm"></span>
+        </div>
+      </div>
+
+      <!-- Spacing -->
+      <div class="form-control">
+        <label class="label"><span class="label-text">Abstaende</span></label>
+        <select x-model="spacing" @change="saveTheme()" class="select select-bordered select-sm">
+          <option value="compact">Kompakt</option>
+          <option value="normal">Normal</option>
+          <option value="spacious">Grosszuegig</option>
+        </select>
+      </div>
+
+      <!-- Border Radius -->
+      <div class="form-control">
+        <label class="label"><span class="label-text">Ecken</span></label>
+        <select x-model="radius" @change="saveTheme()" class="select select-bordered select-sm">
+          <option value="sharp">Eckig</option>
+          <option value="rounded">Gerundet</option>
+          <option value="pill">Stark gerundet</option>
+        </select>
+      </div>
+
+      <!-- Font Size -->
+      <div class="form-control">
+        <label class="label"><span class="label-text">Schriftgroesse</span></label>
+        <select x-model="fontSize" @change="saveTheme()" class="select select-bordered select-sm">
+          <option value="small">Klein</option>
+          <option value="medium">Normal</option>
+          <option value="large">Gross</option>
+        </select>
       </div>
     </div>
 
-    <!-- Spacing -->
-    <div class="theme-option">
-      <label>Abstaende</label>
-      <select x-model="spacing" @change="saveTheme()">
-        <option value="compact">Kompakt</option>
-        <option value="normal">Normal</option>
-        <option value="spacious">Grosszuegig</option>
-      </select>
+    <div class="flex items-center gap-4 mt-4">
+      <button class="btn btn-outline btn-sm" @click="resetTheme()">Zuruecksetzen</button>
+      <span x-show="saved" x-transition class="text-success text-sm">Gespeichert</span>
     </div>
-
-    <!-- Border Radius -->
-    <div class="theme-option">
-      <label>Ecken</label>
-      <select x-model="radius" @change="saveTheme()">
-        <option value="sharp">Eckig</option>
-        <option value="rounded">Gerundet</option>
-        <option value="pill">Stark gerundet</option>
-      </select>
-    </div>
-
-    <!-- Font Size -->
-    <div class="theme-option">
-      <label>Schriftgroesse</label>
-      <select x-model="fontSize" @change="saveTheme()">
-        <option value="small">Klein</option>
-        <option value="medium">Normal</option>
-        <option value="large">Gross</option>
-      </select>
-    </div>
-  </div>
-
-  <div style="display: flex; align-items: center; gap: 1rem; margin-top: 1rem;">
-    <button class="btn btn-secondary btn-sm" @click="resetTheme()">Zuruecksetzen</button>
-    <span x-show="saved" x-transition style="color: var(--success); font-size: 0.85rem;">Gespeichert</span>
   </div>
 </div>
 
 <!-- Tools Section -->
-<h2 style="margin-top: 2rem;">Werkzeuge</h2>
-<div class="grid">
-  <a href="/admin/embeddings" class="card" style="text-decoration: none;">
-    <h3>Embedding Generator (v2)</h3>
-    <p class="muted small">SSE-basiertes System mit Pause/Resume, Echtzeit-Fortschritt und Kosten-Tracking.</p>
+<h2 class="mt-8 mb-4">Werkzeuge</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <a href="/admin/embeddings" class="card bg-base-100 shadow-md hover:shadow-lg transition-shadow">
+    <div class="card-body">
+      <h3 class="card-title text-base">Embedding Generator (v2)</h3>
+      <p class="text-sm text-base-content/60">SSE-basiertes System mit Pause/Resume, Echtzeit-Fortschritt und Kosten-Tracking.</p>
+    </div>
   </a>
 
-  <a href="/admin/compare" class="card" style="text-decoration: none;">
-    <h3>Modell-Vergleich</h3>
-    <p class="muted small">Vergleiche Suchergebnisse von verschiedenen Embedding-Modellen (OpenAI vs Ollama) nebeneinander.</p>
+  <a href="/admin/compare" class="card bg-base-100 shadow-md hover:shadow-lg transition-shadow">
+    <div class="card-body">
+      <h3 class="card-title text-base">Modell-Vergleich</h3>
+      <p class="text-sm text-base-content/60">Vergleiche Suchergebnisse von verschiedenen Embedding-Modellen (OpenAI vs Ollama) nebeneinander.</p>
+    </div>
   </a>
 
-  <a href="/admin/fetch" class="card" style="text-decoration: none;">
-    <h3>Fulltext Fetching</h3>
-    <p class="muted small">Hole Artikel-Volltexte von Original-URLs. Notwendig wenn nur Titel/Summary vorhanden sind.</p>
+  <a href="/admin/fetch" class="card bg-base-100 shadow-md hover:shadow-lg transition-shadow">
+    <div class="card-body">
+      <h3 class="card-title text-base">Fulltext Fetching</h3>
+      <p class="text-sm text-base-content/60">Hole Artikel-Volltexte von Original-URLs. Notwendig wenn nur Titel/Summary vorhanden sind.</p>
+    </div>
   </a>
 
-  <a href="/admin/prompts" class="card" style="text-decoration: none;">
-    <h3>Prompt-Vorlagen</h3>
-    <p class="muted small">LLM-Prompts fuer Digest-Generierung anpassen. Temperature und Max-Tokens konfigurieren.</p>
+  <a href="/admin/prompts" class="card bg-base-100 shadow-md hover:shadow-lg transition-shadow">
+    <div class="card-body">
+      <h3 class="card-title text-base">Prompt-Vorlagen</h3>
+      <p class="text-sm text-base-content/60">LLM-Prompts fuer Digest-Generierung anpassen. Temperature und Max-Tokens konfigurieren.</p>
+    </div>
   </a>
 </div>
 
-<style>
-.muted { color: var(--text-secondary, #666); }
-.small { font-size: 0.85rem; }
-.spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--bg-secondary, #e5e5e5);
-  border-top-color: var(--primary, #3b82f6);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* Theme Editor Grid */
-.theme-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 1.25rem;
-  margin-top: 1rem;
-}
-.theme-option {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-.theme-option label {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-.theme-option select {
-  padding: 0.5rem 0.75rem;
-  border-radius: var(--radius-md, 8px);
-  border: 1px solid var(--border-strong, rgba(0,0,0,0.15));
-  background: var(--bg-card, #fff);
-  font-size: 0.9rem;
-  cursor: pointer;
-}
-</style>
+<!-- Styles migrated to DaisyUI classes -->
 
 <script>
 function embeddingJob() {

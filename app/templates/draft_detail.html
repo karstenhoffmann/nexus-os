@@ -2,68 +2,70 @@
 {% from "macros/icons.html" import icon %}
 {% block content %}
 
-<div class="breadcrumb">
-  <a href="/drafts">{{ icon("arrow-left") }} Drafts</a>
+<div class="breadcrumbs text-sm mb-4">
+  <ul>
+    <li><a href="/drafts">{{ icon("arrow-left") }} Drafts</a></li>
+  </ul>
 </div>
 
-<div class="draft-header" x-data="{ editingTitle: false }">
-  <div class="draft-title-row">
-    <div class="draft-icon-lg">
+<div class="mb-6" x-data="{ editingTitle: false }">
+  <div class="flex items-center gap-4 mb-2">
+    <div class="w-12 h-12 flex items-center justify-center bg-base-200 rounded-lg text-base-content/60">
       {% if draft.kind == 'linkedin' %}{{ icon("linkedin") }}
       {% elif draft.kind == 'article' %}{{ icon("file-text") }}
       {% else %}{{ icon("edit-3") }}{% endif %}
     </div>
-    <div class="draft-title-edit" x-show="!editingTitle">
-      <h1>{{ draft.title or ("Draft #" ~ draft.id) }}</h1>
-      <button class="btn-icon" @click="editingTitle = true" title="Titel bearbeiten">
+    <div class="flex items-center gap-2" x-show="!editingTitle">
+      <h1 class="m-0">{{ draft.title or ("Draft #" ~ draft.id) }}</h1>
+      <button class="btn btn-ghost btn-sm btn-circle" @click="editingTitle = true" title="Titel bearbeiten">
         {{ icon("edit-2") }}
       </button>
     </div>
-    <form x-show="editingTitle" action="/drafts/{{ draft.id }}/title" method="post" class="title-form">
-      <input type="text" name="title" class="input" value="{{ draft.title or '' }}" placeholder="Titel eingeben" autofocus>
+    <form x-show="editingTitle" action="/drafts/{{ draft.id }}/title" method="post" class="flex items-center gap-2 flex-1">
+      <input type="text" name="title" class="input input-bordered flex-1" value="{{ draft.title or '' }}" placeholder="Titel eingeben" autofocus>
       <button type="submit" class="btn btn-primary btn-sm">Speichern</button>
-      <button type="button" class="btn btn-secondary btn-sm" @click="editingTitle = false">Abbrechen</button>
+      <button type="button" class="btn btn-outline btn-sm" @click="editingTitle = false">Abbrechen</button>
     </form>
   </div>
-  <div class="draft-meta-row">
-    <span class="status-badge status-{{ draft.status }}">{{ draft.status }}</span>
-    <span class="meta-item">{{ icon("calendar") }} {{ draft.created_at[:10] if draft.created_at else '' }}</span>
-    <span class="meta-item">{{ icon("clock") }} {{ draft.versions|length }} Version{% if draft.versions|length != 1 %}en{% endif %}</span>
+  <div class="flex items-center gap-4 ml-16">
+    <span class="badge {% if draft.status == 'working' %}badge-warning{% elif draft.status == 'published' %}badge-success{% else %}badge-ghost{% endif %}">{{ draft.status }}</span>
+    <span class="flex items-center gap-1 text-sm text-base-content/60">{{ icon("calendar") }} {{ draft.created_at[:10] if draft.created_at else '' }}</span>
+    <span class="flex items-center gap-1 text-sm text-base-content/60">{{ icon("clock") }} {{ draft.versions|length }} Version{% if draft.versions|length != 1 %}en{% endif %}</span>
   </div>
 </div>
 
 <!-- Status Actions -->
-<div class="status-actions">
+<div class="flex gap-2 mb-6">
   {% if draft.status == 'working' %}
-    <form action="/drafts/{{ draft.id }}/status" method="post" style="display:inline;">
+    <form action="/drafts/{{ draft.id }}/status" method="post" class="inline">
       <input type="hidden" name="status" value="published">
       <button type="submit" class="btn btn-success btn-sm">
         {{ icon("check-circle") }} Als fertig markieren
       </button>
     </form>
-    <form action="/drafts/{{ draft.id }}/status" method="post" style="display:inline;">
+    <form action="/drafts/{{ draft.id }}/status" method="post" class="inline">
       <input type="hidden" name="status" value="archived">
-      <button type="submit" class="btn btn-secondary btn-sm">
+      <button type="submit" class="btn btn-outline btn-sm">
         {{ icon("archive") }} Archivieren
       </button>
     </form>
   {% elif draft.status == 'published' %}
-    <form action="/drafts/{{ draft.id }}/status" method="post" style="display:inline;">
+    <form action="/drafts/{{ draft.id }}/status" method="post" class="inline">
       <input type="hidden" name="status" value="working">
-      <button type="submit" class="btn btn-secondary btn-sm">
+      <button type="submit" class="btn btn-outline btn-sm">
         {{ icon("edit") }} Weiter bearbeiten
       </button>
     </form>
-    <form action="/drafts/{{ draft.id }}/status" method="post" style="display:inline;">
+    <form action="/drafts/{{ draft.id }}/status" method="post" class="inline">
       <input type="hidden" name="status" value="archived">
-      <button type="submit" class="btn btn-secondary btn-sm">
+      <button type="submit" class="btn btn-outline btn-sm">
         {{ icon("archive") }} Archivieren
       </button>
     </form>
   {% else %}
-    <form action="/drafts/{{ draft.id }}/status" method="post" style="display:inline;">
+    <form action="/drafts/{{ draft.id }}/status" method="post" class="inline">
       <input type="hidden" name="status" value="working">
-      <button type="submit" class="btn btn-secondary btn-sm">
+      <button type="submit" class="btn btn-outline btn-sm">
         {{ icon("rotate-ccw") }} Reaktivieren
       </button>
     </form>
@@ -71,354 +73,69 @@
 </div>
 
 <!-- New Version Form -->
-<div class="card" x-data="draftEditor()">
-  <h2>{{ icon("edit-3") }} Neue Version erstellen</h2>
-  <form action="/drafts/{{ draft.id }}/version" method="post">
-    <div class="form-group">
-      <label for="text">Inhalt</label>
-      <textarea name="text" id="draft-text" class="input textarea" rows="10" x-model="text" @input="updateCount()" required>{{ draft.versions[0].text if draft.versions else '' }}</textarea>
-      {% if draft.kind == 'linkedin' %}
-      <div class="char-count" :class="{ 'warning': charCount > 2800, 'error': charCount > 3000 }">
-        <span x-text="charCount"></span> / 3000 Zeichen
+<div class="card bg-base-100 shadow-md mb-6" x-data="draftEditor()">
+  <div class="card-body">
+    <h2 class="card-title text-lg">{{ icon("edit-3") }} Neue Version erstellen</h2>
+    <form action="/drafts/{{ draft.id }}/version" method="post">
+      <div class="form-control mb-4">
+        <label class="label" for="text">
+          <span class="label-text font-medium">Inhalt</span>
+        </label>
+        <textarea name="text" id="draft-text" class="textarea textarea-bordered w-full min-h-60" rows="10" x-model="text" @input="updateCount()" required>{{ draft.versions[0].text if draft.versions else '' }}</textarea>
+        {% if draft.kind == 'linkedin' %}
+        <label class="label">
+          <span class="label-text-alt" :class="{ 'text-warning': charCount > 2800, 'text-error': charCount > 3000 }">
+            <span x-text="charCount"></span> / 3000 Zeichen
+          </span>
+        </label>
+        {% endif %}
       </div>
-      {% endif %}
-    </div>
-    <div class="form-group">
-      <label for="note">Notiz zu dieser Version (optional)</label>
-      <input type="text" name="note" id="note" class="input" placeholder="z.B. Feedback von Max eingearbeitet">
-    </div>
-    <button type="submit" class="btn btn-primary">
-      {{ icon("save") }} Version speichern
-    </button>
-  </form>
+      <div class="form-control mb-4">
+        <label class="label" for="note">
+          <span class="label-text font-medium">Notiz zu dieser Version (optional)</span>
+        </label>
+        <input type="text" name="note" id="note" class="input input-bordered w-full" placeholder="z.B. Feedback von Max eingearbeitet">
+      </div>
+      <button type="submit" class="btn btn-primary">
+        {{ icon("save") }} Version speichern
+      </button>
+    </form>
+  </div>
 </div>
 
 <!-- Version History -->
-<div class="card">
-  <h2>{{ icon("git-branch") }} Versionshistorie</h2>
-  {% if draft.versions %}
-  <div class="versions-list">
-    {% for v in draft.versions %}
-    <div class="version-item" x-data="{ expanded: {{ 'true' if loop.first else 'false' }} }">
-      <div class="version-header" @click="expanded = !expanded">
-        <div class="version-info">
-          <span class="version-number">v{{ v.version_index }}</span>
-          <span class="version-date">{{ v.created_at[:16] if v.created_at else '' }}</span>
+<div class="card bg-base-100 shadow-md">
+  <div class="card-body">
+    <h2 class="card-title text-lg">{{ icon("git-branch") }} Versionshistorie</h2>
+    {% if draft.versions %}
+    <div class="flex flex-col gap-2">
+      {% for v in draft.versions %}
+      <div class="collapse collapse-arrow bg-base-200" x-data="{ expanded: {{ 'true' if loop.first else 'false' }} }">
+        <input type="checkbox" {% if loop.first %}checked{% endif %} />
+        <div class="collapse-title font-medium flex items-center gap-4">
+          <span class="text-primary font-bold">v{{ v.version_index }}</span>
+          <span class="text-sm text-base-content/60">{{ v.created_at[:16] if v.created_at else '' }}</span>
           {% if v.note %}
-          <span class="version-note">{{ v.note }}</span>
+          <span class="text-sm italic text-base-content/70">{{ v.note }}</span>
           {% endif %}
         </div>
-        <span class="version-chevron" :class="{ 'rotated': expanded }">{{ icon("chevron-down") }}</span>
+        <div class="collapse-content">
+          <pre class="bg-base-100 p-4 rounded-lg text-sm whitespace-pre-wrap break-words max-h-72 overflow-y-auto mb-2">{{ v.text }}</pre>
+          <button class="btn btn-outline btn-sm" onclick="navigator.clipboard.writeText(this.nextElementSibling.innerText)">
+            {{ icon("copy") }} Kopieren
+          </button>
+          <span class="hidden">{{ v.text }}</span>
+        </div>
       </div>
-      <div class="version-content" x-show="expanded" x-transition>
-        <pre class="version-text">{{ v.text }}</pre>
-        <button class="btn btn-secondary btn-sm copy-btn" @click="navigator.clipboard.writeText($refs.text{{ v.id }}.innerText)">
-          {{ icon("copy") }} Kopieren
-        </button>
-        <span class="version-text-hidden" x-ref="text{{ v.id }}" style="display:none">{{ v.text }}</span>
-      </div>
+      {% endfor %}
     </div>
-    {% endfor %}
+    {% else %}
+    <p class="text-base-content/60 italic">Noch keine Versionen vorhanden.</p>
+    {% endif %}
   </div>
-  {% else %}
-  <p class="empty-hint">Noch keine Versionen vorhanden.</p>
-  {% endif %}
 </div>
 
-<style>
-.breadcrumb {
-  margin-bottom: var(--space-md);
-}
-
-.breadcrumb a {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  color: var(--text-muted);
-  text-decoration: none;
-  font-size: var(--font-size-sm);
-}
-
-.breadcrumb a:hover {
-  color: var(--primary);
-}
-
-.breadcrumb svg {
-  width: 1rem;
-  height: 1rem;
-}
-
-.draft-header {
-  margin-bottom: var(--space-lg);
-}
-
-.draft-title-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  margin-bottom: var(--space-sm);
-}
-
-.draft-icon-lg {
-  width: 3rem;
-  height: 3rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-md);
-  color: var(--text-muted);
-}
-
-.draft-icon-lg svg {
-  width: 1.5rem;
-  height: 1.5rem;
-}
-
-.draft-title-edit {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-.draft-title-edit h1 {
-  margin: 0;
-}
-
-.btn-icon {
-  background: transparent;
-  border: none;
-  padding: var(--space-xs);
-  cursor: pointer;
-  color: var(--text-muted);
-  border-radius: var(--radius-sm);
-}
-
-.btn-icon:hover {
-  background: var(--bg-secondary);
-  color: var(--primary);
-}
-
-.btn-icon svg {
-  width: 1rem;
-  height: 1rem;
-}
-
-.title-form {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  flex: 1;
-}
-
-.title-form .input {
-  flex: 1;
-}
-
-.draft-meta-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  margin-left: calc(3rem + var(--space-md));
-}
-
-.meta-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-}
-
-.meta-item svg {
-  width: 0.875rem;
-  height: 0.875rem;
-}
-
-.status-badge {
-  padding: 0.125rem 0.5rem;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  text-transform: uppercase;
-}
-
-.status-working {
-  background: var(--warning-bg);
-  color: var(--warning);
-}
-
-.status-published {
-  background: var(--success-bg);
-  color: var(--success);
-}
-
-.status-archived {
-  background: var(--bg-secondary);
-  color: var(--text-muted);
-}
-
-.status-actions {
-  margin-bottom: var(--space-lg);
-  display: flex;
-  gap: var(--space-sm);
-}
-
-.btn-success {
-  background: var(--success);
-  border-color: var(--success);
-  color: white;
-}
-
-.btn-success:hover {
-  background: var(--success-hover);
-  border-color: var(--success-hover);
-}
-
-.card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-lg);
-  margin-bottom: var(--space-lg);
-}
-
-.card h2 {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  margin: 0 0 var(--space-md) 0;
-  font-size: var(--font-size-lg);
-}
-
-.card h2 svg {
-  width: 1.25rem;
-  height: 1.25rem;
-  color: var(--text-muted);
-}
-
-.form-group {
-  margin-bottom: var(--space-md);
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: var(--space-xs);
-  font-weight: var(--font-weight-medium);
-  color: var(--text);
-}
-
-.textarea {
-  resize: vertical;
-  min-height: 150px;
-  font-family: inherit;
-}
-
-.char-count {
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-  margin-top: var(--space-xs);
-  text-align: right;
-}
-
-.char-count.warning {
-  color: var(--warning);
-}
-
-.char-count.error {
-  color: var(--error);
-}
-
-.versions-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.version-item {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-.version-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--space-sm) var(--space-md);
-  background: var(--bg-secondary);
-  cursor: pointer;
-}
-
-.version-header:hover {
-  background: var(--bg-hover);
-}
-
-.version-info {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-}
-
-.version-number {
-  font-weight: var(--font-weight-bold);
-  color: var(--primary);
-}
-
-.version-date {
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-}
-
-.version-note {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  font-style: italic;
-}
-
-.version-chevron {
-  width: 1.25rem;
-  height: 1.25rem;
-  color: var(--text-muted);
-  transition: transform var(--transition-fast);
-}
-
-.version-chevron.rotated {
-  transform: rotate(180deg);
-}
-
-.version-content {
-  padding: var(--space-md);
-  border-top: 1px solid var(--border);
-}
-
-.version-text {
-  background: var(--bg);
-  padding: var(--space-md);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  margin: 0 0 var(--space-sm) 0;
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.copy-btn svg {
-  width: 0.875rem;
-  height: 0.875rem;
-}
-
-.empty-hint {
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-.btn-sm {
-  padding: 0.25rem 0.75rem;
-  font-size: var(--font-size-sm);
-}
-</style>
+<!-- Styles migrated to DaisyUI classes -->
 
 <script>
 function draftEditor() {

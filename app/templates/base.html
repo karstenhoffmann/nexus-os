@@ -1,156 +1,24 @@
 
 {%- from "macros/icons.html" import icon -%}
 <!doctype html>
-<html lang="de" data-theme="cupcake">
+<html lang="de" data-theme="garden">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>nexus-os</title>
-  <!-- Custom CSS first (existing design system) -->
-  <link rel="stylesheet" href="/static/app.css">
-  <!-- Tailwind + DaisyUI last (takes precedence for migrated components) -->
+  <!-- Custom CSS first (will be overridden by Tailwind/DaisyUI) -->
+  <link rel="stylesheet" href="/static/app.css?v=2">
+  <!-- Tailwind + DaisyUI (takes precedence) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.23/dist/full.min.css" rel="stylesheet" type="text/css" />
-  <!-- DaisyUI theme: using built-in "cupcake" (light) and "dark" themes -->
   <script defer src="/static/htmx.min.js"></script>
   <script defer src="/static/alpine.min.js"></script>
   <script>
-    // Theme-Presets mit CSS-Variable-Mappings
-    const themePresets = {
-      spacing: {
-        compact: {
-          '--card-padding': '0.875rem',
-          '--card-gap': '0.875rem',
-          '--section-gap': '1rem',
-          '--button-padding-x': '0.75rem',
-          '--button-padding-y': '0.5rem',
-          '--space-md': '0.75rem',
-          '--space-lg': '1rem'
-        },
-        normal: {
-          '--card-padding': '1.25rem',
-          '--card-gap': '1.25rem',
-          '--section-gap': '1.5rem',
-          '--button-padding-x': '1rem',
-          '--button-padding-y': '0.625rem',
-          '--space-md': '1rem',
-          '--space-lg': '1.5rem'
-        },
-        spacious: {
-          '--card-padding': '1.75rem',
-          '--card-gap': '1.75rem',
-          '--section-gap': '2rem',
-          '--button-padding-x': '1.25rem',
-          '--button-padding-y': '0.75rem',
-          '--space-md': '1.25rem',
-          '--space-lg': '2rem'
-        }
-      },
-      radius: {
-        sharp: {
-          '--radius-sm': '2px',
-          '--radius-md': '4px',
-          '--radius-lg': '6px',
-          '--radius-xl': '8px'
-        },
-        rounded: {
-          '--radius-sm': '6px',
-          '--radius-md': '8px',
-          '--radius-lg': '12px',
-          '--radius-xl': '16px'
-        },
-        pill: {
-          '--radius-sm': '10px',
-          '--radius-md': '14px',
-          '--radius-lg': '20px',
-          '--radius-xl': '28px'
-        }
-      },
-      fontSize: {
-        small: {
-          '--font-size-xs': '0.7rem',
-          '--font-size-sm': '0.8rem',
-          '--font-size-base': '0.9rem',
-          '--font-size-lg': '1rem',
-          '--font-size-xl': '1.1rem',
-          '--font-size-2xl': '1.3rem',
-          '--font-size-3xl': '1.6rem'
-        },
-        medium: {
-          '--font-size-xs': '0.75rem',
-          '--font-size-sm': '0.875rem',
-          '--font-size-base': '1rem',
-          '--font-size-lg': '1.125rem',
-          '--font-size-xl': '1.25rem',
-          '--font-size-2xl': '1.5rem',
-          '--font-size-3xl': '1.875rem'
-        },
-        large: {
-          '--font-size-xs': '0.8rem',
-          '--font-size-sm': '0.95rem',
-          '--font-size-base': '1.1rem',
-          '--font-size-lg': '1.25rem',
-          '--font-size-xl': '1.4rem',
-          '--font-size-2xl': '1.7rem',
-          '--font-size-3xl': '2.1rem'
-        }
-      }
-    };
-
-    // Theme anwenden (global verfuegbar)
-    window.applyTheme = function(theme) {
-      const root = document.documentElement;
-
-      // Primaerfarbe
-      if (theme.primary) {
-        root.style.setProperty('--primary', theme.primary);
-        // Hover-Farbe berechnen (etwas dunkler)
-        const hex = theme.primary.replace('#', '');
-        const r = parseInt(hex.substr(0,2), 16);
-        const g = parseInt(hex.substr(2,2), 16);
-        const b = parseInt(hex.substr(4,2), 16);
-        const hover = '#' + [r,g,b].map(c => Math.max(0, c - 30).toString(16).padStart(2,'0')).join('');
-        root.style.setProperty('--primary-hover', hover);
-        // Light-Variante
-        root.style.setProperty('--primary-light', theme.primary + '1a');
-      }
-
-      // Spacing Preset
-      if (theme.spacing && themePresets.spacing[theme.spacing]) {
-        Object.entries(themePresets.spacing[theme.spacing]).forEach(([prop, val]) => {
-          root.style.setProperty(prop, val);
-        });
-      }
-
-      // Radius Preset
-      if (theme.radius && themePresets.radius[theme.radius]) {
-        Object.entries(themePresets.radius[theme.radius]).forEach(([prop, val]) => {
-          root.style.setProperty(prop, val);
-        });
-      }
-
-      // Font Size Preset
-      if (theme.fontSize && themePresets.fontSize[theme.fontSize]) {
-        Object.entries(themePresets.fontSize[theme.fontSize]).forEach(([prop, val]) => {
-          root.style.setProperty(prop, val);
-        });
-      }
-    };
-
-    // Theme aus DB laden und anwenden
-    fetch('/api/admin/theme')
-      .then(r => r.json())
-      .then(theme => window.applyTheme(theme))
-      .catch(() => {}); // Ignoriere Fehler, Default-Werte greifen
-
-    // Dark Mode Toggle (cupcake <-> dark)
+    // Dark Mode Toggle (garden <-> dark)
     window.toggleTheme = function() {
       const root = document.documentElement;
       const current = root.getAttribute('data-theme');
-
-      // Toggle between cupcake (light) and dark
-      const newTheme = current === 'dark' ? 'cupcake' : 'dark';
-
+      const newTheme = current === 'dark' ? 'garden' : 'dark';
       root.setAttribute('data-theme', newTheme);
       localStorage.setItem('theme', newTheme);
       updateThemeIcon(newTheme);
@@ -161,7 +29,6 @@
       if (!btn) return;
       const isDark = theme === 'dark';
       btn.title = isDark ? 'Light Mode' : 'Dark Mode';
-      // Toggle icon visibility via classes
       const moonIcon = btn.querySelector('.icon-moon');
       const sunIcon = btn.querySelector('.icon-sun');
       if (moonIcon && sunIcon) {
@@ -173,47 +40,56 @@
     // Restore saved theme on load
     document.addEventListener('DOMContentLoaded', () => {
       const saved = localStorage.getItem('theme');
-      if (saved && (saved === 'dark' || saved === 'cupcake')) {
+      if (saved && (saved === 'dark' || saved === 'garden')) {
         document.documentElement.setAttribute('data-theme', saved);
       }
-      // Default is cupcake (set in HTML), so use that if no valid saved theme
-      const currentTheme = document.documentElement.getAttribute('data-theme') || 'cupcake';
+      const currentTheme = document.documentElement.getAttribute('data-theme') || 'garden';
       updateThemeIcon(currentTheme);
-
-      // Set active nav link
-      const path = window.location.pathname;
-      document.querySelectorAll('.nav a').forEach(a => {
-        const href = a.getAttribute('href');
-        if (path === href || (href !== '/' && path.startsWith(href))) {
-          a.classList.add('active');
-        }
-      });
     });
   </script>
 </head>
-<body>
-  <header class="topbar">
-    <div class="container row">
-      <div class="brand"><a href="/">nexus-os</a></div>
-      <nav class="nav">
-        <a href="/library">{{ icon("book-open") }} Library</a>
-        <a href="/digest">{{ icon("zap") }} Digest</a>
-        <a href="/drafts">{{ icon("edit-3") }} Drafts</a>
-        <a href="/sync">{{ icon("refresh-cw") }} Sync</a>
-        <a href="/admin">{{ icon("settings") }} Admin</a>
-        <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">
-          {{ icon("moon", "icon-moon") }}
-          {{ icon("sun", "icon-sun") }}
-        </button>
-      </nav>
+<body class="min-h-screen flex flex-col">
+  <!-- DaisyUI Navbar -->
+  <div class="navbar bg-neutral text-neutral-content sticky top-0 z-50 shadow-md">
+    <div class="navbar-start">
+      <a href="/" class="btn btn-ghost text-xl font-bold">nexus-os</a>
     </div>
-  </header>
+    <div class="navbar-center hidden lg:flex">
+      <ul class="menu menu-horizontal px-1 gap-1">
+        <li><a href="/library" class="gap-2">{{ icon("book-open") }} Library</a></li>
+        <li><a href="/digest" class="gap-2">{{ icon("zap") }} Digest</a></li>
+        <li><a href="/drafts" class="gap-2">{{ icon("edit-3") }} Drafts</a></li>
+        <li><a href="/sync" class="gap-2">{{ icon("refresh-cw") }} Sync</a></li>
+        <li><a href="/admin" class="gap-2">{{ icon("settings") }} Admin</a></li>
+      </ul>
+    </div>
+    <div class="navbar-end gap-2">
+      <!-- Theme toggle -->
+      <button id="theme-toggle" class="btn btn-ghost btn-circle" onclick="toggleTheme()" title="Toggle Theme">
+        {{ icon("moon", "icon-moon") }}
+        {{ icon("sun", "icon-sun") }}
+      </button>
+      <!-- Mobile menu dropdown -->
+      <div class="dropdown dropdown-end lg:hidden">
+        <div tabindex="0" role="button" class="btn btn-ghost btn-circle">
+          {{ icon("menu") }}
+        </div>
+        <ul tabindex="0" class="menu menu-sm dropdown-content bg-neutral text-neutral-content rounded-box z-50 mt-3 w-52 p-2 shadow">
+          <li><a href="/library" class="gap-2">{{ icon("book-open") }} Library</a></li>
+          <li><a href="/digest" class="gap-2">{{ icon("zap") }} Digest</a></li>
+          <li><a href="/drafts" class="gap-2">{{ icon("edit-3") }} Drafts</a></li>
+          <li><a href="/sync" class="gap-2">{{ icon("refresh-cw") }} Sync</a></li>
+          <li><a href="/admin" class="gap-2">{{ icon("settings") }} Admin</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
 
-  <main class="container">
+  <main class="flex-1 container mx-auto px-4 py-6 max-w-6xl">
     {% block content %}{% endblock %}
   </main>
 
-  <footer class="container footer">
+  <footer class="footer footer-center p-4 bg-base-200 text-base-content border-t border-base-300">
     <div>Local-first. Single user. Guardrails on.</div>
   </footer>
 
