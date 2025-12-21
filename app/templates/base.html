@@ -6,12 +6,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>nexus-os</title>
-  <!-- Custom CSS first (will be overridden by Tailwind/DaisyUI) -->
-  <link rel="stylesheet" href="/static/app.css?v=2">
-  <!-- DaisyUI v5 + Tailwind -->
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@5/daisyui.css" rel="stylesheet" type="text/css" />
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- DaisyUI v5 + Tailwind (local, offline-first) -->
+  <link rel="stylesheet" href="/static/daisyui.css">
+  <link rel="stylesheet" href="/static/daisyui-themes.css">
+  <link rel="stylesheet" href="/static/tailwind.css">
+  <!-- Custom overrides (loaded last) -->
+  <link rel="stylesheet" href="/static/app.css?v=4">
   <script defer src="/static/htmx.min.js"></script>
   <script defer src="/static/alpine.min.js"></script>
   <script>

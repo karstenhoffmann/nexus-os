@@ -163,6 +163,9 @@ async def library(
             sort_dir=sort_dir,
         )
 
+    # Get library stats for the stats bar
+    stats = db.get_library_stats()
+
     return render(
         "library.html",
         request=request,
@@ -177,6 +180,7 @@ async def library(
         sort_dir=sort_dir,
         rows=rows,
         total=len(rows),
+        stats=stats,
     )
 
 

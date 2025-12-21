@@ -4,83 +4,149 @@
 
 <div x-data="libraryApp()" x-init="init()">
 
-<h1>Library</h1>
-
-<!-- Search Bar -->
-<form @submit.prevent="search()" class="mb-4">
-  <div class="flex flex-wrap gap-2">
-    <input
-      class="input input-bordered flex-1 min-w-48"
-      type="text"
-      x-model="q"
-      placeholder="Suche..."
-      @keyup.enter="search()"
-    >
-    <select x-model="mode" class="select select-bordered w-auto" @change="search()">
-      <option value="semantic">Semantic</option>
-      <option value="fts">Keyword (FTS)</option>
-    </select>
-    <button class="btn btn-primary" type="submit">
-      {{ icon("search") }} Search
-    </button>
-  </div>
-</form>
-
-<!-- Filter Section -->
-<div class="flex flex-col gap-3 py-4 border-b border-base-300 mb-4">
-  <!-- Content Filter -->
-  <div class="flex flex-wrap items-center gap-2">
-    <span class="text-sm text-base-content/70 font-medium min-w-16">Inhalt:</span>
-    <button
-      class="btn btn-sm"
-      :class="fulltext ? 'btn-primary' : 'btn-ghost'"
-      @click="fulltext = !fulltext; search()"
-    >
-      {{ icon("file-text") }} Volltext
-    </button>
-    <button
-      class="btn btn-sm"
-      :class="highlights ? 'btn-primary' : 'btn-ghost'"
-      @click="highlights = !highlights; search()"
-    >
-      {{ icon("bookmark") }} Highlights
-    </button>
+  <!-- Hero: Title + Subtitle -->
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold">Library</h1>
+    <p class="text-base-content/60 text-sm mt-1">Suche und durchstoebere deine gespeicherten Inhalte</p>
   </div>
 
-  <!-- Category Filter -->
-  <div class="flex flex-wrap items-center gap-2">
-    <span class="text-sm text-base-content/70 font-medium min-w-16">Typ:</span>
-    <template x-for="cat in allCategories" :key="cat">
-      <button
-        class="btn btn-sm"
-        :class="categories.includes(cat) ? 'btn-primary' : 'btn-ghost'"
-        @click="toggleCategory(cat)"
-      >
-        <span x-text="cat"></span>
-        <span class="badge badge-sm ml-1" x-text="categoryCounts[cat] || 0"></span>
-      </button>
-    </template>
-    <button
-      class="btn btn-sm"
-      :class="categories.length === 0 ? 'btn-primary' : 'btn-ghost'"
-      @click="categories = []; search()"
-    >
-      Alle
-    </button>
+  <!-- Quick Stats Bar -->
+  <div class="stats stats-vertical sm:stats-horizontal shadow bg-base-100 w-full mb-6">
+    <div class="stat">
+      <div class="stat-title text-xs">Dokumente</div>
+      <div class="stat-value text-xl">{{ stats.total_docs }}</div>
+      <div class="stat-desc">{{ stats.categories_count }} Kategorien</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title text-xs">Highlights</div>
+      <div class="stat-value text-xl text-warning">{{ stats.total_highlights }}</div>
+      <div class="stat-desc">markierte Stellen</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title text-xs">Woerter</div>
+      <div class="stat-value text-xl">{{ "{:,}".format(stats.total_words).replace(",", ".") }}</div>
+      <div class="stat-desc">ca. {{ stats.reading_hours }}h Lesezeit</div>
+    </div>
   </div>
-</div>
 
-<!-- Results Count -->
-<p class="text-sm text-base-content/70 mb-4" x-show="total > 0">
-  <span x-text="total"></span> Ergebnisse
-  <span x-show="q && mode === 'semantic'" class="opacity-70"> - Semantische Suche</span>
-  <span x-show="q && mode === 'fts'" class="opacity-70"> - Keyword-Suche</span>
-</p>
+  <!-- Search Card -->
+  <div class="card bg-base-100 shadow-md mb-6">
+    <div class="card-body gap-4">
+      <!-- Row 1: Mode Tabs + Content Toggles -->
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <!-- Search Mode Tabs -->
+        <div class="join">
+          <button
+            class="btn btn-sm join-item transition-all"
+            :class="mode === 'semantic' ? 'btn-active' : 'hover:bg-base-200'"
+            @click="mode = 'semantic'; search()"
+          >
+            {{ icon("zap") }} <span class="hidden sm:inline ml-1">Semantic</span>
+          </button>
+          <button
+            class="btn btn-sm join-item transition-all"
+            :class="mode === 'fts' ? 'btn-active' : 'hover:bg-base-200'"
+            @click="mode = 'fts'; search()"
+          >
+            {{ icon("type") }} <span class="hidden sm:inline ml-1">Keyword</span>
+          </button>
+        </div>
 
-<!-- Results Table -->
-<div id="results">
-  {% include "partials/library_results.html" %}
-</div>
+        <!-- Content Toggles -->
+        <div class="flex items-center gap-4">
+          <label class="flex items-center gap-2 cursor-pointer select-none group">
+            <span class="text-xs text-base-content/70 group-hover:text-base-content transition-colors">Volltext</span>
+            <input type="checkbox" class="toggle toggle-sm toggle-primary" x-model="fulltext" @change="search()">
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer select-none group">
+            <span class="text-xs text-base-content/70 group-hover:text-base-content transition-colors">Highlights</span>
+            <input type="checkbox" class="toggle toggle-sm toggle-warning" x-model="highlights" @change="search()">
+          </label>
+        </div>
+      </div>
+
+      <!-- Row 2: Search Input -->
+      <form @submit.prevent="search()" class="flex gap-2">
+        <label class="input input-bordered flex items-center gap-3 flex-1 focus-within:input-primary focus-within:border-primary transition-all">
+          <span class="text-base-content/40">{{ icon("search") }}</span>
+          <input
+            type="text"
+            class="grow bg-transparent outline-none"
+            x-model="q"
+            placeholder="Suche nach Themen, Autoren, Inhalten..."
+            @keyup.enter="search()"
+          >
+        </label>
+        <button class="btn btn-primary" type="submit" :disabled="loading">
+          <span x-show="!loading">Suchen</span>
+          <span x-show="loading" class="loading loading-spinner loading-sm"></span>
+        </button>
+      </form>
+
+      <!-- Row 3: Category Filter - DaisyUI Filter component with checkboxes -->
+      <div class="flex flex-wrap items-center gap-2 pt-3 border-t border-base-200">
+        <span class="text-xs text-base-content/50 uppercase tracking-wide font-medium mr-2">Typ:</span>
+
+        <!-- DaisyUI Filter using checkboxes -->
+        <div class="flex flex-wrap gap-1">
+          <template x-for="cat in allCategories" :key="cat">
+            <input
+              type="checkbox"
+              class="btn btn-sm"
+              :aria-label="cat + ' (' + (categoryCounts[cat] || 0) + ')'"
+              :checked="categories.includes(cat)"
+              @change="toggleCategory(cat)"
+            >
+          </template>
+          <!-- Reset button -->
+          <input
+            type="reset"
+            class="btn btn-sm btn-square"
+            value="×"
+            x-show="categories.length > 0"
+            @click="categories = []; search()"
+          >
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results Section -->
+  <div class="card bg-base-100 shadow-md">
+    <div class="card-body">
+      <!-- Results Header -->
+      <div class="flex items-center justify-between" x-show="total > 0 && !loading">
+        <div class="flex items-center gap-2">
+          <span class="text-lg font-semibold" x-text="total.toLocaleString()"></span>
+          <span class="text-base-content/60">Ergebnisse</span>
+          <span class="badge badge-sm badge-ghost" x-show="q" x-text="mode === 'semantic' ? 'Semantic' : 'Keyword'"></span>
+        </div>
+        <div class="text-sm text-base-content/50" x-show="q">
+          <span x-text="'\"' + q + '\"'"></span>
+        </div>
+      </div>
+
+      <!-- Loading Skeleton -->
+      <div x-show="loading" x-transition class="space-y-4 py-4">
+        <template x-for="i in 5" :key="i">
+          <div class="flex items-center gap-4 animate-pulse">
+            <div class="flex-1 space-y-2">
+              <div class="h-4 bg-base-300 rounded w-3/4"></div>
+              <div class="h-3 bg-base-200 rounded w-1/2"></div>
+            </div>
+            <div class="h-4 bg-base-200 rounded w-16"></div>
+            <div class="h-4 bg-base-200 rounded w-20"></div>
+            <div class="h-4 bg-base-200 rounded w-16"></div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Results Table -->
+      <div id="results" x-show="!loading" x-transition>
+        {% include "partials/library_results.html" %}
+      </div>
+    </div>
+  </div>
 
 </div>
 
@@ -97,9 +163,10 @@ function libraryApp() {
     sortBy: '{{ sort_by }}',
     sortDir: '{{ sort_dir }}',
     total: {{ total }},
+    loading: false,
 
     init() {
-      // Icons are now inline SVGs, no initialization needed
+      // Ready
     },
 
     get filterUrl() {
@@ -135,12 +202,18 @@ function libraryApp() {
     },
 
     search() {
-      htmx.ajax('GET', this.filterUrl, {target: '#results', swap: 'innerHTML'});
+      this.loading = true;
+      htmx.ajax('GET', this.filterUrl, {
+        target: '#results',
+        swap: 'innerHTML'
+      }).then(() => {
+        this.loading = false;
+      }).catch(() => {
+        this.loading = false;
+      });
     }
   };
 }
 </script>
-
-<!-- Styles migrated to DaisyUI classes -->
 
 {% endblock %}

@@ -689,6 +689,31 @@ class DB:
         highlights = cur.fetchone()[0]
         return {"documents": docs, "drafts": drafts, "highlights": highlights}
 
+    def get_library_stats(self) -> dict[str, Any]:
+        """Get stats for the library page."""
+        cur = self.conn.execute("SELECT COUNT(*) FROM documents")
+        total_docs = cur.fetchone()[0]
+
+        cur = self.conn.execute("SELECT COUNT(*) FROM highlights")
+        total_highlights = cur.fetchone()[0]
+
+        cur = self.conn.execute("SELECT COALESCE(SUM(word_count), 0) FROM documents")
+        total_words = cur.fetchone()[0]
+
+        cur = self.conn.execute("SELECT COUNT(DISTINCT category) FROM documents WHERE category IS NOT NULL")
+        categories_count = cur.fetchone()[0]
+
+        # Assume 250 words per minute reading speed
+        reading_hours = round(total_words / 250 / 60, 1) if total_words else 0
+
+        return {
+            "total_docs": total_docs,
+            "total_highlights": total_highlights,
+            "total_words": total_words or 0,
+            "categories_count": categories_count,
+            "reading_hours": reading_hours,
+        }
+
     def search_documents(self, q: str, limit: int = 50) -> list[dict[str, Any]]:
         q = (q or "").strip()
         if not q:

@@ -9,11 +9,22 @@
 - **Tailwind CSS + DaisyUI** (utility classes + semantic component library)
 
 ### Why This Stack?
-- No build step = simpler development and maintenance
+- Minimal build step (one-time CSS generation, no watch/bundler required)
 - Server-rendered = works offline with caching, simple mental model
 - DaisyUI = consistent components without custom CSS, easy theming/dark mode
 - 10-year durability: HTML never breaks, CSS rarely breaks
 - HyperUI as reference for layout patterns (copy-paste when needed)
+
+### CSS Build (Offline-First)
+All CSS is served locally (no CDN dependencies):
+- **DaisyUI:** `app/static/daisyui.css` + `daisyui-themes.css` (downloaded from CDN, committed)
+- **Tailwind:** `app/static/tailwind.css` (generated from templates)
+
+Rebuild Tailwind after adding new utility classes:
+```bash
+./scripts/build-css.sh
+```
+Uses Tailwind standalone CLI (no Node.js required, macOS arm64 binary).
 
 ### Component Examples
 ```html

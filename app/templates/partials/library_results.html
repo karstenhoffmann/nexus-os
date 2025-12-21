@@ -4,65 +4,110 @@
 <table class="table table-zebra">
   <thead>
     <tr>
-      <th class="cursor-pointer hover:bg-base-200{% if sort_by == 'title' %} bg-base-200{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('title')">
-        <span class="flex items-center gap-1">Titel {% if sort_by == 'title' %}{{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}{% endif %}</span>
+      <th
+        class="cursor-pointer rounded transition-colors hover:bg-base-300{% if sort_by == 'title' %} bg-base-200{% endif %}"
+        onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('title')"
+      >
+        <span class="flex items-center gap-1">
+          Titel
+          {% if sort_by == 'title' %}{{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}{% endif %}
+        </span>
       </th>
-      <th class="cursor-pointer hover:bg-base-200 text-right{% if sort_by == 'highlight_count' %} bg-base-200{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('highlight_count')">
-        <span class="flex items-center justify-end gap-1">{{ icon("bookmark") }} {% if sort_by == 'highlight_count' %}{{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}{% endif %}</span>
+      <th
+        class="cursor-pointer rounded transition-colors hover:bg-base-300 text-center w-16{% if sort_by == 'highlight_count' %} bg-base-200{% endif %}"
+        onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('highlight_count')"
+        title="Highlights"
+      >
+        <span class="flex items-center justify-center gap-1">
+          {{ icon("bookmark") }}
+          {% if sort_by == 'highlight_count' %}{{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}{% endif %}
+        </span>
       </th>
-      <th class="cursor-pointer hover:bg-base-200{% if sort_by == 'author' %} bg-base-200{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('author')">
-        <span class="flex items-center gap-1">Autor {% if sort_by == 'author' %}{{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}{% endif %}</span>
+      <th
+        class="cursor-pointer rounded transition-colors hover:bg-base-300 w-24{% if sort_by == 'category' %} bg-base-200{% endif %}"
+        onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('category')"
+      >
+        <span class="flex items-center gap-1">
+          Typ
+          {% if sort_by == 'category' %}{{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}{% endif %}
+        </span>
       </th>
-      <th class="cursor-pointer hover:bg-base-200{% if sort_by == 'category' %} bg-base-200{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('category')">
-        <span class="flex items-center gap-1">Typ {% if sort_by == 'category' %}{{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}{% endif %}</span>
+      <th
+        class="cursor-pointer rounded transition-colors hover:bg-base-300 w-28{% if sort_by == 'saved_at' %} bg-base-200{% endif %}"
+        onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('saved_at')"
+      >
+        <span class="flex items-center gap-1">
+          Datum
+          {% if sort_by == 'saved_at' %}{{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}{% endif %}
+        </span>
       </th>
-      <th class="cursor-pointer hover:bg-base-200{% if sort_by == 'saved_at' %} bg-base-200{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('saved_at')">
-        <span class="flex items-center gap-1">Datum {% if sort_by == 'saved_at' %}{{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}{% endif %}</span>
-      </th>
-      <th class="cursor-pointer hover:bg-base-200 text-right{% if sort_by == 'word_count' %} bg-base-200{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('word_count')">
-        <span class="flex items-center justify-end gap-1">Woerter {% if sort_by == 'word_count' %}{{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}{% endif %}</span>
+      <th
+        class="cursor-pointer rounded transition-colors hover:bg-base-300 text-right w-24{% if sort_by == 'word_count' %} bg-base-200{% endif %}"
+        onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('word_count')"
+      >
+        <span class="flex items-center justify-end gap-1">
+          Woerter
+          {% if sort_by == 'word_count' %}{{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}{% endif %}
+        </span>
       </th>
       {% if mode == 'semantic' %}
-      <th class="cursor-pointer hover:bg-base-200 text-right{% if sort_by == 'distance' %} bg-base-200{% endif %}" onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('distance')">
-        <span class="flex items-center justify-end gap-1">Score {% if sort_by == 'distance' %}{{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}{% endif %}</span>
+      <th
+        class="cursor-pointer rounded transition-colors hover:bg-base-300 text-right w-28{% if sort_by == 'distance' %} bg-base-200{% endif %}"
+        onclick="Alpine.$data(document.querySelector('[x-data]')).toggleSort('distance')"
+        title="Semantische Aehnlichkeit zur Suchanfrage (hoeher = relevanter)"
+      >
+        <span class="flex items-center justify-end gap-1">
+          Relevanz
+          {% if sort_by == 'distance' %}{{ icon("chevron-up" if sort_dir == 'asc' else "chevron-down") }}{% endif %}
+        </span>
       </th>
       {% endif %}
     </tr>
   </thead>
   <tbody>
     {% for r in rows %}
-    <tr class="hover">
-      <td class="max-w-md">
-        <a href="/documents/{{ r.id }}" class="font-medium link link-hover">{{ r.title or ("Doc #" ~ r.id) }}</a>
-        {% if r.url %}
-        <div class="flex items-center gap-1 mt-1 text-xs text-base-content/60">
-          {{ icon("external-link") }}
-          <a href="{{ r.url }}" target="_blank" rel="noopener" class="link link-hover truncate">{{ r.url[:60] }}{% if r.url|length > 60 %}...{% endif %}</a>
+    <tr
+      class="cursor-pointer transition-colors duration-150 hover:bg-base-200"
+      onclick="window.location='/documents/{{ r.id }}'"
+    >
+      <td class="py-3">
+        <div class="flex flex-col gap-0.5">
+          <span class="font-medium text-base-content group-hover:text-primary transition-colors">{{ r.title or ("Doc #" ~ r.id) }}</span>
+          {% if r.author %}
+          <span class="text-xs text-base-content/50">{{ r.author }}</span>
+          {% endif %}
+          {% if r.chunk_text %}
+          <span class="text-xs text-base-content/40 line-clamp-1 mt-1">{{ r.chunk_text[:120] }}...</span>
+          {% endif %}
         </div>
-        {% endif %}
-        {% if r.chunk_text %}
-        <div class="text-xs text-base-content/60 mt-1 italic line-clamp-2">
-          {{ r.chunk_text[:150] }}{% if r.chunk_text|length > 150 %}...{% endif %}
-        </div>
-        {% endif %}
       </td>
-      <td class="text-right">
+      <td class="text-center py-3">
         {% if r.highlight_count %}
-        <span class="badge badge-warning badge-sm">{{ r.highlight_count }}</span>
+        <span class="badge badge-warning badge-sm font-medium">{{ r.highlight_count }}</span>
         {% else %}
-        <span class="badge badge-ghost badge-sm">0</span>
+        <span class="text-base-content/20">-</span>
         {% endif %}
       </td>
-      <td>{{ r.author or "-" }}</td>
-      <td>
-        {# Category badge mapping to DaisyUI semantic colors #}
-        {% set cat = r.category or 'article' %}
-        <span class="badge badge-sm {% if cat == 'article' %}badge-primary{% elif cat == 'pdf' %}badge-error{% elif cat == 'podcast' %}badge-warning{% elif cat == 'video' %}badge-success{% elif cat in ['tweet', 'linkedin'] %}badge-info{% elif cat == 'epub' %}badge-secondary{% elif cat == 'note' %}badge-accent{% else %}badge-ghost{% endif %}">{{ cat }}</span>
+      <td class="py-3">
+        <span class="badge badge-outline badge-info badge-sm">{{ r.category or 'article' }}</span>
       </td>
-      <td class="whitespace-nowrap">{{ r.saved_at | dateformat }}</td>
-      <td class="text-right tabular-nums">{{ "{:,}".format(r.word_count).replace(",", ".") if r.word_count else "-" }}</td>
+      <td class="whitespace-nowrap text-sm text-base-content/60 py-3">{{ r.saved_at | dateformat }}</td>
+      <td class="text-right tabular-nums text-sm text-base-content/60 py-3">{{ "{:,}".format(r.word_count).replace(",", ".") if r.word_count else "-" }}</td>
       {% if mode == 'semantic' %}
-      <td class="text-right tabular-nums">{{ "%.3f"|format(r.distance) if r.distance is not none else "-" }}</td>
+      <td class="text-right py-3">
+        {# Convert distance to similarity score: lower distance = higher similarity #}
+        {# Typical distances range from 0.3 (very similar) to 1.5+ (not similar) #}
+        {# We map this to a 0-100% scale where 100% = distance 0, 0% = distance 1.5 #}
+        {% set similarity = ((1.5 - (r.distance if r.distance is not none else 1.5)) / 1.5 * 100)|int %}
+        {% set similarity = [0, similarity]|max %}
+        {% set similarity = [100, similarity]|min %}
+        <div class="flex items-center justify-end gap-2" title="Semantische Aehnlichkeit: {{ similarity }}% (Distanz: {{ '%.3f'|format(r.distance) if r.distance is not none else '-' }})">
+          <div class="w-16 h-1.5 bg-base-300 rounded-full overflow-hidden">
+            <div class="h-full bg-primary rounded-full transition-all" style="width: {{ similarity }}%"></div>
+          </div>
+          <span class="text-xs tabular-nums text-base-content/60 w-8 text-right">{{ similarity }}%</span>
+        </div>
+      </td>
       {% endif %}
     </tr>
     {% endfor %}
@@ -71,8 +116,9 @@
 </div>
 
 {% else %}
-<div class="text-center py-12 text-base-content/60">
-  <div class="text-5xl opacity-30 mb-4">{{ icon("search") }}</div>
-  <p>Keine Ergebnisse gefunden.</p>
+<div class="text-center py-16">
+  <div class="text-6xl mb-4 text-base-content/20">{{ icon("book-open") }}</div>
+  <p class="text-lg text-base-content/70 mb-2">Keine Ergebnisse gefunden</p>
+  <p class="text-sm text-base-content/50">Versuche einen anderen Suchbegriff oder aendere die Filter</p>
 </div>
 {% endif %}
