@@ -1,193 +1,190 @@
 {% extends "base.html" %}
+{% from "macros/icons.html" import icon %}
 {% block content %}
 
-<h1>Admin</h1>
-<p class="text-base-content/60 mb-4">System-Konfiguration und Hintergrund-Jobs verwalten</p>
+<div x-data="{ activeTab: 'status', ...embeddingJob(), ...themeEditor() }" x-init="init(); loadTheme()">
 
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-  <div class="card bg-base-100 shadow-md">
-    <div class="card-body">
-      <h2 class="card-title">Umgebung</h2>
-      <p class="text-sm text-base-content/60">Aktuelle Systemkonfiguration aus Umgebungsvariablen (nur lesbar)</p>
-      <div class="divider my-2"></div>
-      <div class="flex justify-between py-1"><span>Modus</span><span class="font-medium">{{ settings.app_env }}</span></div>
-      <div class="flex justify-between py-1"><span>Datenbank</span><span class="font-medium">{{ settings.db_path }}</span></div>
-      <div class="flex justify-between py-1"><span>LLM-Anbieter</span><span class="font-medium">{{ settings.llm_provider }}</span></div>
+  <!-- Hero -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div>
+      <h1 class="text-2xl font-bold">Admin</h1>
+      <p class="text-base-content/60 text-sm mt-1">System-Status, Werkzeuge und Einstellungen</p>
     </div>
   </div>
 
-  <div class="card bg-base-100 shadow-md">
-    <div class="card-body">
-      <h2 class="card-title">Datenbestand</h2>
-      <p class="text-sm text-base-content/60">Anzahl der gespeicherten Inhalte in der Datenbank</p>
-      <div class="divider my-2"></div>
-      <div class="flex justify-between py-1"><span>Dokumente</span><span class="font-medium">{{ stats.documents }}</span></div>
-      <div class="flex justify-between py-1"><span>Highlights</span><span class="font-medium">{{ stats.highlights }}</span></div>
-      <div class="flex justify-between py-1"><span>Entwuerfe</span><span class="font-medium">{{ stats.drafts }}</span></div>
+  <!-- Quick Stats Bar -->
+  <div class="stats stats-vertical sm:stats-horizontal shadow bg-base-100 w-full mb-6">
+    <div class="stat py-3 px-4">
+      <div class="stat-title text-xs">Dokumente</div>
+      <div class="stat-value text-xl">{{ stats.documents }}</div>
+    </div>
+    <div class="stat py-3 px-4">
+      <div class="stat-title text-xs">Highlights</div>
+      <div class="stat-value text-xl">{{ stats.highlights }}</div>
+    </div>
+    <div class="stat py-3 px-4">
+      <div class="stat-title text-xs">Entwuerfe</div>
+      <div class="stat-value text-xl">{{ stats.drafts }}</div>
+    </div>
+    <div class="stat py-3 px-4">
+      <div class="stat-title text-xs">Embeddings</div>
+      <div class="stat-value text-xl" :class="{ 'text-success': pending === 0, 'text-warning': pending > 0 }" x-text="progress + '%'"></div>
+      <div class="stat-desc" x-text="pending === 0 ? 'komplett' : pending.toLocaleString() + ' ausstehend'"></div>
     </div>
   </div>
-</div>
 
-<!-- Embedding Job Card -->
-<div class="card bg-base-100 shadow-md mt-6" x-data="embeddingJob()" x-init="init()">
-  <div class="card-body">
-    <h2 class="card-title">Semantische Suche</h2>
-    <p class="text-sm text-base-content/60">
-      Embeddings wandeln Text in Vektoren um, damit die Suche nach Bedeutung statt nur nach Worten funktioniert.
-      Jedes Dokument wird in Chunks (~800 Zeichen) aufgeteilt, die einzeln durchsuchbar sind.
-    </p>
+  <!-- DaisyUI v5 Tabs Lift with Labels -->
+  <div class="tabs tabs-lift w-full">
 
-    <!-- Status Overview -->
-    <div class="my-4">
-      <div class="flex justify-between items-center mb-2">
-        <span class="text-lg font-medium" x-text="statusText"></span>
-        <span class="text-2xl font-semibold" x-text="progress + '%'"></span>
-      </div>
-
-      <!-- Progress Bar -->
-      <progress class="progress progress-primary w-full" :value="progress" max="100"></progress>
-
-      <div class="flex justify-between mt-2 text-sm text-base-content/60">
-        <span x-text="totalEmbedded.toLocaleString() + ' von ' + stats.total_chunks.toLocaleString() + ' Chunks'"></span>
-        <span x-show="pending > 0" x-text="pending.toLocaleString() + ' ausstehend'"></span>
-      </div>
-    </div>
-
-    <!-- Provider Info -->
-    <template x-if="stats.by_provider && stats.by_provider.length > 0">
-      <div class="bg-base-200 p-3 rounded-lg mb-4">
-        <div class="text-xs text-base-content/60 mb-1">Aktiver Anbieter</div>
-        <template x-for="p in stats.by_provider" :key="p.provider + p.model">
-          <div class="font-medium" x-text="p.provider + ' / ' + p.model"></div>
-        </template>
-      </div>
-    </template>
-
-    <!-- Job Controls -->
-    <div x-show="pending > 0">
-      <!-- Not Running State -->
-      <div x-show="!jobRunning">
-        <button class="btn btn-primary" @click="startJob()">
-          Embeddings generieren starten
-        </button>
-        <p class="text-sm text-base-content/60 mt-2">
-          Verarbeitet 1000 Chunks pro Welle (~15-20 Sek.). Fortschritt nach jeder Welle sichtbar.
-        </p>
-      </div>
-
-      <!-- Running State -->
-      <div x-show="jobRunning">
-        <div class="flex items-center gap-4">
-          <span class="loading loading-spinner loading-md"></span>
-          <div>
-            <div class="font-medium" x-text="jobStatus"></div>
-            <div class="text-sm text-base-content/60" x-text="'Welle ' + currentBatch + ' von ~' + Math.ceil(pending / 1000)"></div>
+    <!-- Tab 1: Status -->
+    <label class="tab">
+      <input type="radio" name="admin_tabs" checked="checked" />
+      {{ icon("activity") }}
+      Status
+    </label>
+    <div class="tab-content bg-base-100 border-base-300 p-6">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Environment Section -->
+        <div>
+          <h3 class="font-semibold text-sm text-base-content/70 uppercase tracking-wide mb-3">{{ icon("server") }} Umgebung</h3>
+          <div class="divide-y divide-base-200 bg-base-200/30 rounded-lg px-4">
+            <div class="flex justify-between py-3 text-sm">
+              <span class="text-base-content/60">Modus</span>
+              <span class="font-medium">{{ settings.app_env }}</span>
+            </div>
+            <div class="flex justify-between py-3 text-sm">
+              <span class="text-base-content/60">Datenbank</span>
+              <span class="font-medium font-mono text-xs">{{ settings.db_path }}</span>
+            </div>
+            <div class="flex justify-between py-3 text-sm">
+              <span class="text-base-content/60">LLM-Anbieter</span>
+              <span class="font-medium">{{ settings.llm_provider }}</span>
+            </div>
           </div>
         </div>
-        <button class="btn btn-outline mt-4" @click="stopJob()">
-          Nach dieser Welle stoppen
-        </button>
-      </div>
-
-      <!-- Result Message -->
-      <div x-show="lastResult" class="alert alert-success mt-4">
-        <span x-text="lastResult"></span>
-      </div>
-
-      <!-- Error Message -->
-      <div x-show="error" class="alert alert-error mt-4">
-        <span x-text="error"></span>
-      </div>
-    </div>
-
-    <!-- All Done State -->
-    <div x-show="pending === 0 && stats.total_chunks > 0" class="alert alert-success">
-      <span class="text-xl">✓</span>
-      <span>Alle Chunks haben Embeddings - Semantische Suche ist bereit!</span>
-    </div>
-  </div>
-</div>
-
-<!-- Design Section -->
-<div class="card bg-base-100 shadow-md mt-6" x-data="themeEditor()" x-init="loadTheme()">
-  <div class="card-body">
-    <h2 class="card-title">Design</h2>
-    <p class="text-sm text-base-content/60">Passe das Erscheinungsbild der App an. Dark Mode wird automatisch vom System uebernommen.</p>
-
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-      <!-- Primaerfarbe -->
-      <div class="form-control">
-        <label class="label"><span class="label-text">Primaerfarbe</span></label>
-        <div class="flex items-center gap-2">
-          <input type="color" x-model="primary" @change="saveTheme()" class="w-10 h-10 rounded cursor-pointer">
-          <span x-text="primary" class="font-mono text-sm"></span>
+        <!-- Embeddings Section -->
+        <div>
+          <h3 class="font-semibold text-sm text-base-content/70 uppercase tracking-wide mb-3">{{ icon("cpu") }} Semantische Suche</h3>
+          <div class="bg-base-200/30 rounded-lg p-4">
+            <div class="mb-3">
+              <div class="flex justify-between items-center mb-1">
+                <span class="text-sm" x-text="statusText"></span>
+                <span class="text-sm font-medium" x-text="progress + '%'"></span>
+              </div>
+              <progress class="progress progress-primary w-full h-2" :value="progress" max="100"></progress>
+              <div class="text-xs text-base-content/50 mt-1" x-text="totalEmbedded.toLocaleString() + ' / ' + stats.total_chunks.toLocaleString() + ' Chunks'"></div>
+            </div>
+            <template x-if="stats.by_provider && stats.by_provider.length > 0">
+              <div class="text-xs text-base-content/50 mb-3">
+                Anbieter: <span class="font-medium" x-text="stats.by_provider.map(p => p.provider + '/' + p.model).join(', ')"></span>
+              </div>
+            </template>
+            <div x-show="pending > 0">
+              <div x-show="!jobRunning">
+                <button class="btn btn-primary btn-sm gap-2" @click="startJob()">{{ icon("play") }} Embeddings generieren</button>
+              </div>
+              <div x-show="jobRunning" class="flex items-center gap-3">
+                <span class="loading loading-spinner loading-sm text-primary"></span>
+                <div class="flex-1">
+                  <div class="text-sm font-medium" x-text="jobStatus"></div>
+                  <div class="text-xs text-base-content/50" x-text="'Welle ' + currentBatch"></div>
+                </div>
+                <button class="btn btn-ghost btn-xs" @click="stopJob()">Stop</button>
+              </div>
+            </div>
+            <div x-show="pending === 0 && stats.total_chunks > 0" class="flex items-center gap-2 text-success text-sm">
+              {{ icon("check-circle") }} Alle Chunks haben Embeddings
+            </div>
+            <div x-show="lastResult" class="alert alert-success mt-3 py-2 text-sm" x-text="lastResult"></div>
+            <div x-show="error" class="alert alert-error mt-3 py-2 text-sm" x-text="error"></div>
+          </div>
         </div>
       </div>
+    </div>
 
-      <!-- Spacing -->
-      <div class="form-control">
-        <label class="label"><span class="label-text">Abstaende</span></label>
-        <select x-model="spacing" @change="saveTheme()" class="select select-bordered select-sm">
-          <option value="compact">Kompakt</option>
-          <option value="normal">Normal</option>
-          <option value="spacious">Grosszuegig</option>
-        </select>
-      </div>
-
-      <!-- Border Radius -->
-      <div class="form-control">
-        <label class="label"><span class="label-text">Ecken</span></label>
-        <select x-model="radius" @change="saveTheme()" class="select select-bordered select-sm">
-          <option value="sharp">Eckig</option>
-          <option value="rounded">Gerundet</option>
-          <option value="pill">Stark gerundet</option>
-        </select>
-      </div>
-
-      <!-- Font Size -->
-      <div class="form-control">
-        <label class="label"><span class="label-text">Schriftgroesse</span></label>
-        <select x-model="fontSize" @change="saveTheme()" class="select select-bordered select-sm">
-          <option value="small">Klein</option>
-          <option value="medium">Normal</option>
-          <option value="large">Gross</option>
-        </select>
+    <!-- Tab 2: Werkzeuge -->
+    <label class="tab">
+      <input type="radio" name="admin_tabs" />
+      {{ icon("tool") }}
+      Werkzeuge
+    </label>
+    <div class="tab-content bg-base-100 border-base-300 p-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <a href="/admin/compare" class="group block p-4 bg-base-200/30 rounded-lg hover:bg-base-200/60 transition-colors">
+          <div class="flex items-center gap-3 mb-2">
+            <div class="w-8 h-8 flex items-center justify-center bg-base-content/10 text-base-content/70 rounded">{{ icon("git-compare") }}</div>
+            <h3 class="font-semibold group-hover:text-primary transition-colors">Modell-Vergleich</h3>
+          </div>
+          <p class="text-sm text-base-content/60">Suchergebnisse von OpenAI vs Ollama nebeneinander vergleichen.</p>
+        </a>
+        <a href="/admin/fetch" class="group block p-4 bg-base-200/30 rounded-lg hover:bg-base-200/60 transition-colors">
+          <div class="flex items-center gap-3 mb-2">
+            <div class="w-8 h-8 flex items-center justify-center bg-base-content/10 text-base-content/70 rounded">{{ icon("download-cloud") }}</div>
+            <h3 class="font-semibold group-hover:text-primary transition-colors">Fulltext Fetching</h3>
+          </div>
+          <p class="text-sm text-base-content/60">Volltexte von Original-URLs laden wenn nur Titel/Summary vorhanden.</p>
+        </a>
+        <a href="/admin/prompts" class="group block p-4 bg-base-200/30 rounded-lg hover:bg-base-200/60 transition-colors">
+          <div class="flex items-center gap-3 mb-2">
+            <div class="w-8 h-8 flex items-center justify-center bg-base-content/10 text-base-content/70 rounded">{{ icon("message-square") }}</div>
+            <h3 class="font-semibold group-hover:text-primary transition-colors">Prompt-Vorlagen</h3>
+          </div>
+          <p class="text-sm text-base-content/60">Prompts fuer Digest-Generierung anpassen. Temperature und Tokens.</p>
+        </a>
       </div>
     </div>
 
-    <div class="flex items-center gap-4 mt-4">
-      <button class="btn btn-outline btn-sm" @click="resetTheme()">Zuruecksetzen</button>
-      <span x-show="saved" x-transition class="text-success text-sm">Gespeichert</span>
+    <!-- Tab 3: Einstellungen -->
+    <label class="tab">
+      <input type="radio" name="admin_tabs" />
+      {{ icon("settings") }}
+      Einstellungen
+    </label>
+    <div class="tab-content bg-base-100 border-base-300 p-6">
+      <h3 class="font-semibold text-sm text-base-content/70 uppercase tracking-wide mb-3">{{ icon("palette") }} Design</h3>
+      <p class="text-sm text-base-content/60 mb-4">Erscheinungsbild anpassen. Dark Mode wird vom System uebernommen.</p>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-base-200/30 rounded-lg p-4">
+        <div class="form-control">
+          <label class="label py-1"><span class="label-text text-xs">Primaerfarbe</span></label>
+          <div class="flex items-center gap-2">
+            <input type="color" x-model="primary" @change="saveTheme()" class="w-8 h-8 rounded cursor-pointer border-0">
+            <span x-text="primary" class="font-mono text-xs text-base-content/50"></span>
+          </div>
+        </div>
+        <div class="form-control">
+          <label class="label py-1"><span class="label-text text-xs">Abstaende</span></label>
+          <select x-model="spacing" @change="saveTheme()" class="select select-bordered select-sm w-full">
+            <option value="compact">Kompakt</option>
+            <option value="normal">Normal</option>
+            <option value="spacious">Grosszuegig</option>
+          </select>
+        </div>
+        <div class="form-control">
+          <label class="label py-1"><span class="label-text text-xs">Ecken</span></label>
+          <select x-model="radius" @change="saveTheme()" class="select select-bordered select-sm w-full">
+            <option value="sharp">Eckig</option>
+            <option value="rounded">Gerundet</option>
+            <option value="pill">Stark gerundet</option>
+          </select>
+        </div>
+        <div class="form-control">
+          <label class="label py-1"><span class="label-text text-xs">Schriftgroesse</span></label>
+          <select x-model="fontSize" @change="saveTheme()" class="select select-bordered select-sm w-full">
+            <option value="small">Klein</option>
+            <option value="medium">Normal</option>
+            <option value="large">Gross</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex items-center gap-4 mt-4">
+        <button class="btn btn-ghost btn-sm" @click="resetTheme()">Zuruecksetzen</button>
+        <span x-show="saved" x-transition class="text-success text-sm">{{ icon("check") }} Gespeichert</span>
+      </div>
     </div>
+
   </div>
+
 </div>
-
-<!-- Tools Section -->
-<h2 class="mt-8 mb-4">Werkzeuge</h2>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-  <a href="/admin/compare" class="card bg-base-100 shadow-md hover:shadow-lg transition-shadow">
-    <div class="card-body">
-      <h3 class="card-title text-base">Modell-Vergleich</h3>
-      <p class="text-sm text-base-content/60">Vergleiche Suchergebnisse von verschiedenen Embedding-Modellen (OpenAI vs Ollama) nebeneinander.</p>
-    </div>
-  </a>
-
-  <a href="/admin/fetch" class="card bg-base-100 shadow-md hover:shadow-lg transition-shadow">
-    <div class="card-body">
-      <h3 class="card-title text-base">Fulltext Fetching</h3>
-      <p class="text-sm text-base-content/60">Hole Artikel-Volltexte von Original-URLs. Notwendig wenn nur Titel/Summary vorhanden sind.</p>
-    </div>
-  </a>
-
-  <a href="/admin/prompts" class="card bg-base-100 shadow-md hover:shadow-lg transition-shadow">
-    <div class="card-body">
-      <h3 class="card-title text-base">Prompt-Vorlagen</h3>
-      <p class="text-sm text-base-content/60">LLM-Prompts fuer Digest-Generierung anpassen. Temperature und Max-Tokens konfigurieren.</p>
-    </div>
-  </a>
-</div>
-
-<!-- Styles migrated to DaisyUI classes -->
 
 <script>
 function embeddingJob() {
@@ -219,7 +216,6 @@ function embeddingJob() {
 
     init() {
       this.refreshStats();
-      // Poll every 2 seconds for live updates
       setInterval(() => this.refreshStats(), 2000);
     },
 
@@ -229,9 +225,7 @@ function embeddingJob() {
         if (res.ok) {
           this.stats = await res.json();
         }
-      } catch (e) {
-        // Ignore fetch errors during job
-      }
+      } catch (e) {}
     },
 
     async startJob() {
@@ -241,8 +235,6 @@ function embeddingJob() {
       this.stopRequested = false;
       this.currentBatch = 0;
 
-      // Process 1000 chunks per wave with 2 concurrent API calls of 500 chunks each
-      // This balances speed with responsiveness (each wave ~15-20 seconds)
       const CHUNKS_PER_CALL = 1000;
       let totalProcessed = 0;
       let totalCost = 0;
@@ -250,43 +242,34 @@ function embeddingJob() {
 
       while (this.pending > 0 && !this.stopRequested) {
         this.currentBatch++;
-        this.jobStatus = `Welle ${this.currentBatch}: ${Math.min(CHUNKS_PER_CALL, this.pending).toLocaleString()} Chunks...`;
+        this.jobStatus = `${Math.min(CHUNKS_PER_CALL, this.pending).toLocaleString()} Chunks...`;
 
         try {
-          const startTime = Date.now();
           const res = await fetch(`/api/embeddings/generate-fast?limit=${CHUNKS_PER_CALL}&batch_size=500&max_concurrent=2`, {
             method: 'POST'
           });
 
-          if (!res.ok) {
-            throw new Error(`HTTP ${res.status}`);
-          }
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
           const data = await res.json();
           totalProcessed += data.processed || 0;
           totalCost += data.cost_usd || 0;
           totalDuration += data.duration_seconds || 0;
 
-          // Refresh stats to show progress
           await this.refreshStats();
 
-          // Update status with speed info
           if (data.chunks_per_second) {
             this.jobStatus = `${data.chunks_per_second} Chunks/Sek`;
           }
 
-          // Stop if nothing was processed (error or done)
           if (data.processed === 0) {
-            if (data.error) {
-              this.error = data.error;
-            }
+            if (data.error) this.error = data.error;
             break;
           }
 
-          // Small pause between waves
           await new Promise(r => setTimeout(r, 200));
         } catch (e) {
-          this.error = `Fehler bei Welle ${this.currentBatch}: ${e.message}`;
+          this.error = `Fehler: ${e.message}`;
           break;
         }
       }
@@ -294,15 +277,13 @@ function embeddingJob() {
       this.jobRunning = false;
       if (!this.error && totalProcessed > 0) {
         const avgSpeed = totalDuration > 0 ? Math.round(totalProcessed / totalDuration) : 0;
-        this.lastResult = `${totalProcessed.toLocaleString()} Chunks in ${totalDuration.toFixed(1)}s (${avgSpeed} Chunks/Sek), Kosten: $${totalCost.toFixed(4)}`;
-      } else if (this.stopRequested) {
-        this.lastResult = `Abgebrochen nach ${totalProcessed.toLocaleString()} Chunks`;
+        this.lastResult = `${totalProcessed.toLocaleString()} Chunks, $${totalCost.toFixed(4)}`;
       }
     },
 
     stopJob() {
       this.stopRequested = true;
-      this.jobStatus = 'Wird abgebrochen...';
+      this.jobStatus = 'Wird gestoppt...';
     }
   };
 }
@@ -323,9 +304,7 @@ function themeEditor() {
         this.spacing = theme.spacing || 'normal';
         this.radius = theme.radius || 'rounded';
         this.fontSize = theme.fontSize || 'medium';
-      } catch (e) {
-        // Fallback bleibt
-      }
+      } catch (e) {}
     },
 
     async saveTheme() {
@@ -338,13 +317,14 @@ function themeEditor() {
         });
         await fetch('/api/admin/theme?' + params.toString(), { method: 'POST' });
 
-        // Sofort anwenden
-        window.applyTheme({
-          primary: this.primary,
-          spacing: this.spacing,
-          radius: this.radius,
-          fontSize: this.fontSize
-        });
+        if (window.applyTheme) {
+          window.applyTheme({
+            primary: this.primary,
+            spacing: this.spacing,
+            radius: this.radius,
+            fontSize: this.fontSize
+          });
+        }
 
         this.saved = true;
         setTimeout(() => this.saved = false, 2000);
@@ -363,4 +343,5 @@ function themeEditor() {
   };
 }
 </script>
+
 {% endblock %}
