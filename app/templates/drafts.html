@@ -2,75 +2,110 @@
 {% from "macros/icons.html" import icon %}
 {% block content %}
 
-<div class="flex justify-between items-center mb-6">
-  <h1 class="m-0">Drafts</h1>
-  <a href="/drafts/new" class="btn btn-primary">
+<!-- Hero: Title + Primary Action -->
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+  <div>
+    <h1 class="text-2xl font-bold">Drafts</h1>
+    <p class="text-base-content/60 text-sm mt-1">Texte schreiben, ueberarbeiten und veroeffentlichen</p>
+  </div>
+  <a href="/drafts/new" class="btn btn-primary gap-2">
     {{ icon("plus") }} Neuer Draft
   </a>
 </div>
 
-<!-- Filter Pills -->
-<div class="flex flex-col gap-3 py-4 border-b border-base-300 mb-4">
-  <div class="flex flex-wrap items-center gap-2">
-    <span class="text-sm text-base-content/70 font-medium min-w-16">Status:</span>
-    <a href="/drafts" class="btn btn-sm {% if not current_status %}btn-primary{% else %}btn-ghost{% endif %}">Alle</a>
-    {% for s in statuses %}
-      <a href="/drafts?status={{ s }}{% if current_kind %}&kind={{ current_kind }}{% endif %}"
-         class="btn btn-sm {% if current_status == s %}btn-primary{% else %}btn-ghost{% endif %}">
-        {{ s|capitalize }}
-      </a>
-    {% endfor %}
+<!-- Quick Stats Bar -->
+<div class="stats stats-vertical sm:stats-horizontal shadow bg-base-100 w-full mb-6">
+  <div class="stat py-3 px-4">
+    <div class="stat-title text-xs">Gesamt</div>
+    <div class="stat-value text-xl">{{ drafts|length }}</div>
+    <div class="stat-desc">Drafts</div>
   </div>
-  <div class="flex flex-wrap items-center gap-2">
-    <span class="text-sm text-base-content/70 font-medium min-w-16">Typ:</span>
-    <a href="/drafts{% if current_status %}?status={{ current_status }}{% endif %}"
-       class="btn btn-sm {% if not current_kind %}btn-primary{% else %}btn-ghost{% endif %}">Alle</a>
-    {% for k in kinds %}
-      <a href="/drafts?kind={{ k }}{% if current_status %}&status={{ current_status }}{% endif %}"
-         class="btn btn-sm {% if current_kind == k %}btn-primary{% else %}btn-ghost{% endif %}">
-        {% if k == 'linkedin' %}{{ icon("linkedin") }}{% endif %}
-        {% if k == 'article' %}{{ icon("file-text") }}{% endif %}
-        {% if k == 'note' %}{{ icon("edit-3") }}{% endif %}
-        {{ k|capitalize }}
-      </a>
-    {% endfor %}
+  <div class="stat py-3 px-4">
+    <div class="stat-title text-xs">In Arbeit</div>
+    <div class="stat-value text-xl text-warning">{{ drafts|selectattr('status', 'equalto', 'working')|list|length }}</div>
+    <div class="stat-desc">working</div>
+  </div>
+  <div class="stat py-3 px-4">
+    <div class="stat-title text-xs">Veroeffentlicht</div>
+    <div class="stat-value text-xl text-success">{{ drafts|selectattr('status', 'equalto', 'published')|list|length }}</div>
+    <div class="stat-desc">published</div>
   </div>
 </div>
 
-<!-- Results Count -->
-<p class="text-sm text-base-content/70 mb-4">{{ drafts|length }} Draft{% if drafts|length != 1 %}s{% endif %}</p>
+<!-- Filter Bar (compact) -->
+<div class="card bg-base-100 shadow-md mb-6">
+  <div class="card-body py-3 px-4">
+    <div class="flex flex-col sm:flex-row gap-4">
+      <!-- Status Filter -->
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-base-content/50 font-medium uppercase tracking-wide">Status:</span>
+        <div class="join">
+          <a href="/drafts{% if current_kind %}?kind={{ current_kind }}{% endif %}"
+             class="btn btn-xs join-item {% if not current_status %}btn-active{% endif %}">Alle</a>
+          {% for s in statuses %}
+            <a href="/drafts?status={{ s }}{% if current_kind %}&kind={{ current_kind }}{% endif %}"
+               class="btn btn-xs join-item {% if current_status == s %}btn-active{% endif %}">
+              {{ s|capitalize }}
+            </a>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Type Filter -->
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-base-content/50 font-medium uppercase tracking-wide">Typ:</span>
+        <div class="join">
+          <a href="/drafts{% if current_status %}?status={{ current_status }}{% endif %}"
+             class="btn btn-xs join-item {% if not current_kind %}btn-active{% endif %}">Alle</a>
+          {% for k in kinds %}
+            <a href="/drafts?kind={{ k }}{% if current_status %}&status={{ current_status }}{% endif %}"
+               class="btn btn-xs join-item {% if current_kind == k %}btn-active{% endif %} gap-1">
+              {% if k == 'linkedin' %}{{ icon("linkedin") }}{% endif %}
+              {% if k == 'article' %}{{ icon("file-text") }}{% endif %}
+              {% if k == 'note' %}{{ icon("edit-3") }}{% endif %}
+              {{ k|capitalize }}
+            </a>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Drafts List -->
 {% if drafts %}
 <div class="flex flex-col gap-2">
   {% for d in drafts %}
-    <a href="/drafts/{{ d.id }}" class="card bg-base-100 shadow-sm hover:shadow-md hover:border-primary transition-all">
+    <a href="/drafts/{{ d.id }}" class="card bg-base-100 shadow-sm hover:shadow-md hover:border-primary/50 border border-transparent transition-all">
       <div class="card-body flex-row items-center gap-4 p-4">
-        <div class="w-10 h-10 flex items-center justify-center bg-base-200 rounded-lg text-base-content/60">
+        <div class="w-10 h-10 flex items-center justify-center bg-base-200 rounded-lg text-base-content/50">
           {% if d.kind == 'linkedin' %}{{ icon("linkedin") }}
           {% elif d.kind == 'article' %}{{ icon("file-text") }}
           {% else %}{{ icon("edit-3") }}{% endif %}
         </div>
         <div class="flex-1 min-w-0">
           <div class="font-medium truncate">{{ d.title or ("Draft #" ~ d.id) }}</div>
-          <div class="flex items-center gap-2 text-sm text-base-content/60">
+          <div class="flex items-center gap-2 mt-1">
             <span class="badge badge-sm {% if d.status == 'working' %}badge-warning{% elif d.status == 'published' %}badge-success{% else %}badge-ghost{% endif %}">{{ d.status }}</span>
-            <span>{{ d.updated_at[:10] if d.updated_at else '' }}</span>
+            <span class="text-xs text-base-content/50">{{ d.updated_at[:10] if d.updated_at else '' }}</span>
           </div>
         </div>
-        <div class="text-base-content/40">{{ icon("chevron-right") }}</div>
+        <div class="text-base-content/30">{{ icon("chevron-right") }}</div>
       </div>
     </a>
   {% endfor %}
 </div>
 {% else %}
-<div class="text-center py-12 text-base-content/60">
-  <div class="text-5xl opacity-30 mb-4">{{ icon("file-plus") }}</div>
-  <p class="mb-4">Noch keine Drafts vorhanden.</p>
-  <a href="/drafts/new" class="btn btn-primary">Ersten Draft erstellen</a>
+<!-- Empty State -->
+<div class="card bg-base-100 shadow-md">
+  <div class="card-body items-center text-center py-12">
+    <div class="text-5xl opacity-20 mb-4">{{ icon("file-plus") }}</div>
+    <p class="text-base-content/60 mb-4">Noch keine Drafts vorhanden.</p>
+    <a href="/drafts/new" class="btn btn-primary btn-sm gap-2">
+      {{ icon("plus") }} Ersten Draft erstellen
+    </a>
+  </div>
 </div>
 {% endif %}
-
-<!-- Styles migrated to DaisyUI classes -->
 
 {% endblock %}

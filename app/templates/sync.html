@@ -2,239 +2,183 @@
 {% from "macros/icons.html" import icon %}
 {% block content %}
 
-<h1 class="text-2xl font-bold mb-4">Sync Pipeline</h1>
-
-<div class="alert bg-base-200 border-l-4 border-primary mb-6">
-  <div class="flex gap-3">
-    {{ icon("info") }}
-    <div>
-      <strong>Was passiert beim Sync?</strong>
-      <p class="text-sm text-base-content/70 mt-1">Holt neue Inhalte von Readwise und verarbeitet sie automatisch: Import → Chunks → Embeddings → Index. Bestehende Dokumente bleiben unverändert.</p>
-    </div>
-  </div>
-</div>
-
 <div x-data="syncApp()" x-init="init()">
 
-  <!-- Pipeline Stepper (Custom - professional look with large icons) -->
-  <div class="card bg-base-100 shadow-md mb-4">
+  <!-- Hero: Title + Primary Action -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div>
+      <h1 class="text-2xl font-bold">Sync Pipeline</h1>
+      <p class="text-base-content/60 text-sm mt-1">Readwise importieren, Chunks erstellen, Embeddings generieren</p>
+    </div>
+
+    <!-- Primary Action (idle state) -->
+    <div x-show="status === 'idle'">
+      <button type="button" class="btn btn-primary gap-2" @click="startSync" :disabled="!token">
+        {{ icon("play") }} Sync starten
+      </button>
+    </div>
+
+    <!-- Running Controls -->
+    <div class="flex gap-2" x-show="status === 'running'">
+      <button type="button" class="btn btn-warning btn-sm gap-1" @click="pauseSync">
+        {{ icon("pause") }} Pause
+      </button>
+      <button type="button" class="btn btn-error btn-sm gap-1" @click="cancelSync">
+        {{ icon("x") }} Stop
+      </button>
+    </div>
+
+    <!-- Paused Controls -->
+    <div class="flex gap-2" x-show="status === 'paused'">
+      <button type="button" class="btn btn-primary btn-sm gap-1" @click="resumeSync">
+        {{ icon("play") }} Fortsetzen
+      </button>
+      <button type="button" class="btn btn-error btn-sm gap-1" @click="cancelSync">
+        {{ icon("x") }} Stop
+      </button>
+    </div>
+
+    <!-- Completed/Failed: Reset -->
+    <div x-show="status === 'completed' || status === 'cancelled' || status === 'failed'">
+      <button type="button" class="btn btn-outline btn-sm gap-1" @click="resetSync">
+        {{ icon("refresh-cw") }} Neue Sync
+      </button>
+    </div>
+  </div>
+
+  <!-- Quick Stats Bar -->
+  <div class="stats stats-vertical sm:stats-horizontal shadow bg-base-100 w-full mb-6">
+    <div class="stat py-3 px-4">
+      <div class="stat-title text-xs">Dokumente</div>
+      <div class="stat-value text-xl" x-text="stats.docs_total.toLocaleString()">{{ stats.docs_total }}</div>
+      <div class="stat-desc flex items-center gap-1.5">
+        <span class="w-1.5 h-1.5 rounded-full" :class="stats.docs_with_fulltext === stats.docs_total ? 'bg-success' : 'bg-warning'"></span>
+        <span x-text="stats.docs_with_fulltext.toLocaleString() + ' mit Inhalt'"></span>
+      </div>
+    </div>
+    <div class="stat py-3 px-4">
+      <div class="stat-title text-xs">Chunks</div>
+      <div class="stat-value text-xl" x-text="stats.chunks_total.toLocaleString()">{{ stats.chunks_total }}</div>
+      <div class="stat-desc flex items-center gap-1.5">
+        <span class="w-1.5 h-1.5 rounded-full" :class="stats.docs_without_chunks === 0 ? 'bg-success' : 'bg-warning'"></span>
+        <span x-text="stats.docs_without_chunks === 0 ? 'komplett' : stats.docs_without_chunks + ' Dok. ausstehend'"></span>
+      </div>
+    </div>
+    <div class="stat py-3 px-4">
+      <div class="stat-title text-xs">Embeddings</div>
+      <div class="stat-value text-xl" x-text="(stats.chunks_total - stats.chunks_without_embeddings).toLocaleString()">{{ stats.chunks_total - stats.chunks_without_embeddings }}</div>
+      <div class="stat-desc flex items-center gap-1.5">
+        <span class="w-1.5 h-1.5 rounded-full" :class="stats.chunks_without_embeddings === 0 ? 'bg-success' : 'bg-warning'"></span>
+        <span x-text="stats.chunks_without_embeddings === 0 ? 'komplett' : stats.chunks_without_embeddings.toLocaleString() + ' ausstehend'"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pipeline Steps (DaisyUI) -->
+  <div class="card bg-base-100 shadow-md mb-6" x-show="status !== 'idle' || phase !== 'idle'">
     <div class="card-body">
-      <div class="pipeline-stepper">
-        <div class="step" :class="{ active: phase === 'import', done: phaseIndex > 1 }">
-          <div class="step-icon">
-            {{ icon("download") }}
-            <div class="step-check" x-show="phaseIndex > 1">{{ icon("check") }}</div>
+      <ul class="steps steps-vertical lg:steps-horizontal w-full">
+        <li class="step" :class="{ 'step-primary': phase === 'import', 'step-success': phaseIndex > 1 }" data-content="1">
+          <div class="text-left lg:text-center">
+            <div class="font-medium text-sm">Import</div>
+            <div class="text-xs text-base-content/60" x-text="docsImported > 0 ? docsImported.toLocaleString() + ' Dokumente' : ''"></div>
           </div>
-          <div class="step-label">Import</div>
-          <div class="step-count" x-text="docsImported > 0 ? docsImported.toLocaleString() + ' Dokumente' : ''"></div>
+        </li>
+        <li class="step" :class="{ 'step-primary': phase === 'chunk', 'step-success': phaseIndex > 2 }" data-content="2">
+          <div class="text-left lg:text-center">
+            <div class="font-medium text-sm">Chunks</div>
+            <div class="text-xs text-base-content/60" x-text="chunksCreated > 0 ? chunksCreated.toLocaleString() + ' erstellt' : ''"></div>
+          </div>
+        </li>
+        <li class="step" :class="{ 'step-primary': phase === 'embed', 'step-success': phaseIndex > 3 }" data-content="3">
+          <div class="text-left lg:text-center">
+            <div class="font-medium text-sm">Embeddings</div>
+            <div class="text-xs text-base-content/60" x-text="chunksEmbedded > 0 ? chunksEmbedded.toLocaleString() + ' / ' + chunksTotal.toLocaleString() : ''"></div>
+          </div>
+        </li>
+        <li class="step" :class="{ 'step-primary': phase === 'index', 'step-success': phase === 'done' }" data-content="4">
+          <div class="text-left lg:text-center">
+            <div class="font-medium text-sm">Index</div>
+            <div class="text-xs text-base-content/60" x-text="phase === 'done' ? 'Fertig' : ''"></div>
+          </div>
+        </li>
+      </ul>
+
+      <!-- Progress Detail (running phases) -->
+      <div class="mt-4" x-show="status === 'running' && progressData">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2 text-sm">
+            <span class="loading loading-spinner loading-sm text-primary"></span>
+            <span x-text="currentActivity || progressData?.detail"></span>
+          </div>
+          <span class="text-sm font-medium" x-show="progressData?.percent !== null" x-text="progressData?.percent + '%'"></span>
         </div>
+        <progress class="progress progress-primary w-full" :value="progressData?.percent ?? 0" :max="progressData?.percent !== null ? 100 : undefined"></progress>
 
-        <div class="step-connector" :class="{ done: phaseIndex > 1 }"></div>
-
-        <div class="step" :class="{ active: phase === 'chunk', done: phaseIndex > 2 }">
-          <div class="step-icon">
-            {{ icon("scissors") }}
-            <div class="step-check" x-show="phaseIndex > 2">{{ icon("check") }}</div>
-          </div>
-          <div class="step-label">Chunks</div>
-          <div class="step-count" x-text="chunksCreated > 0 ? chunksCreated.toLocaleString() + ' erstellt' : ''"></div>
-        </div>
-
-        <div class="step-connector" :class="{ done: phaseIndex > 2 }"></div>
-
-        <div class="step" :class="{ active: phase === 'embed', done: phaseIndex > 3 }">
-          <div class="step-icon">
-            {{ icon("cpu") }}
-            <div class="step-check" x-show="phaseIndex > 3">{{ icon("check") }}</div>
-          </div>
-          <div class="step-label">Embeddings</div>
-          <div class="step-count" x-text="chunksEmbedded > 0 ? chunksEmbedded.toLocaleString() + ' / ' + chunksTotal.toLocaleString() : ''"></div>
-        </div>
-
-        <div class="step-connector" :class="{ done: phaseIndex > 3 }"></div>
-
-        <div class="step" :class="{ active: phase === 'index', done: phase === 'done' }">
-          <div class="step-icon">
-            {{ icon("search") }}
-            <div class="step-check" x-show="phase === 'done'">{{ icon("check") }}</div>
-          </div>
-          <div class="step-label">Index</div>
-          <div class="step-count" x-text="phase === 'done' ? 'Fertig' : ''"></div>
+        <!-- Cost info for embed phase -->
+        <div class="flex gap-4 mt-2 text-xs text-base-content/50" x-show="phase === 'embed' && (tokensUsed > 0 || costUsd > 0)">
+          <span x-show="tokensUsed > 0" x-text="tokensUsed.toLocaleString() + ' Tokens'"></span>
+          <span x-show="costUsd > 0" x-text="'$' + costUsd.toFixed(4)"></span>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Stats Overview (consolidated with status indicators) -->
-  <div class="card bg-base-100 shadow-md mb-4">
-    <div class="card-body">
-      <h2 class="card-title">Aktueller Stand</h2>
-      <div class="stats stats-vertical lg:stats-horizontal shadow w-full">
-        <div class="stat">
-          <div class="stat-title">Dokumente</div>
-          <div class="stat-value text-2xl" x-text="stats.docs_total.toLocaleString()">{{ stats.docs_total }}</div>
-          <div class="stat-desc flex items-center gap-2 mt-1">
-            <span class="w-2 h-2 rounded-full" :class="stats.docs_with_fulltext === stats.docs_total ? 'bg-success' : 'bg-warning'"></span>
-            <span x-text="stats.docs_with_fulltext.toLocaleString() + ' mit Inhalt'"></span>
-          </div>
-        </div>
-        <div class="stat">
-          <div class="stat-title">Chunks</div>
-          <div class="stat-value text-2xl" x-text="stats.chunks_total.toLocaleString()">{{ stats.chunks_total }}</div>
-          <div class="stat-desc flex items-center gap-2 mt-1">
-            <span class="w-2 h-2 rounded-full" :class="stats.docs_without_chunks === 0 ? 'bg-success' : 'bg-warning'"></span>
-            <span x-text="stats.docs_without_chunks === 0 ? 'alle Dok. verarbeitet' : stats.docs_without_chunks + ' Dok. ausstehend'"></span>
-          </div>
-        </div>
-        <div class="stat">
-          <div class="stat-title">Embeddings</div>
-          <div class="stat-value text-2xl" x-text="(stats.chunks_total - stats.chunks_without_embeddings).toLocaleString()">{{ stats.chunks_total - stats.chunks_without_embeddings }}</div>
-          <div class="stat-desc flex items-center gap-2 mt-1">
-            <span class="w-2 h-2 rounded-full" :class="stats.chunks_without_embeddings === 0 ? 'bg-success' : 'bg-warning'"></span>
-            <span x-text="stats.chunks_without_embeddings === 0 ? 'komplett' : stats.chunks_without_embeddings.toLocaleString() + ' ausstehend'"></span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Current Phase Detail - Progress for ALL phases -->
-  <div class="card bg-base-100 shadow-md mb-4" x-show="status === 'running' || status === 'paused'">
-    <div class="card-body">
-      <template x-if="progressData">
-        <div>
-          <!-- Phase Label with Spinner -->
-          <h2 class="card-title flex items-center gap-2">
-            <span class="loading loading-spinner loading-sm" x-show="status === 'running'"></span>
-            <span x-text="progressData.label"></span>
-          </h2>
-
-          <!-- Determinate Progress Bar (when % is known) -->
-          <div class="mt-4" x-show="progressData.percent !== null">
-            <div class="flex justify-between mb-1 text-sm">
-              <span class="text-base-content/70" x-text="currentActivity || progressData.detail"></span>
-              <span class="font-semibold" x-text="progressData.percent + '%'"></span>
-            </div>
-            <progress class="progress progress-primary w-full" :value="progressData.percent" max="100"></progress>
-          </div>
-
-          <!-- Indeterminate Progress Bar (when % is unknown) -->
-          <div class="mt-4" x-show="progressData.percent === null">
-            <div class="flex justify-between mb-1 text-sm">
-              <span class="text-base-content/70" x-text="currentActivity || progressData.detail"></span>
-            </div>
-            <progress class="progress progress-primary w-full"></progress>
-          </div>
-
-          <!-- Cost details (only for embed phase) -->
-          <div class="flex gap-4 mt-2 text-sm text-base-content/60" x-show="phase === 'embed' && (tokensUsed > 0 || costUsd > 0)">
-            <span x-show="tokensUsed > 0" x-text="tokensUsed.toLocaleString() + ' Tokens'"></span>
-            <span x-show="costUsd > 0" x-text="'$' + costUsd.toFixed(4)"></span>
-          </div>
-        </div>
-      </template>
-
-      <!-- Fallback for idle/done phases -->
-      <template x-if="!progressData && (status === 'running' || status === 'paused')">
-        <div>
-          <h2 class="card-title" x-text="phaseLabel"></h2>
-          <div class="flex items-center gap-2 mt-4 p-4 bg-base-200 rounded-lg" x-show="currentActivity">
-            <span class="text-primary">{{ icon("activity") }}</span>
-            <span x-text="currentActivity"></span>
-          </div>
-        </div>
-      </template>
-    </div>
-  </div>
-
-  <!-- Completion Summary -->
-  <div class="alert alert-success mb-4" x-show="status === 'completed'">
-    <div class="flex items-center gap-4">
-      <div class="text-success">{{ icon("check-circle") }}</div>
+  <!-- Completion Alert -->
+  <div class="alert alert-success mb-6" x-show="status === 'completed'" x-transition>
+    <div class="flex items-center gap-3">
+      {{ icon("check-circle") }}
       <div>
-        <h2 class="font-bold text-success">Sync abgeschlossen!</h2>
-        <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm mt-1">
-          <span x-show="docsImported > 0"><strong x-text="docsImported"></strong> Dokumente importiert</span>
+        <div class="font-semibold">Sync abgeschlossen!</div>
+        <div class="text-sm flex flex-wrap gap-x-3 gap-y-1 mt-1">
+          <span x-show="docsImported > 0"><strong x-text="docsImported"></strong> importiert</span>
           <span x-show="docsMerged > 0"><strong x-text="docsMerged"></strong> aktualisiert</span>
-          <span x-show="chunksCreated > 0"><strong x-text="chunksCreated"></strong> Chunks erstellt</span>
-          <span x-show="chunksEmbedded > 0"><strong x-text="chunksEmbedded"></strong> Embeddings generiert</span>
+          <span x-show="chunksCreated > 0"><strong x-text="chunksCreated"></strong> Chunks</span>
+          <span x-show="chunksEmbedded > 0"><strong x-text="chunksEmbedded"></strong> Embeddings</span>
           <span x-show="costUsd > 0">Kosten: <strong x-text="'$' + costUsd.toFixed(4)"></strong></span>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Error Display -->
-  <div class="alert alert-error mb-4" x-show="error">
+  <!-- Error Alert -->
+  <div class="alert alert-error mb-6" x-show="error" x-transition>
     <div class="flex items-center gap-2">
       {{ icon("alert-circle") }}
       <span x-text="error"></span>
     </div>
   </div>
 
-  <!-- Controls -->
-  <div class="card bg-base-100 shadow-md mb-4">
-    <div class="card-body">
-      <h2 class="card-title">Steuerung</h2>
-
-      <form @submit.prevent="startSync" x-show="status === 'idle'">
-        <input type="hidden" name="token" value="{{ token }}">
-
-        <div class="form-control mb-4">
-          <label class="label cursor-pointer justify-start gap-3">
-            <input type="checkbox" class="checkbox checkbox-primary" x-model="skipImport">
-            <span class="label-text">Import ueberspringen (nur Chunks + Embeddings)</span>
-          </label>
-        </div>
+  <!-- Options (idle state only) -->
+  <div class="card bg-base-100 shadow-md mb-6" x-show="status === 'idle'">
+    <div class="card-body py-4">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <label class="label cursor-pointer justify-start gap-3">
+          <input type="checkbox" class="checkbox checkbox-sm checkbox-primary" x-model="skipImport">
+          <span class="label-text">Import ueberspringen (nur Chunks + Embeddings)</span>
+        </label>
 
         <!-- Cost Estimate -->
-        <div class="flex items-center gap-2 p-3 bg-base-200 rounded-lg mb-4 text-sm" x-show="stats.chunks_without_embeddings > 0">
+        <div class="flex items-center gap-2 text-sm text-base-content/60" x-show="stats.chunks_without_embeddings > 0">
           {{ icon("info") }}
           <span>
-            Geschaetzte Kosten fuer Embeddings:
-            <strong x-text="'$' + (stats.chunks_without_embeddings * 200 * 0.02 / 1000000).toFixed(4)"></strong>
+            Geschaetzte Kosten: <strong x-text="'$' + (stats.chunks_without_embeddings * 200 * 0.02 / 1000000).toFixed(4)"></strong>
             (<span x-text="stats.chunks_without_embeddings.toLocaleString()"></span> Chunks)
           </span>
         </div>
-
-        <div class="flex gap-2">
-          <button type="submit" class="btn btn-primary" :disabled="!token">
-            {{ icon("play") }} Sync starten
-          </button>
-        </div>
-      </form>
-
-      <div class="flex gap-2" x-show="status === 'running'">
-        <button type="button" class="btn btn-warning" @click="pauseSync">
-          {{ icon("pause") }} Pause
-        </button>
-        <button type="button" class="btn btn-error" @click="cancelSync">
-          {{ icon("x") }} Abbrechen
-        </button>
-      </div>
-
-      <div class="flex gap-2" x-show="status === 'paused'">
-        <button type="button" class="btn btn-primary" @click="resumeSync">
-          {{ icon("play") }} Fortsetzen
-        </button>
-        <button type="button" class="btn btn-error" @click="cancelSync">
-          {{ icon("x") }} Abbrechen
-        </button>
-      </div>
-
-      <div class="flex gap-2" x-show="status === 'completed' || status === 'cancelled' || status === 'failed'">
-        <button type="button" class="btn btn-primary" @click="resetSync">
-          {{ icon("refresh-cw") }} Neue Sync starten
-        </button>
       </div>
     </div>
   </div>
 
-  <!-- Log -->
-  <div class="card bg-base-100 shadow-md" x-show="log.length > 0">
-    <div class="card-body">
-      <h2 class="card-title">Verlauf</h2>
-      <div class="max-h-72 overflow-y-auto font-mono text-sm bg-base-200 p-2 rounded-lg">
+  <!-- Log (collapsible) -->
+  <div class="collapse collapse-arrow bg-base-100 shadow-md" x-show="log.length > 0">
+    <input type="checkbox" />
+    <div class="collapse-title font-medium flex items-center gap-2">
+      {{ icon("terminal") }} Verlauf
+      <span class="badge badge-ghost badge-sm" x-text="log.length + ' Eintraege'"></span>
+    </div>
+    <div class="collapse-content">
+      <div class="max-h-48 overflow-y-auto font-mono text-xs bg-base-200 p-3 rounded-lg">
         <template x-for="entry in log.slice(-20).reverse()" :key="entry.time">
           <div class="py-1 border-b border-base-300 last:border-0" :class="{
             'text-success': entry.level === 'success',
@@ -246,6 +190,24 @@
           </div>
         </template>
       </div>
+    </div>
+  </div>
+
+  <!-- Help (collapsed at bottom) -->
+  <div class="collapse collapse-arrow bg-base-100 shadow-md mt-4">
+    <input type="checkbox" />
+    <div class="collapse-title text-sm font-medium flex items-center gap-2">
+      {{ icon("help-circle") }} Was passiert beim Sync?
+    </div>
+    <div class="collapse-content text-sm text-base-content/70">
+      <p>Holt neue Inhalte von Readwise und verarbeitet sie automatisch:</p>
+      <ul class="list-disc list-inside mt-2 space-y-1">
+        <li><strong>Import:</strong> Neue Dokumente von Readwise holen</li>
+        <li><strong>Chunks:</strong> Lange Texte in Abschnitte teilen</li>
+        <li><strong>Embeddings:</strong> Semantische Vektoren generieren (kostenpflichtig)</li>
+        <li><strong>Index:</strong> Volltextsuche aktualisieren</li>
+      </ul>
+      <p class="mt-2">Bestehende Dokumente bleiben unveraendert.</p>
     </div>
   </div>
 
@@ -268,13 +230,13 @@ function syncApp() {
     docsImported: 0,
     docsMerged: 0,
     chunksCreated: 0,
-    docsProcessed: 0,   // Documents processed in CHUNK phase
-    docsToChunk: 0,     // Total documents needing chunks (denominator)
+    docsProcessed: 0,
+    docsToChunk: 0,
     chunksEmbedded: 0,
     chunksTotal: 0,
     tokensUsed: 0,
     costUsd: 0,
-    itemsTotal: 0,  // Total items expected from Readwise
+    itemsTotal: 0,
 
     // Stats from server
     stats: INITIAL_STATS,
@@ -306,27 +268,8 @@ function syncApp() {
       return labels[this.phase] || this.phase;
     },
 
-    get statusText() {
-      const texts = {
-        'idle': 'Bereit',
-        'running': 'Laeuft',
-        'paused': 'Pausiert',
-        'completed': 'Abgeschlossen',
-        'cancelled': 'Abgebrochen',
-        'failed': 'Fehlgeschlagen'
-      };
-      return texts[this.status] || this.status;
-    },
-
-    get progressPercent() {
-      if (this.chunksTotal === 0) return 0;
-      return (this.chunksEmbedded / this.chunksTotal) * 100;
-    },
-
     get progressData() {
-      // Returns { percent, label, detail } based on current phase
       if (this.phase === 'import') {
-        // Cap at 100% since both APIs may return more items than initial estimate
         const rawPercent = this.itemsTotal > 0
           ? Math.round((this.docsImported / this.itemsTotal) * 100)
           : null;
@@ -376,8 +319,7 @@ function syncApp() {
     },
 
     // Lifecycle
-    init() {
-    },
+    init() {},
 
     // Actions
     async startSync() {
@@ -416,10 +358,6 @@ function syncApp() {
 
       this.eventSource = new EventSource(`/api/sync/${this.jobId}/stream`);
 
-      this.eventSource.onmessage = (e) => {
-        console.log('SSE message:', e.data);
-      };
-
       this.eventSource.addEventListener('phase_start', (e) => {
         const data = JSON.parse(e.data);
         this.phase = data.phase;
@@ -432,12 +370,10 @@ function syncApp() {
         const data = JSON.parse(e.data);
         this.updateFromData(data);
         this.lastHeartbeat = Date.now();
-        // Show message in activity if provided, otherwise clear it for progress display
         if (data.message) {
           this.currentActivity = data.message;
           this.addLog('info', data.message);
         } else {
-          // Clear currentActivity so progressData.detail is shown instead
           this.currentActivity = '';
         }
       });
@@ -462,7 +398,6 @@ function syncApp() {
       });
 
       this.eventSource.addEventListener('pipeline_paused', (e) => {
-        const data = JSON.parse(e.data);
         this.status = 'paused';
         this.addLog('warning', 'Pipeline pausiert');
         this.eventSource.close();
@@ -485,7 +420,6 @@ function syncApp() {
         this.stopHeartbeatMonitor();
       });
 
-      // Heartbeat events - shows activity during long operations
       this.eventSource.addEventListener('heartbeat', (e) => {
         const data = JSON.parse(e.data);
         this.lastHeartbeat = Date.now();
@@ -502,7 +436,6 @@ function syncApp() {
         this.stopHeartbeatMonitor();
       };
 
-      // Start heartbeat monitor to detect stale connections
       this.startHeartbeatMonitor();
     },
 
@@ -513,7 +446,7 @@ function syncApp() {
           const elapsed = Date.now() - this.lastHeartbeat;
           if (elapsed > 10000) {
             this.addLog('warning', 'Keine Antwort vom Server seit 10s');
-            this.lastHeartbeat = Date.now(); // Reset to avoid spam
+            this.lastHeartbeat = Date.now();
           }
         }
       }, 5000);
@@ -527,17 +460,12 @@ function syncApp() {
     },
 
     updateFromData(data) {
-      // Import phase
       if (data.docs_imported !== undefined) this.docsImported = data.docs_imported;
       if (data.docs_merged !== undefined) this.docsMerged = data.docs_merged;
       if (data.items_total !== undefined) this.itemsTotal = data.items_total;
-
-      // Chunk phase
       if (data.chunks_created !== undefined) this.chunksCreated = data.chunks_created;
       if (data.docs_processed !== undefined) this.docsProcessed = data.docs_processed;
       if (data.docs_total !== undefined) this.docsToChunk = data.docs_total;
-
-      // Embed phase
       if (data.chunks_embedded !== undefined) this.chunksEmbedded = data.chunks_embedded;
       if (data.chunks_total !== undefined) this.chunksTotal = data.chunks_total;
       if (data.pending_chunks !== undefined) this.chunksTotal = data.pending_chunks;
@@ -613,136 +541,5 @@ function syncApp() {
   };
 }
 </script>
-
-<style>
-/* Pipeline Stepper - Custom component for professional look */
-.pipeline-stepper {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 1rem 0;
-}
-
-.pipeline-stepper .step {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: 0 0 auto;
-  width: 80px;
-  text-align: center;
-  opacity: 0.5;
-  transition: opacity 0.2s;
-}
-
-.pipeline-stepper .step.active,
-.pipeline-stepper .step.done {
-  opacity: 1;
-}
-
-.step-icon {
-  position: relative;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: oklch(var(--b2));
-  border: 2px solid oklch(var(--bc) / 0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 0.5rem;
-  transition: all 0.2s;
-}
-
-.step-icon svg {
-  width: 20px;
-  height: 20px;
-  opacity: 0.5;
-}
-
-.pipeline-stepper .step.active .step-icon {
-  border-color: oklch(var(--p));
-  background: oklch(var(--p) / 0.1);
-}
-
-.pipeline-stepper .step.active .step-icon svg {
-  color: oklch(var(--p));
-  opacity: 1;
-}
-
-.pipeline-stepper .step.done .step-icon {
-  border-color: oklch(var(--su));
-  background: oklch(var(--su) / 0.1);
-}
-
-.pipeline-stepper .step.done .step-icon svg {
-  color: oklch(var(--su));
-  opacity: 1;
-}
-
-.step-check {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  width: 18px;
-  height: 18px;
-  background: oklch(var(--su));
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.step-check svg {
-  width: 12px;
-  height: 12px;
-  color: oklch(var(--suc)) !important;
-}
-
-.step-label {
-  font-weight: 500;
-  font-size: 0.875rem;
-  margin-bottom: 0.25rem;
-}
-
-.step-count {
-  font-size: 0.75rem;
-  opacity: 0.6;
-  min-height: 1.2em;
-}
-
-.step-connector {
-  flex: 1;
-  height: 2px;
-  background: oklch(var(--bc) / 0.2);
-  margin-top: 24px;
-  transition: background 0.2s;
-}
-
-.step-connector.done {
-  background: oklch(var(--su));
-}
-
-/* Responsive */
-@media (max-width: 640px) {
-  .pipeline-stepper {
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 0.5rem;
-  }
-
-  .step-connector {
-    display: none;
-  }
-
-  .pipeline-stepper .step {
-    width: 70px;
-  }
-
-  .step-icon {
-    width: 40px;
-    height: 40px;
-  }
-}
-</style>
 
 {% endblock %}

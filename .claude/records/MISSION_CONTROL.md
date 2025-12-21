@@ -4,7 +4,7 @@
 **Phase 1: Content MVP** (in progress)
 
 ## Active Task
-DaisyUI Migration - COMPLETE
+Ready for Draft System MVP
 
 ## Next Steps (Priority Order)
 
@@ -13,21 +13,30 @@ DaisyUI Migration - COMPLETE
 | Template | CSS Lines | Status |
 |----------|-----------|--------|
 | `home.html` | ~150 | ✅ DONE |
-| `sync.html` | ~130 | ✅ DONE |
+| `sync.html` | ~130 | ✅ DONE (UX redesign) |
 | `admin_fetch.html` | ~500 | ✅ DONE |
 | `admin_prompts.html` | ~315 | ✅ DONE |
 | `admin_queries.html` | ~230 | ✅ DONE |
 | `admin_compare.html` | ~75 | ✅ DONE (UX redesign) |
+| `drafts.html` | - | ✅ DONE (UX redesign) |
+| `digest_home.html` | - | ✅ DONE (UX redesign) |
 
-**All 6 templates migrated to DaisyUI with zero custom CSS.**
+**All templates migrated to DaisyUI with zero custom CSS.**
 
-### 2. CSS Cleanup
-- [ ] Replace custom toast in `app.css` with DaisyUI `toast`
+### 2. CSS Cleanup - COMPLETED
+- [x] Replace custom toast in `app.css` with DaisyUI `toast`
 
-### 3. Draft System MVP
+### 3. Main Entry Points UX Redesign - COMPLETED
+- [x] `/sync` - Action-First pattern, DaisyUI steps, help collapsed
+- [x] `/drafts` - Stats bar, join filters, hero section
+- [x] `/digest` - Compact generation form, inline stats+filter
+
+### 4. Draft System MVP
 - Revisions, parking/finalizing (after DaisyUI cleanup)
 
 ## Recent Completions
+- Dec 2025: **Main entry points UX redesign** - sync/drafts/digest pages with hero sections, stats bars, Action-First pattern
+- Dec 2025: **CSS Cleanup complete** - Custom toast/error CSS replaced with DaisyUI toast+alert, theme switched to emerald
 - Dec 2025: **UX Design System created** - New `UX_DESIGN_PRINCIPLES.md`, updated `design-audit` skill with UX-first approach
 - Dec 2025: **admin_compare.html UX redesign** - Full redesign with hero search, quick stats bar, state design (empty/loading/error)
 - Dec 2025: **admin_queries.html migrated** - Removed ~230 CSS lines, collapse/badges/forms to DaisyUI, creation form moved to top
@@ -54,3 +63,5 @@ DaisyUI Migration - COMPLETE
 | Dec 2025 | Elevation Principle | Canvas `bg-base-200`, Surfaces `bg-base-100 shadow-md` |
 | Dec 2025 | One btn-primary per viewport | Card buttons use `btn-outline`, search uses `btn-primary` |
 | Dec 2025 | Theme portability | All colors via DaisyUI semantic classes only |
+| Dec 2025 | Filter buttons use join+btn-active | No multiple btn-primary, use `join` with `btn-active` for selected state |
+| Dec 2025 | Hero pattern | Title + subtitle + primary action in flex row for all entry pages |
