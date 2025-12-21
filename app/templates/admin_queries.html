@@ -2,356 +2,174 @@
 {% from "macros/icons.html" import icon %}
 {% block content %}
 
-<h1>Gespeicherte Queries</h1>
-<p class="subtitle">Suchen und Highlights aus deiner Bibliothek (Admin-Bereich)</p>
+<div class="max-w-4xl mx-auto">
+  <!-- Page Header -->
+  <h1 class="text-2xl font-bold mb-1">Gespeicherte Queries</h1>
+  <p class="text-base-content/60 mb-8">Suchen und Highlights aus deiner Bibliothek (Admin-Bereich)</p>
 
-<!-- Default Digest: Neueste Highlights -->
-<section class="card digest-section">
-  <h2>{{ icon("bookmark") }} Neueste Highlights</h2>
-  <p class="muted">Die letzten 10 markierten Stellen aus deinen Dokumenten</p>
+  <!-- Section 1: Neue Query erstellen (Creation at top) -->
+  <section class="card bg-base-100 shadow-md mb-8">
+    <div class="card-body">
+      <h2 class="card-title">
+        <span class="inline-flex items-center gap-2 whitespace-nowrap">
+          {{ icon("plus-circle", "w-5 h-5 text-primary") }}
+          Neue Query
+        </span>
+      </h2>
 
-  {% if highlights %}
-  <div class="highlights-list">
-    {% for h in highlights %}
-    <div class="highlight-item">
-      <blockquote class="highlight-text">{{ h.text[:300] }}{% if h.text|length > 300 %}...{% endif %}</blockquote>
-      <div class="highlight-meta">
-        <a href="/documents/{{ h.document_id }}">{{ h.title or 'Ohne Titel' }}</a>
-        {% if h.author %}<span class="author"> - {{ h.author }}</span>{% endif %}
-        {% if h.highlighted_at %}<span class="date"> · {{ h.highlighted_at[:10] }}</span>{% endif %}
+      <form method="post" action="/digest/queries/create">
+        <div class="flex flex-wrap gap-3 items-center">
+          <input type="text" name="name"
+                 class="input input-bordered flex-1 min-w-[200px]"
+                 placeholder="Name (z.B. 'Machine Learning')" required>
+          <input type="text" name="query"
+                 class="input input-bordered flex-1 min-w-[200px]"
+                 placeholder="Suchbegriff (z.B. 'neural network')" required>
+          <select name="mode" class="select select-bordered w-auto">
+            <option value="fts">Keyword (FTS)</option>
+            <option value="semantic">Semantic</option>
+          </select>
+          <button type="submit" class="btn btn-primary">
+            <span class="inline-flex items-center gap-1 whitespace-nowrap">
+              {{ icon("plus", "w-4 h-4") }} Erstellen
+            </span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- Section 2: Neueste Highlights -->
+  <section class="card bg-base-100 shadow-md mb-8">
+    <div class="card-body">
+      <h2 class="card-title">
+        <span class="inline-flex items-center gap-2 whitespace-nowrap">
+          {{ icon("bookmark", "w-5 h-5 text-primary") }}
+          Neueste Highlights
+        </span>
+      </h2>
+      <p class="text-base-content/60 text-sm mb-4">Die letzten 10 markierten Stellen aus deinen Dokumenten</p>
+
+      {% if highlights %}
+      <div class="flex flex-col gap-4">
+        {% for h in highlights %}
+        <div class="bg-base-200/50 rounded-lg p-4 border-l-4 border-primary">
+          <blockquote class="italic leading-relaxed mb-2">
+            {{ h.text[:300] }}{% if h.text|length > 300 %}...{% endif %}
+          </blockquote>
+          <div class="text-sm text-base-content/60">
+            <a href="/documents/{{ h.document_id }}" class="link link-primary">{{ h.title or 'Ohne Titel' }}</a>
+            {% if h.author %}<span> - {{ h.author }}</span>{% endif %}
+            {% if h.highlighted_at %}<span> · {{ h.highlighted_at[:10] }}</span>{% endif %}
+          </div>
+          {% if h.note %}
+          <div class="mt-2 p-2 bg-warning/10 rounded text-sm">{{ h.note }}</div>
+          {% endif %}
+        </div>
+        {% endfor %}
       </div>
-      {% if h.note %}
-      <div class="highlight-note">{{ h.note }}</div>
+      {% else %}
+      <div class="text-center py-8 text-base-content/60">
+        <p>Noch keine Highlights vorhanden. Markiere interessante Stellen in Readwise Reader!</p>
+      </div>
       {% endif %}
     </div>
-    {% endfor %}
-  </div>
-  {% else %}
-  <div class="empty-state">
-    <p>Noch keine Highlights vorhanden. Markiere interessante Stellen in Readwise Reader!</p>
-  </div>
-  {% endif %}
-</section>
+  </section>
 
-<!-- Gespeicherte Queries -->
-<section class="digest-section">
-  <h2>{{ icon("search") }} Gespeicherte Queries</h2>
-  <p class="muted">Klicke auf eine Query, um die Ergebnisse zu sehen</p>
-
-  {% if digests %}
-  <div class="digests-list">
-    {% for d in digests %}
-    <div class="digest-item card" x-data="{ open: false, editing: false, loaded: false }">
-      <!-- Header - Click to expand -->
-      <div class="digest-header" @click="open = !open; if(!loaded) { $refs.results.dispatchEvent(new Event('load-results')); loaded = true; }">
-        <span class="digest-toggle">
-          <span x-show="!open">{{ icon("chevron-right") }}</span>
-          <span x-show="open">{{ icon("chevron-down") }}</span>
+  <!-- Section 2: Gespeicherte Queries -->
+  <section class="card bg-base-100 shadow-md mb-8">
+    <div class="card-body">
+      <h2 class="card-title">
+        <span class="inline-flex items-center gap-2 whitespace-nowrap">
+          {{ icon("search", "w-5 h-5 text-primary") }}
+          Gespeicherte Queries
         </span>
-        <span class="digest-name">{{ d.name }}</span>
-        <span class="digest-badge badge"
-              hx-get="/api/digests/{{ d.id }}/count"
-              hx-trigger="load"
-              hx-swap="innerHTML">...</span>
-      </div>
+      </h2>
+      <p class="text-base-content/60 text-sm mb-4">Klicke auf eine Query, um die Ergebnisse zu sehen</p>
 
-      <!-- Meta row -->
-      <div class="digest-meta">
-        <span class="digest-query">"{{ d.query }}"</span>
-        <span class="digest-mode">· {{ d.mode|upper }}</span>
-      </div>
+      {% if digests %}
+      <div class="flex flex-col gap-3">
+        {% for d in digests %}
+        <div class="collapse collapse-arrow bg-base-200/50 rounded-lg" x-data="{ loaded: false }">
+          <input type="checkbox" @change="if(!loaded) { $refs.results{{ d.id }}.dispatchEvent(new Event('load-results')); loaded = true; }" />
 
-      <!-- Actions -->
-      <div class="digest-actions">
-        <button class="btn btn-sm btn-ghost" @click.stop="editing = !editing">
-          <span x-show="editing">{{ icon("x") }}</span>
-          <span x-show="!editing">{{ icon("edit-2") }}</span>
-          <span x-text="editing ? 'Abbrechen' : 'Bearbeiten'"></span>
-        </button>
-        <form method="post" action="/digest/queries/{{ d.id }}/delete" style="display: inline;">
-          <button type="submit" class="btn btn-sm btn-ghost btn-danger-text"
-                  onclick="return confirm('Wirklich loeschen?')">
-            {{ icon("trash-2") }} Loeschen
-          </button>
-        </form>
-      </div>
+          <!-- Collapse Title -->
+          <div class="collapse-title font-medium pr-12">
+            <div class="flex items-center justify-between">
+              <span class="font-semibold">{{ d.name }}</span>
+              <span class="badge badge-neutral"
+                    hx-get="/api/digests/{{ d.id }}/count"
+                    hx-trigger="load"
+                    hx-swap="innerHTML">...</span>
+            </div>
+            <div class="text-sm text-base-content/60 mt-1">
+              "{{ d.query }}" · <span class="uppercase">{{ d.mode }}</span>
+            </div>
+          </div>
 
-      <!-- Edit Form (inline, hidden by default) -->
-      <div x-show="editing" x-transition class="digest-edit">
-        <form method="post" action="/digest/queries/{{ d.id }}/update" class="edit-form">
-          <input type="text" name="name" value="{{ d.name }}" class="input" placeholder="Name" required>
-          <input type="text" name="query" value="{{ d.query }}" class="input" placeholder="Query" required>
-          <select name="mode" class="input">
-            <option value="fts" {% if d.mode == 'fts' %}selected{% endif %}>Keyword (FTS)</option>
-            <option value="semantic" {% if d.mode == 'semantic' %}selected{% endif %}>Semantic</option>
-          </select>
-          <button type="submit" class="btn btn-primary btn-sm">{{ icon("check") }} Speichern</button>
-        </form>
-      </div>
+          <!-- Collapse Content -->
+          <div class="collapse-content">
+            <!-- Actions -->
+            <div class="flex gap-2 mb-4 pt-2" x-data="{ editing: false }">
+              <button class="btn btn-ghost btn-sm" @click.stop="editing = !editing">
+                <span class="inline-flex items-center gap-1 whitespace-nowrap">
+                  <span x-show="!editing">{{ icon("edit-2", "w-4 h-4") }} Bearbeiten</span>
+                  <span x-show="editing">{{ icon("x", "w-4 h-4") }} Abbrechen</span>
+                </span>
+              </button>
+              <form method="post" action="/digest/queries/{{ d.id }}/delete" class="inline">
+                <button type="submit" class="btn btn-ghost btn-sm text-error hover:bg-error/10"
+                        onclick="return confirm('Wirklich loeschen?')">
+                  <span class="inline-flex items-center gap-1 whitespace-nowrap">
+                    {{ icon("trash-2", "w-4 h-4") }} Loeschen
+                  </span>
+                </button>
+              </form>
 
-      <!-- Results (lazy load on expand) -->
-      <div x-show="open" x-transition class="digest-results"
-           x-ref="results"
-           hx-get="/api/digests/{{ d.id }}/results"
-           hx-trigger="load-results"
-           hx-swap="innerHTML">
-        <div class="loading">Lade Ergebnisse...</div>
+              <!-- Inline Edit Form -->
+              <div x-show="editing" x-transition class="w-full mt-4">
+                <form method="post" action="/digest/queries/{{ d.id }}/update"
+                      class="flex flex-wrap gap-2 items-center bg-base-100 p-4 rounded-lg">
+                  <input type="text" name="name" value="{{ d.name }}"
+                         class="input input-bordered input-sm flex-1 min-w-[150px]" placeholder="Name" required>
+                  <input type="text" name="query" value="{{ d.query }}"
+                         class="input input-bordered input-sm flex-1 min-w-[150px]" placeholder="Query" required>
+                  <select name="mode" class="select select-bordered select-sm">
+                    <option value="fts" {% if d.mode == 'fts' %}selected{% endif %}>Keyword (FTS)</option>
+                    <option value="semantic" {% if d.mode == 'semantic' %}selected{% endif %}>Semantic</option>
+                  </select>
+                  <button type="submit" class="btn btn-primary btn-sm">
+                    <span class="inline-flex items-center gap-1 whitespace-nowrap">
+                      {{ icon("check", "w-4 h-4") }} Speichern
+                    </span>
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <!-- Results (lazy load) -->
+            <div class="bg-base-100 rounded-lg p-4"
+                 x-ref="results{{ d.id }}"
+                 hx-get="/api/digests/{{ d.id }}/results"
+                 hx-trigger="load-results"
+                 hx-swap="innerHTML">
+              <div class="text-center text-base-content/60">
+                <span class="loading loading-spinner loading-sm"></span>
+                Lade Ergebnisse...
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
       </div>
+      {% else %}
+      <div class="text-center py-8 text-base-content/60">
+        <p>Noch keine gespeicherten Queries. Erstelle deine erste unten!</p>
+      </div>
+      {% endif %}
     </div>
-    {% endfor %}
-  </div>
-  {% else %}
-  <div class="empty-state card">
-    <p>Noch keine gespeicherten Queries. Erstelle deine erste unten!</p>
-  </div>
-  {% endif %}
-</section>
+  </section>
 
-<!-- Neue Query erstellen -->
-<section class="card digest-section">
-  <h2>{{ icon("plus-circle") }} Neue Query</h2>
-  <form method="post" action="/digest/queries/create" class="create-form">
-    <div class="form-row">
-      <input type="text" name="name" class="input" placeholder="Name (z.B. 'Machine Learning')" required>
-      <input type="text" name="query" class="input" placeholder="Suchbegriff (z.B. 'neural network')" required>
-      <select name="mode" class="input" style="width: auto;">
-        <option value="fts">Keyword (FTS)</option>
-        <option value="semantic">Semantic</option>
-      </select>
-      <button type="submit" class="btn btn-primary">{{ icon("plus") }} Erstellen</button>
-    </div>
-  </form>
-</section>
-
-<style>
-/* Section Header Icons */
-.digest-section h2 {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.digest-section h2 svg {
-  width: 1.25rem;
-  height: 1.25rem;
-  color: var(--primary);
-}
-
-/* Danger Text Button */
-.btn-danger-text:hover {
-  color: var(--error);
-}
-
-/* Digest Section Spacing */
-.digest-section {
-  margin-bottom: var(--section-gap);
-}
-
-.subtitle {
-  color: var(--text-muted);
-  margin-bottom: var(--section-gap);
-}
-
-/* Highlights */
-.highlights-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.highlight-item {
-  padding: var(--space-md);
-  background: var(--bg-subtle);
-  border-radius: var(--radius-md);
-  border-left: 3px solid var(--primary);
-}
-
-.highlight-text {
-  margin: 0 0 0.5rem 0;
-  font-style: italic;
-  line-height: 1.5;
-}
-
-.highlight-meta {
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-}
-
-.highlight-meta a {
-  color: var(--primary);
-  text-decoration: none;
-}
-
-.highlight-meta a:hover {
-  text-decoration: underline;
-}
-
-.highlight-note {
-  margin-top: 0.5rem;
-  padding: 0.5rem;
-  background: var(--warning-bg);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
-}
-
-/* Digests List */
-.digests-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.digest-item {
-  padding: var(--card-padding);
-}
-
-.digest-header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  cursor: pointer;
-  user-select: none;
-}
-
-.digest-header:hover {
-  opacity: 0.8;
-}
-
-.digest-toggle {
-  width: 1.25rem;
-  height: 1.25rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.digest-toggle svg {
-  width: 1rem;
-  height: 1rem;
-}
-
-.digest-name {
-  font-weight: 600;
-  flex: 1;
-}
-
-.digest-badge {
-  background: var(--primary-light);
-  color: var(--primary);
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-}
-
-.digest-meta {
-  margin-top: 0.5rem;
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-  padding-left: 1.75rem;
-}
-
-.digest-actions {
-  margin-top: 0.5rem;
-  padding-left: 1.75rem;
-  display: flex;
-  gap: 0.5rem;
-}
-
-/* Edit Form */
-.digest-edit {
-  margin-top: 1rem;
-  padding: 1rem;
-  background: var(--bg-subtle);
-  border-radius: var(--radius-md);
-}
-
-.edit-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.edit-form .input {
-  flex: 1;
-  min-width: 150px;
-}
-
-/* Results */
-.digest-results {
-  margin-top: 1rem;
-  padding: 1rem;
-  background: var(--bg-subtle);
-  border-radius: var(--radius-md);
-}
-
-.digest-results-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.digest-result-item {
-  padding: 0.75rem;
-  background: var(--bg-card);
-  border-radius: var(--radius-sm);
-  border-left: 2px solid var(--border);
-}
-
-.digest-result-item:hover {
-  border-left-color: var(--primary);
-}
-
-.result-title {
-  font-weight: 500;
-  color: var(--primary);
-  text-decoration: none;
-}
-
-.result-title:hover {
-  text-decoration: underline;
-}
-
-.result-author {
-  color: var(--text-muted);
-  font-size: var(--font-size-sm);
-}
-
-.result-snippet {
-  margin-top: 0.5rem;
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  line-height: 1.4;
-}
-
-/* Create Form */
-.create-form .form-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: center;
-}
-
-.create-form .input {
-  flex: 1;
-  min-width: 200px;
-}
-
-/* Empty State */
-.empty-state {
-  padding: var(--space-lg);
-  text-align: center;
-  color: var(--text-muted);
-}
-
-/* Loading */
-.loading {
-  padding: 1rem;
-  text-align: center;
-  color: var(--text-muted);
-}
-</style>
+</div>
 
 {% endblock %}
