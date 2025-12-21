@@ -33,9 +33,10 @@
 ## Design Governance (IMPERATIVE)
 
 1. **The Circuit:** Before any UI task, invoke `design-audit`.
-2. **Context Anchoring:** Read `llms.txt` to understand component hierarchy.
-3. **Sparse Color:** Do not use primary/secondary colors for layout panels. Use them only for interactive triggers.
-4. **Fuzzy Search:** If a component name is unknown, search `DAISY_SPECS.md` for the "Intent" (e.g., "how to show status").
+2. **Visual Approval Gate:** UI changes require two-tab Playwright comparison (before/after) with explicit user approval before finalization.
+3. **Context Anchoring:** Read `llms.txt` to understand component hierarchy.
+4. **Sparse Color:** Do not use primary/secondary colors for layout panels. Use them only for interactive triggers.
+5. **Fuzzy Search:** If a component name is unknown, search `DAISY_SPECS.md` for the "Intent" (e.g., "how to show status").
 
 ## Skills
 

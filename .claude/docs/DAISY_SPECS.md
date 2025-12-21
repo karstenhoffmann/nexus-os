@@ -11,10 +11,12 @@ DaisyUI provides semantic components that enforce consistency. Our job is to:
 3. **Maintain visual hierarchy through elevation**
 4. Follow structural patterns from PAGE_TEMPLATES.md
 
-**The 90% Rule:**
-- 90% of UI should be neutral (base-100, base-200, base-content)
-- Color is reserved for: interactive elements, status indicators, focus states
-- Large colored blocks are FORBIDDEN
+**The 90% Rule (Visual Calm):**
+- 90% of screen area should be neutral (base-100, base-200, base-content)
+- Color draws attention - use sparingly for: buttons, badges, small status indicators
+- **Persistent elements** (cards, panels, sections): ALWAYS neutral backgrounds
+- **Ephemeral elements** (toasts, dismissible alerts): may use status colors, but collapse/dismiss quickly
+- Large colored blocks competing for attention destroy visual hierarchy
 
 **The Elevation Principle:**
 Every interface has visual depth. Elements must have clear contrast with their container to be perceivable and feel interactive.
@@ -129,6 +131,21 @@ This section defines the visual "physics" of the UI. All other rules build on th
 </div>
 ```
 
+**Integrated Status Pattern (for metrics with status):**
+When a metric AND its status are semantically one unit, integrate status into `stat-desc`:
+```html
+<div class="stat">
+  <div class="stat-title">Documents</div>
+  <div class="stat-value">1,234</div>
+  <div class="stat-desc flex items-center gap-2">
+    <span class="w-2 h-2 rounded-full bg-success"></span>
+    <span>All synced</span>
+  </div>
+</div>
+```
+Use this when: status describes the metric's state (e.g., "1,234 documents - all synced").
+Avoid when: status is a separate concern (use standalone badge instead).
+
 ### Data Display
 
 | User Intent | Component | Notes |
@@ -139,6 +156,13 @@ This section defines the visual "physics" of the UI. All other rules build on th
 | "Show timeline" | `timeline` | Vertical, for history |
 | "Show card grid" | `card` in `grid` | Use col-span rules |
 | "Expandable details" | `collapse` | Default closed |
+
+**Stats Consolidation Principle:**
+Prefer fewer stats with integrated context over many fragmented stats.
+- **Bad:** 5 stats: "Documents", "With Content", "Chunks", "Embeddings", "Errors"
+- **Good:** 3 stats: "Documents" (with content status in desc), "Chunks" (with embedding status), "Sync Status"
+
+Each stat should answer ONE question. Related sub-metrics belong in `stat-desc`, not separate stats.
 
 ### Navigation & Actions
 
@@ -307,7 +331,6 @@ Compact variant for lists:
 - Large colored background panels
 - Multiple `btn-primary` buttons in one view
 - Nested cards (card inside card)
-- Custom CSS for basic components
 - `alert` for non-urgent information
 
 ### Layout Crimes
@@ -321,6 +344,28 @@ Compact variant for lists:
 - Tailwind colors (bg-blue-500) instead of semantic
 - Custom div where daisyUI component exists
 - Missing form-control wrapper
+
+### Custom CSS: When Justified vs Crime
+
+**Crime:** Custom CSS that reimplements what DaisyUI already provides.
+```css
+/* BAD: DaisyUI has btn-primary */
+.my-button { background: #3490dc; padding: 12px; }
+```
+
+**Justified:** Custom CSS when DaisyUI has no equivalent AND uses DaisyUI variables:
+```css
+/* OK: Complex stepper that steps component can't replicate */
+.pipeline-step.completed .step-circle {
+  background: oklch(var(--su));  /* Uses DaisyUI success color */
+  border-color: oklch(var(--su));
+}
+```
+
+**The Test:** Before writing custom CSS, ask:
+1. Does a DaisyUI component exist? → Use it
+2. Can DaisyUI component be customized to fit? → Customize it
+3. No equivalent exists? → Custom CSS with DaisyUI variables for theme compatibility
 
 ---
 

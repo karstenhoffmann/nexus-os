@@ -16,56 +16,56 @@
 
 <div x-data="syncApp()" x-init="init()">
 
-  <!-- Pipeline Stepper -->
+  <!-- Pipeline Stepper (Custom - professional look with large icons) -->
   <div class="card bg-base-100 shadow-md mb-4">
     <div class="card-body">
       <div class="pipeline-stepper">
-      <div class="step" :class="{ active: phase === 'import', done: phaseIndex > 0 }">
-        <div class="step-icon">
-          {{ icon("download") }}
-          <div class="step-check" x-show="phaseIndex > 0">{{ icon("check") }}</div>
+        <div class="step" :class="{ active: phase === 'import', done: phaseIndex > 1 }">
+          <div class="step-icon">
+            {{ icon("download") }}
+            <div class="step-check" x-show="phaseIndex > 1">{{ icon("check") }}</div>
+          </div>
+          <div class="step-label">Import</div>
+          <div class="step-count" x-text="docsImported > 0 ? docsImported.toLocaleString() + ' Dokumente' : ''"></div>
         </div>
-        <div class="step-label">Import</div>
-        <div class="step-count" x-text="docsImported > 0 ? docsImported + ' Dokumente' : ''"></div>
-      </div>
 
-      <div class="step-connector" :class="{ done: phaseIndex > 0 }"></div>
+        <div class="step-connector" :class="{ done: phaseIndex > 1 }"></div>
 
-      <div class="step" :class="{ active: phase === 'chunk', done: phaseIndex > 1 }">
-        <div class="step-icon">
-          {{ icon("scissors") }}
-          <div class="step-check" x-show="phaseIndex > 1">{{ icon("check") }}</div>
+        <div class="step" :class="{ active: phase === 'chunk', done: phaseIndex > 2 }">
+          <div class="step-icon">
+            {{ icon("scissors") }}
+            <div class="step-check" x-show="phaseIndex > 2">{{ icon("check") }}</div>
+          </div>
+          <div class="step-label">Chunks</div>
+          <div class="step-count" x-text="chunksCreated > 0 ? chunksCreated.toLocaleString() + ' erstellt' : ''"></div>
         </div>
-        <div class="step-label">Chunks</div>
-        <div class="step-count" x-text="chunksCreated > 0 ? chunksCreated + ' erstellt' : ''"></div>
-      </div>
 
-      <div class="step-connector" :class="{ done: phaseIndex > 1 }"></div>
+        <div class="step-connector" :class="{ done: phaseIndex > 2 }"></div>
 
-      <div class="step" :class="{ active: phase === 'embed', done: phaseIndex > 2 }">
-        <div class="step-icon">
-          {{ icon("cpu") }}
-          <div class="step-check" x-show="phaseIndex > 2">{{ icon("check") }}</div>
+        <div class="step" :class="{ active: phase === 'embed', done: phaseIndex > 3 }">
+          <div class="step-icon">
+            {{ icon("cpu") }}
+            <div class="step-check" x-show="phaseIndex > 3">{{ icon("check") }}</div>
+          </div>
+          <div class="step-label">Embeddings</div>
+          <div class="step-count" x-text="chunksEmbedded > 0 ? chunksEmbedded.toLocaleString() + ' / ' + chunksTotal.toLocaleString() : ''"></div>
         </div>
-        <div class="step-label">Embeddings</div>
-        <div class="step-count" x-text="chunksEmbedded > 0 ? chunksEmbedded + ' / ' + chunksTotal : ''"></div>
-      </div>
 
-      <div class="step-connector" :class="{ done: phaseIndex > 2 }"></div>
+        <div class="step-connector" :class="{ done: phaseIndex > 3 }"></div>
 
-      <div class="step" :class="{ active: phase === 'index', done: phaseIndex > 3 }">
-        <div class="step-icon">
-          {{ icon("search") }}
-          <div class="step-check" x-show="phaseIndex > 3">{{ icon("check") }}</div>
+        <div class="step" :class="{ active: phase === 'index', done: phase === 'done' }">
+          <div class="step-icon">
+            {{ icon("search") }}
+            <div class="step-check" x-show="phase === 'done'">{{ icon("check") }}</div>
+          </div>
+          <div class="step-label">Index</div>
+          <div class="step-count" x-text="phase === 'done' ? 'Fertig' : ''"></div>
         </div>
-        <div class="step-label">Index</div>
-        <div class="step-count" x-text="phase === 'done' ? 'Fertig' : ''"></div>
-      </div>
       </div>
     </div>
   </div>
 
-  <!-- Stats Overview -->
+  <!-- Stats Overview (consolidated with status indicators) -->
   <div class="card bg-base-100 shadow-md mb-4">
     <div class="card-body">
       <h2 class="card-title">Aktueller Stand</h2>
@@ -73,22 +73,26 @@
         <div class="stat">
           <div class="stat-title">Dokumente</div>
           <div class="stat-value text-2xl" x-text="stats.docs_total.toLocaleString()">{{ stats.docs_total }}</div>
-        </div>
-        <div class="stat">
-          <div class="stat-title">Mit Inhalt</div>
-          <div class="stat-value text-2xl" x-text="stats.docs_with_fulltext.toLocaleString()">{{ stats.docs_with_fulltext }}</div>
-        </div>
-        <div class="stat">
-          <div class="stat-title">Ohne Chunks</div>
-          <div class="stat-value text-2xl" :class="stats.docs_without_chunks > 0 ? 'text-warning' : 'text-success'" x-text="stats.docs_without_chunks.toLocaleString()">{{ stats.docs_without_chunks }}</div>
+          <div class="stat-desc flex items-center gap-2 mt-1">
+            <span class="w-2 h-2 rounded-full" :class="stats.docs_with_fulltext === stats.docs_total ? 'bg-success' : 'bg-warning'"></span>
+            <span x-text="stats.docs_with_fulltext.toLocaleString() + ' mit Inhalt'"></span>
+          </div>
         </div>
         <div class="stat">
           <div class="stat-title">Chunks</div>
           <div class="stat-value text-2xl" x-text="stats.chunks_total.toLocaleString()">{{ stats.chunks_total }}</div>
+          <div class="stat-desc flex items-center gap-2 mt-1">
+            <span class="w-2 h-2 rounded-full" :class="stats.docs_without_chunks === 0 ? 'bg-success' : 'bg-warning'"></span>
+            <span x-text="stats.docs_without_chunks === 0 ? 'alle Dok. verarbeitet' : stats.docs_without_chunks + ' Dok. ausstehend'"></span>
+          </div>
         </div>
         <div class="stat">
-          <div class="stat-title">Ohne Embedding</div>
-          <div class="stat-value text-2xl" :class="stats.chunks_without_embeddings > 0 ? 'text-warning' : 'text-success'" x-text="stats.chunks_without_embeddings.toLocaleString()">{{ stats.chunks_without_embeddings }}</div>
+          <div class="stat-title">Embeddings</div>
+          <div class="stat-value text-2xl" x-text="(stats.chunks_total - stats.chunks_without_embeddings).toLocaleString()">{{ stats.chunks_total - stats.chunks_without_embeddings }}</div>
+          <div class="stat-desc flex items-center gap-2 mt-1">
+            <span class="w-2 h-2 rounded-full" :class="stats.chunks_without_embeddings === 0 ? 'bg-success' : 'bg-warning'"></span>
+            <span x-text="stats.chunks_without_embeddings === 0 ? 'komplett' : stats.chunks_without_embeddings.toLocaleString() + ' ausstehend'"></span>
+          </div>
         </div>
       </div>
     </div>
@@ -611,7 +615,7 @@ function syncApp() {
 </script>
 
 <style>
-/* Pipeline Stepper - Custom component (no DaisyUI equivalent) */
+/* Pipeline Stepper - Custom component for professional look */
 .pipeline-stepper {
   display: flex;
   align-items: flex-start;
@@ -619,7 +623,7 @@ function syncApp() {
   padding: 1rem 0;
 }
 
-.step {
+.pipeline-stepper .step {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -630,8 +634,8 @@ function syncApp() {
   transition: opacity 0.2s;
 }
 
-.step.active,
-.step.done {
+.pipeline-stepper .step.active,
+.pipeline-stepper .step.done {
   opacity: 1;
 }
 
@@ -655,22 +659,22 @@ function syncApp() {
   opacity: 0.5;
 }
 
-.step.active .step-icon {
+.pipeline-stepper .step.active .step-icon {
   border-color: oklch(var(--p));
   background: oklch(var(--p) / 0.1);
 }
 
-.step.active .step-icon svg {
+.pipeline-stepper .step.active .step-icon svg {
   color: oklch(var(--p));
   opacity: 1;
 }
 
-.step.done .step-icon {
+.pipeline-stepper .step.done .step-icon {
   border-color: oklch(var(--su));
   background: oklch(var(--su) / 0.1);
 }
 
-.step.done .step-icon svg {
+.pipeline-stepper .step.done .step-icon svg {
   color: oklch(var(--su));
   opacity: 1;
 }
@@ -730,7 +734,7 @@ function syncApp() {
     display: none;
   }
 
-  .step {
+  .pipeline-stepper .step {
     width: 70px;
   }
 

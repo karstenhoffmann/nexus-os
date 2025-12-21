@@ -21,66 +21,55 @@ description: Advanced UI gatekeeper. Audits code for daisyUI intent mapping and 
    - Buttons: `btn-md` minimum (never `btn-xs` for primary actions)
    - Links in lists: `py-3` padding
 
-## Phase 2: Visual Verification (Playwright)
+## Phase 2: Visual Comparison (MANDATORY)
 
-**When to run:** After any template change, before marking task complete.
+**Two-tab browser comparison for every UI change.**
 
 ### Steps:
 
-1. **Navigate to the changed page:**
+1. **Open Before Tab:**
    ```
-   mcp__playwright__browser_navigate → http://localhost:8000/{page_path}
-   ```
-
-2. **Desktop check (1200px):**
-   ```
-   mcp__playwright__browser_resize → width: 1200, height: 800
-   mcp__playwright__browser_snapshot → (inspect accessibility tree)
+   browser_navigate → http://localhost:8000/{page} (Tab 1 = current state)
+   browser_take_screenshot → {page}-before.png
    ```
 
-   Verify:
+2. **Implement Changes** (preview state, not finalized)
+
+3. **Open After Tab:**
+   ```
+   browser_tabs → action: "new"
+   browser_navigate → http://localhost:8000/{page} (Tab 2 = new state)
+   browser_take_screenshot → {page}-after.png
+   ```
+
+4. **Verify (both viewports):**
+   ```
+   browser_resize → 1200x800 (desktop) then 375x667 (mobile)
+   ```
    - [ ] No large colored background panels
    - [ ] Cards follow consistent shadow/spacing
-   - [ ] One `btn-primary` visible per viewport section
-   - [ ] Text hierarchy clear (h1 > h2 > body)
+   - [ ] One `btn-primary` per viewport
+   - [ ] Mobile: no horizontal scroll, 44px+ touch targets
+   - [ ] **TEXT INTEGRITY:** All button/badge text fully readable (no line breaks, no truncation)
+   - [ ] **ICON ALIGNMENT:** Icons and text in buttons on same line, properly spaced
 
-3. **Mobile check (375px):**
-   ```
-   mcp__playwright__browser_resize → width: 375, height: 667
-   mcp__playwright__browser_snapshot → (inspect accessibility tree)
-   ```
+5. **Present for Approval:**
+   - "Browser has 2 tabs: Tab 1 = Before (don't refresh), Tab 2 = After"
+   - List changes made and trade-offs
+   - Wait for: `approve` | `adjust [feedback]` | `revert`
 
-   Verify:
-   - [ ] No horizontal scroll
-   - [ ] Touch targets visible and tappable (44px+)
-   - [ ] Grid collapses to single column
-   - [ ] Navigation accessible via mobile menu
-
-4. **Screenshot evidence (optional, for review):**
-   ```
-   mcp__playwright__browser_take_screenshot → filename: "audit-{page}-desktop.png"
-   mcp__playwright__browser_take_screenshot → filename: "audit-{page}-mobile.png"
-   ```
+6. **Handle Response:**
+   - `approve` → finalize, update MISSION_CONTROL
+   - `adjust` → revert changes, apply feedback, repeat from step 2
+   - `revert` → restore original file, end task
 
 ## Output Requirement
 
-Before showing code, report:
+Report before requesting approval:
 
-1. **Code Crimes Found:** List 2+ specific issues and fixes using DAISY_INTENT_SPECS.md
-2. **Visual Verdict:** PASS/FAIL for desktop and mobile with brief notes
-
-Example output:
-```
-## Design Audit Results
-
-### Code Crimes Fixed:
-1. Replaced custom status `<div class="bg-green-500 p-4">` → `badge badge-success`
-2. Added `grid-cols-1 md:grid-cols-12` wrapper (was missing responsive)
-
-### Visual Verification:
-- Desktop (1200px): PASS - consistent card shadows, single primary CTA
-- Mobile (375px): PASS - no horizontal scroll, touch targets adequate
-```
+1. **Code Crimes Found:** 2+ issues with fixes (reference DAISY_SPECS.md)
+2. **Trade-offs:** What's lost vs gained
+3. **Visual Verdict:** PASS/FAIL for desktop and mobile
 
 ## Quick Reference
 
@@ -92,3 +81,5 @@ Example output:
 | Tiny touch targets | `btn-md` minimum, `py-3` for list links |
 | Multiple primary buttons | Keep one, demote others to `btn-outline` |
 | Nested cards | Flatten hierarchy, use `divider` instead |
+| **Button text wrapping** | Add `whitespace-nowrap`, use `inline-flex items-center gap-1` for icon+text |
+| **Icon misalignment** | Wrap icon+text in `<span class="inline-flex items-center gap-1">` |
