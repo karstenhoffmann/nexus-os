@@ -2,162 +2,179 @@
 {% from "macros/icons.html" import icon %}
 {% block content %}
 
-<h1>Prompt-Vorlagen</h1>
+<h1 class="text-2xl font-bold mb-6">Prompt-Vorlagen</h1>
 
 <div x-data="promptsApp()" x-init="init()">
 
   <!-- Info Card -->
-  <div class="card info-card">
-    <h2>Was sind Prompt-Vorlagen?</h2>
-    <p>
-      Prompts sind die Anweisungen, die an das LLM (Language Model) gesendet werden.
-      Hier kannst Du die Vorlagen anpassen, um die Qualitaet der generierten Inhalte zu verbessern.
-    </p>
-    <p class="text-muted" style="margin-top: 0.5rem;">
-      <strong>Tipp:</strong> Aenderungen werden sofort wirksam. Du kannst jederzeit zum Standard zuruecksetzen.
-    </p>
+  <div class="card bg-base-100 shadow-md mb-6">
+    <div class="card-body">
+      <h2 class="card-title">Was sind Prompt-Vorlagen?</h2>
+      <p>
+        Prompts sind die Anweisungen, die an das LLM (Language Model) gesendet werden.
+        Hier kannst Du die Vorlagen anpassen, um die Qualitaet der generierten Inhalte zu verbessern.
+      </p>
+      <p class="text-base-content/60 text-sm mt-2">
+        <strong>Tipp:</strong> Aenderungen werden sofort wirksam. Du kannst jederzeit zum Standard zuruecksetzen.
+      </p>
+    </div>
   </div>
 
   <!-- Loading State -->
-  <div class="card" x-show="loading">
-    <div class="skeleton-text" style="width: 60%; height: 1.5rem;"></div>
-    <div class="skeleton-text" style="width: 80%; height: 1rem; margin-top: 0.5rem;"></div>
-    <div class="skeleton-text" style="width: 40%; height: 1rem; margin-top: 0.5rem;"></div>
+  <div class="card bg-base-100 shadow-md mb-6" x-show="loading">
+    <div class="card-body">
+      <div class="skeleton h-6 w-3/5"></div>
+      <div class="skeleton h-4 w-4/5 mt-2"></div>
+      <div class="skeleton h-4 w-2/5 mt-2"></div>
+    </div>
   </div>
 
   <!-- Categories -->
   <template x-for="(cat, catKey) in categories" :key="catKey">
-    <div class="card">
-      <div class="category-header">
-        <div class="category-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+    <div class="card bg-base-100 shadow-md mb-6">
+      <div class="card-body">
+        <!-- Category Header -->
+        <div class="flex items-start gap-4 mb-4">
+          <div class="w-10 h-10 rounded-lg bg-base-200 flex items-center justify-center flex-shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-base-content/60"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          </div>
+          <div class="flex-1">
+            <h2 class="card-title text-lg" x-text="cat.name"></h2>
+            <p class="text-base-content/60 text-sm" x-text="cat.description"></p>
+          </div>
+          <span class="badge badge-ghost" x-show="cat.coming_soon">Demnächst</span>
         </div>
-        <div class="category-info">
-          <h2 x-text="cat.name"></h2>
-          <p class="text-muted" x-text="cat.description"></p>
-        </div>
-        <span class="badge badge-muted" x-show="cat.coming_soon">Demnachst</span>
-      </div>
 
-      <!-- Prompts List -->
-      <div class="prompts-list" x-show="!cat.coming_soon">
-        <template x-for="prompt in cat.prompts" :key="prompt.key">
-          <div class="prompt-item" :class="{'prompt-custom': prompt.is_custom}">
-            <div class="prompt-info">
-              <div class="prompt-name">
-                <span x-text="prompt.name"></span>
-                <span class="badge badge-custom" x-show="prompt.is_custom">Angepasst</span>
+        <!-- Prompts List -->
+        <div class="flex flex-col gap-3" x-show="!cat.coming_soon">
+          <template x-for="prompt in cat.prompts" :key="prompt.key">
+            <div class="flex items-start justify-between p-4 rounded-lg bg-base-200 border border-base-300"
+                 :class="{'border-primary bg-primary/5': prompt.is_custom}">
+              <div class="flex-1 min-w-0">
+                <div class="font-medium flex items-center gap-2 flex-wrap">
+                  <span x-text="prompt.name"></span>
+                  <span class="badge badge-primary badge-sm" x-show="prompt.is_custom">Angepasst</span>
+                </div>
+                <div class="text-base-content/60 text-sm mt-1" x-text="prompt.description"></div>
+                <div class="flex gap-4 mt-2">
+                  <span class="inline-flex items-center gap-1 text-xs text-base-content/50">
+                    {{ icon("thermometer") }}
+                    <span x-text="'Temp: ' + prompt.temperature"></span>
+                  </span>
+                  <span class="inline-flex items-center gap-1 text-xs text-base-content/50">
+                    {{ icon("hash") }}
+                    <span x-text="'Max: ' + prompt.max_tokens + ' Tokens'"></span>
+                  </span>
+                </div>
               </div>
-              <div class="prompt-desc text-muted" x-text="prompt.description"></div>
-              <div class="prompt-meta">
-                <span class="meta-item">
-                  {{ icon("thermometer") }}
-                  <span x-text="'Temp: ' + prompt.temperature"></span>
-                </span>
-                <span class="meta-item">
-                  {{ icon("hash") }}
-                  <span x-text="'Max: ' + prompt.max_tokens + ' Tokens'"></span>
-                </span>
-              </div>
-            </div>
-            <div class="prompt-actions">
-              <button class="btn btn-sm" @click="editPrompt(prompt.key)">
+              <button class="btn btn-sm btn-outline ml-4 whitespace-nowrap inline-flex" @click="editPrompt(prompt.key)">
                 {{ icon("edit-2") }}
                 Bearbeiten
               </button>
             </div>
-          </div>
-        </template>
-      </div>
+          </template>
+        </div>
 
-      <!-- Coming Soon Message -->
-      <div class="coming-soon-msg" x-show="cat.coming_soon">
-        {{ icon("clock") }}
-        <span>Diese Kategorie wird in einer zukuenftigen Version verfuegbar sein.</span>
+        <!-- Coming Soon Message -->
+        <div class="alert bg-base-200" x-show="cat.coming_soon">
+          {{ icon("clock") }}
+          <span>Diese Kategorie wird in einer zukuenftigen Version verfuegbar sein.</span>
+        </div>
       </div>
     </div>
   </template>
 
   <!-- Edit Modal -->
-  <div class="modal-overlay" x-show="editingPrompt" @click.self="closeModal()" x-cloak>
-    <div class="modal-content modal-large">
-      <div class="modal-header">
-        <h2 x-text="editingPrompt?.name"></h2>
-        <button class="modal-close" @click="closeModal()">
+  <dialog class="modal" :class="{'modal-open': editingPrompt}" x-cloak>
+    <div class="modal-box w-11/12 max-w-3xl">
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold text-lg" x-text="editingPrompt?.name"></h3>
+        <button class="btn btn-sm btn-circle btn-ghost" @click="closeModal()">
           {{ icon("x") }}
         </button>
       </div>
 
-      <div class="modal-body">
-        <!-- Description -->
-        <div class="form-group">
-          <label>Beschreibung</label>
-          <p class="text-muted" x-text="editingPrompt?.description"></p>
-        </div>
+      <!-- Description -->
+      <div class="form-control mb-4">
+        <label class="label">
+          <span class="label-text font-medium">Beschreibung</span>
+        </label>
+        <p class="text-base-content/60 text-sm" x-text="editingPrompt?.description"></p>
+      </div>
 
-        <!-- Variables Reference -->
-        <div class="form-group">
-          <label>Verfuegbare Variablen</label>
-          <div class="variables-list">
-            <template x-for="v in editingPrompt?.variables || []" :key="v">
-              <code class="variable-tag" x-text="'{' + v + '}'"></code>
-            </template>
-          </div>
-          <p class="text-muted small">Diese Variablen werden zur Laufzeit mit den entsprechenden Werten ersetzt.</p>
+      <!-- Variables Reference -->
+      <div class="form-control mb-4">
+        <label class="label">
+          <span class="label-text font-medium">Verfuegbare Variablen</span>
+        </label>
+        <div class="flex flex-wrap gap-2 mb-2">
+          <template x-for="v in editingPrompt?.variables || []" :key="v">
+            <kbd class="kbd kbd-sm" x-text="'{' + v + '}'"></kbd>
+          </template>
         </div>
+        <p class="text-base-content/50 text-xs">Diese Variablen werden zur Laufzeit mit den entsprechenden Werten ersetzt.</p>
+      </div>
 
-        <!-- Template Editor -->
-        <div class="form-group">
-          <label for="prompt-template">Template</label>
-          <textarea
-            id="prompt-template"
-            class="prompt-textarea"
-            x-model="editingPrompt.template"
-            rows="12"
-            spellcheck="false"
-          ></textarea>
+      <!-- Template Editor -->
+      <div class="form-control mb-4">
+        <label class="label">
+          <span class="label-text font-medium">Template</span>
+        </label>
+        <textarea
+          class="textarea textarea-bordered font-mono text-sm min-h-48 leading-relaxed"
+          x-model="editingPrompt.template"
+          rows="12"
+          spellcheck="false"
+        ></textarea>
+      </div>
+
+      <!-- Settings Row -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-medium">Temperature</span>
+          </label>
+          <input
+            type="number"
+            class="input input-bordered"
+            x-model.number="editingPrompt.temperature"
+            min="0"
+            max="2"
+            step="0.1"
+          >
+          <label class="label">
+            <span class="label-text-alt text-base-content/50">0 = deterministisch, 1 = kreativ, 2 = sehr kreativ</span>
+          </label>
         </div>
-
-        <!-- Settings -->
-        <div class="form-row">
-          <div class="form-group half">
-            <label for="prompt-temperature">Temperature</label>
-            <input
-              type="number"
-              id="prompt-temperature"
-              x-model.number="editingPrompt.temperature"
-              min="0"
-              max="2"
-              step="0.1"
-              class="form-input"
-            >
-            <p class="text-muted small">0 = deterministisch, 1 = kreativ, 2 = sehr kreativ</p>
-          </div>
-          <div class="form-group half">
-            <label for="prompt-max-tokens">Max Tokens</label>
-            <input
-              type="number"
-              id="prompt-max-tokens"
-              x-model.number="editingPrompt.max_tokens"
-              min="50"
-              max="4000"
-              step="50"
-              class="form-input"
-            >
-            <p class="text-muted small">Maximale Laenge der Antwort</p>
-          </div>
-        </div>
-
-        <!-- Changed Indicator -->
-        <div class="change-indicator" x-show="hasChanges()">
-          {{ icon("alert-circle") }}
-          <span>Ungespeicherte Aenderungen</span>
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-medium">Max Tokens</span>
+          </label>
+          <input
+            type="number"
+            class="input input-bordered"
+            x-model.number="editingPrompt.max_tokens"
+            min="50"
+            max="4000"
+            step="50"
+          >
+          <label class="label">
+            <span class="label-text-alt text-base-content/50">Maximale Laenge der Antwort</span>
+          </label>
         </div>
       </div>
 
-      <div class="modal-footer">
+      <!-- Changed Indicator -->
+      <div class="alert alert-warning mb-4" x-show="hasChanges()">
+        {{ icon("alert-circle") }}
+        <span>Ungespeicherte Aenderungen</span>
+      </div>
+
+      <!-- Modal Actions -->
+      <div class="modal-action flex-wrap gap-2">
         <button
-          class="btn btn-outline"
+          class="btn btn-outline btn-sm whitespace-nowrap inline-flex"
           @click="resetPrompt()"
           :disabled="!editingPrompt?.is_custom && !hasChanges()"
           x-show="editingPrompt?.is_custom || hasChanges()"
@@ -165,339 +182,25 @@
           {{ icon("rotate-ccw") }}
           Auf Standard zuruecksetzen
         </button>
-        <div class="modal-footer-right">
-          <button class="btn btn-outline" @click="closeModal()">Abbrechen</button>
-          <button
-            class="btn btn-primary"
-            @click="savePrompt()"
-            :disabled="saving || !hasChanges()"
-          >
-            <span x-show="!saving">Speichern</span>
-            <span x-show="saving">Speichern...</span>
-          </button>
-        </div>
+        <div class="flex-1"></div>
+        <button class="btn btn-ghost" @click="closeModal()">Abbrechen</button>
+        <button
+          class="btn btn-primary"
+          @click="savePrompt()"
+          :disabled="saving || !hasChanges()"
+        >
+          <span x-show="!saving">Speichern</span>
+          <span x-show="saving" class="loading loading-spinner loading-sm"></span>
+          <span x-show="saving">Speichern...</span>
+        </button>
       </div>
     </div>
-  </div>
+    <form method="dialog" class="modal-backdrop">
+      <button @click="closeModal()">close</button>
+    </form>
+  </dialog>
 
 </div>
-
-<style>
-/* Category Header */
-.category-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.category-icon {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: var(--radius-md);
-  background: var(--bg-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.category-icon svg {
-  width: 1.25rem;
-  height: 1.25rem;
-  color: var(--text-secondary);
-}
-
-.category-info {
-  flex: 1;
-}
-
-.category-info h2 {
-  margin: 0;
-  font-size: 1.125rem;
-}
-
-.category-info p {
-  margin: 0.25rem 0 0;
-}
-
-/* Prompts List */
-.prompts-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.prompt-item {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 1rem;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-}
-
-.prompt-item.prompt-custom {
-  border-color: var(--primary);
-  background: var(--primary-bg);
-}
-
-.prompt-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.prompt-name {
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.prompt-desc {
-  margin-top: 0.25rem;
-  font-size: 0.875rem;
-}
-
-.prompt-meta {
-  display: flex;
-  gap: 1rem;
-  margin-top: 0.5rem;
-}
-
-.meta-item {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.meta-item svg {
-  width: 0.875rem;
-  height: 0.875rem;
-}
-
-.prompt-actions {
-  flex-shrink: 0;
-  margin-left: 1rem;
-}
-
-/* Badge */
-.badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.125rem 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-  border-radius: var(--radius-full);
-}
-
-.badge-custom {
-  background: var(--primary);
-  color: white;
-}
-
-.badge-muted {
-  background: var(--bg-secondary);
-  color: var(--text-muted);
-}
-
-/* Coming Soon */
-.coming-soon-msg {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 1rem;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-md);
-  color: var(--text-muted);
-}
-
-.coming-soon-msg svg {
-  width: 1rem;
-  height: 1rem;
-}
-
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--modal-overlay);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
-  isolation: isolate;
-}
-
-.modal-content {
-  background: var(--bg-card);
-  border-radius: var(--radius-lg);
-  width: 100%;
-  max-height: 90vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  box-shadow: var(--shadow-lg);
-  border: 1px solid var(--border);
-}
-
-.modal-large {
-  max-width: 800px;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-card);
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: 1.25rem;
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  padding: 0.5rem;
-  cursor: pointer;
-  color: var(--text-muted);
-  border-radius: var(--radius-md);
-}
-
-.modal-close:hover {
-  background: var(--bg-secondary);
-  color: var(--text);
-}
-
-.modal-body {
-  padding: 1.5rem;
-  overflow-y: auto;
-  flex: 1;
-  background: var(--bg-card);
-}
-
-.modal-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.5rem;
-  border-top: 1px solid var(--border);
-  background: var(--bg-secondary);
-}
-
-.modal-footer-right {
-  display: flex;
-  gap: 0.75rem;
-}
-
-/* Form Elements */
-.form-group {
-  margin-bottom: 1.25rem;
-}
-
-.form-group label {
-  display: block;
-  font-weight: 500;
-  margin-bottom: 0.5rem;
-}
-
-.form-row {
-  display: flex;
-  gap: 1rem;
-}
-
-.form-group.half {
-  flex: 1;
-}
-
-.form-input {
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-card);
-  color: var(--text);
-  font-size: 0.875rem;
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-bg);
-}
-
-.prompt-textarea {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-card);
-  color: var(--text);
-  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-  font-size: 0.875rem;
-  line-height: 1.5;
-  resize: vertical;
-  min-height: 200px;
-}
-
-.prompt-textarea:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-bg);
-}
-
-/* Variables List */
-.variables-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.variable-tag {
-  display: inline-block;
-  padding: 0.25rem 0.5rem;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-sm);
-  font-size: 0.875rem;
-  color: var(--primary);
-}
-
-/* Change Indicator */
-.change-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  background: var(--warning-bg);
-  color: var(--warning);
-  border-radius: var(--radius-md);
-  font-size: 0.875rem;
-}
-
-.change-indicator svg {
-  width: 1rem;
-  height: 1rem;
-}
-
-/* Small Text */
-.small {
-  font-size: 0.75rem;
-}
-</style>
 
 <script>
 function promptsApp() {
