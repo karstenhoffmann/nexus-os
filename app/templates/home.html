@@ -4,31 +4,59 @@
 
 <h1>Start</h1>
 
-<!-- Hero Search -->
-<section class="hero-search">
-  <form action="/library" method="get" class="hero-search-form">
-    <div class="hero-search-bar">
-      {{ icon("search", "hero-search-icon") }}
-      <input
-        type="text"
-        name="q"
-        class="hero-search-input"
-        placeholder="Suche in deiner Library..."
-        autofocus
-      >
-      <div class="hero-search-actions">
-        <select name="mode" class="hero-mode-select">
+<!-- Hero Search (DaisyUI + Elevation Principle) -->
+<section class="my-8 md:my-12">
+  <form action="/library" method="get" class="max-w-2xl mx-auto">
+    <!-- Search bar: Surface on Canvas (bg-base-100 on bg-base-200 page) -->
+    <div class="bg-base-100 rounded-xl shadow-lg p-1">
+      <!-- Desktop: Joined search bar -->
+      <div class="join w-full hidden md:flex">
+        <div class="join-item flex items-center px-4">
+          {{ icon("search", "w-5 h-5 text-base-content/40") }}
+        </div>
+        <input
+          type="text"
+          name="q"
+          class="input join-item flex-1 bg-transparent border-0 focus:outline-none"
+          placeholder="Suche in deiner Library..."
+          autofocus
+        >
+        <select name="mode" class="select select-bordered join-item w-32 bg-transparent">
           <option value="semantic">Semantic</option>
           <option value="fts">Keyword</option>
         </select>
-        <button type="submit" class="hero-search-btn" aria-label="Suchen">
-          {{ icon("arrow-right") }}
+        <button type="submit" class="btn btn-primary join-item rounded-r-xl" aria-label="Suchen">
+          {{ icon("arrow-right", "w-5 h-5") }}
         </button>
+      </div>
+
+      <!-- Mobile: Stacked layout inside surface -->
+      <div class="flex flex-col gap-2 p-2 md:hidden">
+        <div class="flex items-center gap-2">
+          {{ icon("search", "w-5 h-5 text-base-content/40 ml-2") }}
+          <input
+            type="text"
+            name="q"
+            class="input flex-1 bg-transparent border-0 focus:outline-none"
+            placeholder="Suche..."
+          >
+        </div>
+        <div class="flex gap-2">
+          <select name="mode" class="select select-bordered flex-1 bg-transparent">
+            <option value="semantic">Semantic</option>
+            <option value="fts">Keyword</option>
+          </select>
+          <button type="submit" class="btn btn-primary" aria-label="Suchen">
+            {{ icon("arrow-right", "w-5 h-5") }}
+          </button>
+        </div>
       </div>
     </div>
   </form>
-  <p class="hero-search-hint">
-    {{ icon("zap") }}
+
+  <!-- Hint text -->
+  <p class="flex items-center justify-center gap-2 mt-4 text-sm text-base-content/60">
+    {{ icon("zap", "w-4 h-4 text-primary") }}
     <span>Semantische Suche findet Bedeutung, nicht nur Woerter</span>
   </p>
 </section>
@@ -39,7 +67,7 @@
       <h2 class="card-title">Library</h2>
       <p>Inhalte durchsuchen (Keyword jetzt, Semantik spaeter).</p>
       <div class="card-actions justify-end">
-        <a class="btn btn-primary" href="/library">Open</a>
+        <a class="btn btn-outline" href="/library">Open</a>
       </div>
     </div>
   </div>
@@ -49,7 +77,7 @@
       <h2 class="card-title">Digests</h2>
       <p>Saved Queries als Basis fuer Digests.</p>
       <div class="card-actions justify-end">
-        <a class="btn btn-primary" href="/digests">Open</a>
+        <a class="btn btn-outline" href="/digest">Open</a>
       </div>
     </div>
   </div>
@@ -59,7 +87,7 @@
       <h2 class="card-title">Drafts</h2>
       <p>Draft Historie und final markieren (spaeter).</p>
       <div class="card-actions justify-end">
-        <a class="btn btn-primary" href="/drafts">Open</a>
+        <a class="btn btn-outline" href="/drafts">Open</a>
       </div>
     </div>
   </div>
@@ -69,7 +97,7 @@
       <h2 class="card-title">Admin</h2>
       <p>Settings, Diagnose, spaeter Budgets und Runs.</p>
       <div class="card-actions justify-end">
-        <a class="btn btn-primary" href="/admin">Open</a>
+        <a class="btn btn-outline" href="/admin">Open</a>
       </div>
     </div>
   </div>

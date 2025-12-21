@@ -4,23 +4,38 @@
 **Phase 1: Content MVP** (in progress)
 
 ## Active Task
-None - ready for next task
+DaisyUI Migration - Phase 1 Complete, Phase 2-5 Pending
 
 ## Next Steps (Priority Order)
-1. Draft System MVP: Revisions, parking/finalizing
-2. Continue DaisyUI migration: Convert remaining components (badges, alerts, forms) to DaisyUI classes
+
+### 1. DaisyUI Migration (4 templates remaining)
+
+| Template | CSS Lines | Status |
+|----------|-----------|--------|
+| `home.html` | ~150 | ✅ DONE |
+| `admin_fetch.html` | ~500 | pending |
+| `admin_prompts.html` | ~500 | pending |
+| `admin_queries.html` | ~350 | pending |
+| `admin_compare.html` | ~150 | pending |
+| `sync.html` | ~130 | pending |
+
+**Workflow:** Preview route → Screenshot comparison → Design-audit → Implement
+
+### 2. CSS Cleanup
+- [ ] Replace custom toast in `app.css` with DaisyUI `toast`
+
+### 3. Draft System MVP
+- Revisions, parking/finalizing (after DaisyUI cleanup)
 
 ## Recent Completions
-- Dec 2025: DaisyUI cupcake theme configured with dark mode toggle
-- Dec 2025: Python 3.14 upgrade (Dockerfile + Pydantic 2.12.0)
-- Dec 2025: Mobile Audit passed (375px viewport, all pages)
-- Dec 2025: MCP servers verified (Playwright + Context7)
-- Dec 2025: DaisyUI + Tailwind CDN installed (gradual migration approach)
-- Dec 2025: Documentation migration - created product_brief.md, architecture.md, cleaned _migration_vault/
-- Dec 2025: Library table scrolling + responsive navigation
-- Dec 2025: HTMX loading states and error handling
-- Dec 2025: Search duplicates fix and test reorganization
-- Dec 2025: UI Design Review - CSS variables replacing hardcoded colors
+- Dec 2025: **Elevation & Visual Hierarchy system** - Three-Plane Model (Canvas/Surface/Control)
+- Dec 2025: **Hero search migrated to DaisyUI** - Removed ~150 lines custom CSS
+- Dec 2025: **Theme portability verified** - garden/emerald/dark all work without CSS changes
+- Dec 2025: DAISY_SPECS.md Section 0 added (foundational elevation principle)
+- Dec 2025: base.html canvas set to `bg-base-200` for proper elevation
+- Dec 2025: Design-audit workflow operational (Playwright screenshots + rule check)
+- Dec 2025: DaisyUI garden theme + dark mode toggle
+- Dec 2025: Python 3.14 upgrade
 
 ## Open Questions
 - Align CLAUDE.md "NO Node.js" with architecture.md "propose first" policy
@@ -28,8 +43,8 @@ None - ready for next task
 ## Decisions Made
 | Date | Decision | Rationale |
 |------|----------|-----------|
-| Dec 2025 | Use DaisyUI "cupcake" theme | Built-in theme with warm colors, free via CDN, dark mode pairing with "dark" theme |
-| Dec 2025 | Gradual DaisyUI migration via CDN | Load app.css first, then Tailwind+DaisyUI. DaisyUI takes precedence for migrated components. |
-| Dec 2025 | Add DaisyUI to stack | Semantic component classes, easy theming, no build step |
-| Dec 2025 | Node.js "propose first" policy | Flexibility for genuinely better solutions while maintaining Python preference |
-| Dec 2025 | Librarian skill active | Merge don't append, prune completed tasks, keep docs concise |
+| Dec 2025 | Elevation Principle (Section 0) | Canvas `bg-base-200`, Surfaces `bg-base-100 shadow-md`, Controls border-defined |
+| Dec 2025 | One btn-primary per viewport | Card "Open" buttons use `btn-outline`, search uses `btn-primary` |
+| Dec 2025 | Theme portability | All colors via DaisyUI semantic classes, no hardcoded colors |
+| Dec 2025 | Playwright in design-audit | Catches rendered issues code inspection misses |
+| Dec 2025 | DaisyUI "garden" theme | Clean light theme, pairs with "dark" for toggle |

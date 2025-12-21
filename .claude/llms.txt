@@ -1,0 +1,50 @@
+# Nexus OS (daisyUI Design System)
+
+> A professional knowledge management platform using Python 3.14, FastAPI, HTMX, Alpine.js, and daisyUI.
+
+## Documentation Hierarchy
+
+1. **[PAGE_TEMPLATES.md](.claude/docs/PAGE_TEMPLATES.md)**: Page structure skeletons (Dashboard, List, Detail, Form, Pipeline)
+2. **[DAISY_SPECS.md](.claude/docs/DAISY_SPECS.md)**: Complete component mapping and color rules
+3. **[DAISY_INTENT_SPECS.md](.claude/docs/DAISY_INTENT_SPECS.md)**: Quick intent-to-component reference
+
+## Design Enforcement
+
+**Skill:** `/design-audit` — Two-phase check:
+1. **Code Inspection:** Component match, color sparsity, grid structure, touch targets
+2. **Visual Verification:** Playwright snapshots at 1200px (desktop) and 375px (mobile)
+
+## Design Enforcement Rules
+
+### Mandatory Structure
+- Every page uses `grid grid-cols-1 md:grid-cols-12 gap-6`
+- Every page has header pattern: `h1` + description paragraph
+- Every card uses: `card bg-base-100 shadow` + `card-body`
+
+### Color Sparsity (90% Rule)
+- 90% of UI is neutral: `bg-base-100`, `bg-base-200`, `text-base-content`
+- Color only for: status badges, primary button (ONE per view), focus states
+- FORBIDDEN: Large colored panels, multiple btn-primary, Tailwind colors
+
+### Component Selection
+- Status signals: `badge` or `indicator` (NOT alert)
+- Expandable info: `collapse collapse-arrow` (default CLOSED)
+- Grouped actions: `join` container
+- Process steps: `steps` component
+- Metrics: `stats` component
+
+### Mobile Requirements
+- Touch targets: 44px minimum (btn-md)
+- Grid responsive: `grid-cols-1 md:grid-cols-12`
+- Test viewport: 375px width
+
+## Quick Reference
+
+```
+STRUCTURE:  grid grid-cols-1 md:grid-cols-12 gap-6
+CARDS:      card bg-base-100 shadow > card-body > card-title
+BUTTONS:    btn btn-primary (ONE) | btn-outline | btn-ghost
+STATUS:     badge badge-success | badge-warning | badge-error
+INPUT:      form-control > label > input input-bordered
+COLLAPSE:   collapse collapse-arrow (default closed)
+```

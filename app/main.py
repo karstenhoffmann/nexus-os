@@ -18,11 +18,6 @@ from app.core.fetch_job import (
     get_fetch_store,
     run_fetch_job,
 )
-from app.core.embed_job_v2 import (
-    EmbedStatus,
-    get_embed_store,
-    run_embed_job,
-)
 from app.core.pipeline_job import (
     PipelinePhase,
     PipelineStatus,
@@ -262,21 +257,21 @@ def document_detail(request: Request, doc_id: int):
 
 @app.get("/digests")
 def digests_redirect():
-    """Redirect old /digests to /admin/queries."""
-    return RedirectResponse(url="/admin/queries", status_code=302)
+    """Redirect old /digests to /digest."""
+    return RedirectResponse(url="/digest", status_code=302)
 
 
-@app.get("/admin/queries", response_class=HTMLResponse)
-def admin_queries_page(request: Request):
-    """Admin page for saved queries and recent highlights."""
+@app.get("/digest/queries", response_class=HTMLResponse)
+def digest_queries_page(request: Request):
+    """Saved queries and recent highlights."""
     db = get_db()
     digests_list = db.list_digests()
     highlights = db.get_recent_highlights(limit=10)
     return render("admin_queries.html", request=request, digests=digests_list, highlights=highlights)
 
 
-@app.post("/admin/queries/create")
-def admin_queries_create(
+@app.post("/digest/queries/create")
+def digest_queries_create(
     name: str = Form(...),
     query: str = Form(...),
     mode: str = Form("fts"),
@@ -284,11 +279,11 @@ def admin_queries_create(
     """Create a new saved query."""
     db = get_db()
     db.create_digest(name=name, query=query, mode=mode)
-    return RedirectResponse(url="/admin/queries", status_code=303)
+    return RedirectResponse(url="/digest/queries", status_code=303)
 
 
-@app.post("/admin/queries/{query_id}/update")
-def admin_queries_update(
+@app.post("/digest/queries/{query_id}/update")
+def digest_queries_update(
     query_id: int,
     name: str = Form(...),
     query: str = Form(...),
@@ -297,15 +292,15 @@ def admin_queries_update(
     """Update an existing query."""
     db = get_db()
     db.update_digest(query_id, name=name, query=query, mode=mode)
-    return RedirectResponse(url="/admin/queries", status_code=303)
+    return RedirectResponse(url="/digest/queries", status_code=303)
 
 
-@app.post("/admin/queries/{query_id}/delete")
-def admin_queries_delete(query_id: int):
+@app.post("/digest/queries/{query_id}/delete")
+def digest_queries_delete(query_id: int):
     """Delete a query."""
     db = get_db()
     db.delete_digest(query_id)
-    return RedirectResponse(url="/admin/queries", status_code=303)
+    return RedirectResponse(url="/digest/queries", status_code=303)
 
 
 @app.get("/api/digests/{digest_id}/results", response_class=HTMLResponse)
@@ -1310,27 +1305,6 @@ def admin_fetch(request: Request):
     )
 
 
-@app.get("/admin/embeddings", response_class=HTMLResponse)
-def admin_embeddings(request: Request):
-    """Embedding generation management page (v2 with SSE)."""
-    db = get_db()
-    store = get_embed_store()
-
-    stats = db.count_chunks_for_embedding()
-    jobs = store.list_recent(limit=10)
-    running_job = store.get_running()
-    resumable_job = store.get_resumable()
-
-    return render(
-        "admin_embeddings.html",
-        request=request,
-        stats=stats,
-        jobs=jobs,
-        running_job=running_job,
-        resumable_job=resumable_job,
-    )
-
-
 @app.get("/admin/prompts", response_class=HTMLResponse)
 def admin_prompts(request: Request):
     """Prompt template management page."""
@@ -1516,427 +1490,6 @@ def api_fetch_delete(job_id: str):
     deleted = store.delete(job_id)
 
     return {"deleted": deleted}
-
-
-# ==================== Embedding Routes (SSE-based v2) ====================
-
-
-@app.post("/api/embed/start")
-def api_embed_start(
-    provider: str = "openai",
-    model: str = "text-embedding-3-small",
-):
-    """Start a new embedding job.
-
-    Returns job ID for SSE stream connection.
-    """
-    db = get_db()
-    store = get_embed_store()
-
-    # Check if a job is already running
-    running = store.get_running()
-    if running:
-        return {"error": "An embedding job is already running", "job_id": running.id}
-
-    # Get total count for progress tracking
-    stats = db.count_chunks_for_embedding(provider=provider, model=model)
-    if stats["pending_chunks"] == 0:
-        return {"error": "No chunks pending for embedding", "stats": stats}
-
-    job = store.create(
-        items_total=stats["pending_chunks"],
-        provider=provider,
-        model=model,
-    )
-
-    return {
-        "job_id": job.id,
-        "items_total": stats["pending_chunks"],
-        "provider": provider,
-        "model": model,
-    }
-
-
-@app.post("/api/embed/{job_id}/pause")
-def api_embed_pause(job_id: str):
-    """Pause a running embedding job."""
-    store = get_embed_store()
-    job = store.pause(job_id)
-
-    if not job:
-        return {"error": "Job not found or not running"}
-
-    return {"status": job.status.value, "job": job.to_dict()}
-
-
-@app.post("/api/embed/{job_id}/resume")
-def api_embed_resume(job_id: str):
-    """Resume a paused embedding job.
-
-    Client should reconnect to SSE stream after calling this.
-    """
-    store = get_embed_store()
-    job = store.get(job_id)
-
-    if not job:
-        return {"error": "Job not found"}
-
-    if job.status not in (EmbedStatus.PAUSED, EmbedStatus.FAILED):
-        return {"error": f"Job cannot be resumed (status: {job.status.value})"}
-
-    # Set to pending, will become running when stream starts
-    job.status = EmbedStatus.PENDING
-    store.update(job)
-
-    return {"status": job.status.value, "job": job.to_dict()}
-
-
-@app.post("/api/embed/{job_id}/cancel")
-def api_embed_cancel(job_id: str):
-    """Cancel an embedding job."""
-    store = get_embed_store()
-    job = store.cancel(job_id)
-
-    if not job:
-        return {"error": "Job not found or cannot be cancelled"}
-
-    return {"status": job.status.value, "job": job.to_dict()}
-
-
-@app.get("/api/embed/{job_id}/status")
-def api_embed_status(job_id: str):
-    """Get current status of an embedding job."""
-    store = get_embed_store()
-    job = store.get(job_id)
-
-    if not job:
-        return {"error": "Job not found"}
-
-    return job.to_dict()
-
-
-@app.get("/api/embed/{job_id}/stream")
-async def api_embed_stream(job_id: str):
-    """SSE stream for embedding progress.
-
-    Connect after starting or resuming a job to receive live updates.
-    """
-    store = get_embed_store()
-    job = store.get(job_id)
-
-    if not job:
-        return {"error": "Job not found"}
-
-    if job.status not in (EmbedStatus.PENDING, EmbedStatus.RUNNING):
-        return {"error": f"Job is not active (status: {job.status.value})"}
-
-    db = get_db()
-
-    async def event_generator():
-        """Generate SSE events from embedding job."""
-        try:
-            async for event in run_embed_job(job, db, store):
-                yield event.to_sse()
-        except Exception as e:
-            import json
-            yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
-@app.get("/api/embed/stats")
-def api_embed_stats(
-    provider: str = "openai",
-    model: str = "text-embedding-3-small",
-):
-    """Get embedding statistics.
-
-    Returns counts of chunks with/without embeddings.
-    """
-    db = get_db()
-    stats = db.count_chunks_for_embedding(provider=provider, model=model)
-
-    return stats
-
-
-@app.get("/api/embed/jobs")
-def api_embed_jobs(limit: int = 10):
-    """Get recent embedding jobs."""
-    store = get_embed_store()
-    jobs = store.list_recent(limit=limit)
-
-    return {"jobs": [j.to_dict() for j in jobs]}
-
-
-@app.delete("/api/embed/{job_id}")
-def api_embed_delete(job_id: str):
-    """Delete an embedding job (only if not running)."""
-    store = get_embed_store()
-    job = store.get(job_id)
-
-    if job and job.status == EmbedStatus.RUNNING:
-        return {"error": "Cannot delete a running job"}
-
-    deleted = store.delete(job_id)
-
-    return {"deleted": deleted}
-
-
-# ==================== Readwise Routes ====================
-
-
-@app.get("/readwise/preview", response_class=HTMLResponse)
-def readwise_preview(request: Request, token: str | None = None):
-    s = Settings.from_env()
-    effective_token = token or s.readwise_api_token
-    if not effective_token:
-        return render("readwise_preview.html", request=request, token=None, articles=[], error=None, token_param="")
-    return _fetch_readwise_preview(request, effective_token)
-
-
-@app.post("/readwise/preview", response_class=HTMLResponse)
-def readwise_preview_post(request: Request, token: str = Form(...)):
-    return _fetch_readwise_preview(request, token)
-
-
-def _fetch_readwise_preview(request: Request, token: str) -> HTMLResponse:
-    """Fetch articles from Readwise and render preview."""
-    try:
-        with ReadwiseClient(token) as client:
-            client.validate_token()
-            articles = list(client.fetch_documents(limit=20))
-    except ReadwiseAuthError as e:
-        return render("readwise_preview.html", request=request, token=None, articles=[], error=str(e), token_param="")
-    except Exception as e:
-        return render("readwise_preview.html", request=request, token=None, articles=[], error=f"Fehler: {e}", token_param="")
-    return render("readwise_preview.html", request=request, token=token, articles=articles, error=None, token_param=token)
-
-
-@app.get("/readwise/article/{article_id}", response_class=HTMLResponse)
-def readwise_article(request: Request, article_id: str, token: str | None = None):
-    """Show a single article with its highlights."""
-    s = Settings.from_env()
-    effective_token = token or s.readwise_api_token
-    if not effective_token:
-        return render("readwise_article.html", request=request, article=None, highlights=[], error="Kein Token vorhanden", token_param="")
-
-    try:
-        with ReadwiseClient(effective_token) as client:
-            # Fetch the specific article
-            article = None
-            for doc in client.fetch_documents(with_html_content=True, limit=100):
-                if doc.provider_id == article_id:
-                    article = doc
-                    break
-
-            if not article:
-                return render("readwise_article.html", request=request, article=None, highlights=[], error="Artikel nicht gefunden", token_param=effective_token)
-
-            # Fetch highlights for this article
-            highlights = client.fetch_highlights_for_article(article_id)
-
-    except ReadwiseAuthError as e:
-        return render("readwise_article.html", request=request, article=None, highlights=[], error=str(e), token_param="")
-    except Exception as e:
-        return render("readwise_article.html", request=request, article=None, highlights=[], error=f"Fehler: {e}", token_param="")
-
-    return render("readwise_article.html", request=request, article=article, highlights=highlights, error=None, token_param=effective_token)
-
-
-# --- Readwise Import Routes ---
-
-
-@app.get("/readwise/import", response_class=HTMLResponse)
-def readwise_import_page(request: Request):
-    """Show import page with current/recent jobs."""
-    s = Settings.from_env()
-    store = get_import_store()
-    jobs = store.list_recent(limit=10)
-    resumable_job = store.get_resumable()
-    return render(
-        "readwise_import.html",
-        request=request,
-        token=s.readwise_api_token,
-        jobs=jobs,
-        resumable_job=resumable_job,
-    )
-
-
-@app.post("/readwise/import/start")
-def readwise_import_start(token: str = Form(...)):
-    """Start a new import job. Returns job ID for SSE stream."""
-    store = get_import_store()
-    job = store.create()
-    # Store token temporarily in job for the stream to use
-    # (In production, you'd want a more secure approach)
-    job._token = token  # type: ignore[attr-defined]
-    store.update(job)
-    return {"job_id": job.id}
-
-
-@app.post("/readwise/import/{job_id}/pause")
-def readwise_import_pause(job_id: str):
-    """Pause a running import job."""
-    store = get_import_store()
-    job = store.get(job_id)
-    if not job:
-        return {"error": "Job not found"}, 404
-    if job.status == ImportStatus.RUNNING:
-        job.status = ImportStatus.PAUSED
-        store.update(job)
-    return {"status": job.status.value}
-
-
-@app.post("/readwise/import/{job_id}/resume")
-def readwise_import_resume(job_id: str):
-    """Resume a paused import job. Client should reconnect to SSE stream."""
-    store = get_import_store()
-    job = store.get(job_id)
-    if not job:
-        return {"error": "Job not found"}, 404
-    if job.status == ImportStatus.PAUSED:
-        job.status = ImportStatus.PENDING  # Will be set to RUNNING when stream starts
-        store.update(job)
-    return {"status": job.status.value}
-
-
-@app.get("/readwise/import/{job_id}/stream")
-def readwise_import_stream(job_id: str, token: str | None = None):
-    """SSE stream for import progress. Connect after starting or resuming."""
-    store = get_import_store()
-    job = store.get(job_id)
-    if not job:
-        return {"error": "Job not found"}, 404
-
-    s = Settings.from_env()
-    effective_token = token or getattr(job, "_token", None) or s.readwise_api_token
-    if not effective_token:
-        return {"error": "No token available"}, 400
-
-    def event_generator():
-        """Generate SSE events from import stream."""
-        db = get_db()
-        try:
-            with ReadwiseClient(effective_token) as client:
-                url_index: dict[str, str] = {}
-                for event in client.stream_import(job, url_index=url_index):
-                    store.update(job)
-
-                    # Persist article to DB on ITEM events
-                    if event.type == ImportEventType.ITEM:
-                        article_data = event.data.get("article", {})
-                        if article_data.get("provider_id"):
-                            html_content = article_data.get("html_content")
-                            # Extract clean text from HTML (removes tags, scripts, images)
-                            clean_text = extract_text_from_html(html_content) if html_content else None
-                            doc_id = db.save_article(
-                                source=article_data.get("provider", "unknown"),
-                                provider_id=article_data.get("provider_id", ""),
-                                url_original=article_data.get("source_url"),
-                                title=article_data.get("title"),
-                                author=article_data.get("author"),
-                                published_at=article_data.get("published_date"),
-                                saved_at=article_data.get("saved_at"),
-                                category=article_data.get("category"),
-                                word_count=article_data.get("word_count"),
-                                fulltext=clean_text,
-                                fulltext_html=html_content,  # Keep original HTML with images
-                                fulltext_source="readwise" if clean_text else None,
-                                summary=article_data.get("summary"),
-                            )
-
-                            # Save highlights if present (from Export API)
-                            highlights = event.data.get("highlights", [])
-                            for hl in highlights:
-                                if hl.get("provider_id") and hl.get("text"):
-                                    db.save_highlight(
-                                        document_id=doc_id,
-                                        provider_highlight_id=hl["provider_id"],
-                                        text=hl["text"],
-                                        note=hl.get("note"),
-                                        highlighted_at=hl.get("highlighted_at"),
-                                        provider=hl.get("provider"),
-                                    )
-
-                    # Rebuild FTS index after import completes
-                    if event.type == ImportEventType.COMPLETED:
-                        fts_count = db.rebuild_fts()
-                        print(f"FTS index rebuilt with {fts_count} documents")
-
-                    yield event.to_sse()
-        except ReadwiseAuthError as e:
-            yield f"event: error\ndata: {{\"error\": \"{e}\"}}\n\n"
-        except Exception as e:
-            yield f"event: error\ndata: {{\"error\": \"{e}\"}}\n\n"
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
-@app.get("/readwise/import/{job_id}/status")
-def readwise_import_status(job_id: str):
-    """Get current status of an import job."""
-    store = get_import_store()
-    job = store.get(job_id)
-    if not job:
-        return {"error": "Job not found"}, 404
-    return job.to_dict()
-
-
-@app.get("/readwise/import/jobs-partial", response_class=HTMLResponse)
-def readwise_jobs_partial(request: Request):
-    """Return job list as HTML fragment for HTMX polling."""
-    store = get_import_store()
-    jobs = store.list_recent(limit=10)
-    return render("partials/job_list.html", request=request, jobs=jobs)
-
-
-@app.post("/readwise/jobs/{job_id}/cancel", response_class=HTMLResponse)
-def readwise_job_cancel(request: Request, job_id: str):
-    """Cancel a running or pending import job. Returns updated job list for HTMX swap."""
-    store = get_import_store()
-    store.cancel(job_id)
-    jobs = store.list_recent(limit=10)
-    return render("partials/job_list.html", request=request, jobs=jobs)
-
-
-@app.delete("/readwise/jobs/{job_id}", response_class=HTMLResponse)
-def readwise_job_delete(request: Request, job_id: str):
-    """Delete an import job. Returns updated job list for HTMX swap."""
-    store = get_import_store()
-    job = store.get(job_id)
-    # Only allow deleting completed, failed, or cancelled jobs (not running)
-    if job and job.status.value in ("running", "pending"):
-        jobs = store.list_recent(limit=10)
-        return render("partials/job_list.html", request=request, jobs=jobs)
-    store.delete(job_id)
-    jobs = store.list_recent(limit=10)
-    return render("partials/job_list.html", request=request, jobs=jobs)
-
-
-@app.get("/readwise/jobs/{job_id}", response_class=HTMLResponse)
-def readwise_job_detail(request: Request, job_id: str):
-    """Show details for a specific import job."""
-    store = get_import_store()
-    job = store.get(job_id)
-    if not job:
-        return render("job_detail.html", request=request, job=None, error="Job nicht gefunden")
-    return render("job_detail.html", request=request, job=job, error=None)
 
 
 # ==================== Sync Pipeline ====================

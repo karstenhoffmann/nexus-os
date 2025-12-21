@@ -2,7 +2,12 @@
 {% from "macros/icons.html" import icon %}
 {% block content %}
 
-<h1>Digest</h1>
+<div class="flex justify-between items-center mb-4">
+  <h1>Digest</h1>
+  <a href="/digest/queries" class="btn btn-ghost btn-sm gap-2">
+    {{ icon("bookmark") }} Saved Queries
+  </a>
+</div>
 
 <div x-data="digestApp()" x-init="init()">
 
