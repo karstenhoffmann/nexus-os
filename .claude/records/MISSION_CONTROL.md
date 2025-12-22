@@ -50,15 +50,12 @@ Raw Content → [Lens] → Digest → [Curate] → Draft → [Format] → Linked
 - Will integrate with Digest 2.0 Draft Bridge
 
 ## Recent Completions
-- Dec 22, 2025: **Phase A: Source Transparency COMPLETE** - Full implementation: database fixes (N+1 query, saved_at index, reader_url column), COMPILE phase wires citations to normalized tables, API endpoint `/api/digest/{id}/topics/{tid}/sources`, frontend source badges with expandable panel showing document titles, authors, excerpts, and action buttons (Full Text, Original). Verified working with digest ID 8 (293 sources).
-- Dec 2025: **CLAUDE.md Context Optimization** - 77% reduction in auto-loaded context. Restructured Directory Mapping, removed dead links, fixed broken file paths. Auto-load: 436 lines (was 1,922).
-- Dec 2025: **Digest 2.0 Vision Complete** - Full redesign documented in whiteboard.md (~1200 lines). Content Workbench concept, Lens system, Interactive Curation, Draft Bridge, Profile system vision.
-- Dec 2025: **DaisyUI 100% Compliance** - Zero custom overrides, pure DaisyUI patterns throughout. Fixed: bg-transparent, border-0, outline-none, focus-within:* anti-patterns. Added prevention rules to CLAUDE.md.
-- Dec 2025: **Library page UX redesign** - Proper DaisyUI Filter component, Badge outline for table, CSS fallback for modern nested CSS
-- Dec 2025: **Admin tabs-lift with DaisyUI v5** - Label wrapper pattern with icons
-- Dec 2025: **Main entry points UX redesign** - sync/drafts/digest/admin pages with hero sections, stats bars
-- Dec 2025: **CSS Cleanup complete** - Custom CSS replaced with DaisyUI components, emerald theme
-- Dec 2025: **All templates migrated to DaisyUI v5** - Zero custom CSS approach
+- Dec 22, 2025: **Digest UI Polish** - Source viewing via DaisyUI modal (full excerpts, not truncated), single "X sources" badge per topic (removed redundant chunks badge), fixed Full Text link URL (`/documents/` not `/library/`), text breaking fix with `break-words`.
+- Dec 22, 2025: **Phase A: Source Transparency COMPLETE** - Database fixes (N+1 query, saved_at index), COMPILE phase wires citations, API endpoint `/api/digest/{id}/topics/{tid}/sources`, frontend source badges with modal drill-down.
+- Dec 2025: **CLAUDE.md Context Optimization** - 77% reduction in auto-loaded context (436 lines).
+- Dec 2025: **Digest 2.0 Vision Complete** - Full redesign in whiteboard.md. Content Workbench concept, Lens system, Interactive Curation, Draft Bridge.
+- Dec 2025: **DaisyUI 100% Compliance** - Zero custom overrides, pure DaisyUI patterns. Anti-pattern rules in CLAUDE.md.
+- Dec 2025: **Library/Admin/Entry pages UX redesign** - DaisyUI Filter, Badge outline, tabs-lift, hero sections, stats bars.
 
 ## Open Questions
 - Align CLAUDE.md "NO Node.js" with architecture.md "propose first" policy
@@ -86,3 +83,4 @@ Raw Content → [Lens] → Digest → [Curate] → Draft → [Format] → Linked
 | Dec 2025 | Theme portability | All colors via DaisyUI semantic classes only |
 | Dec 2025 | Hero pattern | Title + subtitle + primary action for all entry pages |
 | Dec 2025 | DaisyUI anti-patterns banned | bg-transparent, border-0, outline-none, focus-within:* on form elements break DaisyUI - added to CLAUDE.md |
+| Dec 2025 | Modal for source drill-down | DaisyUI dialog modal for viewing sources - better than inline scroll for content review |
