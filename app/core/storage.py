@@ -326,6 +326,30 @@ CREATE TABLE IF NOT EXISTS digest_citations (
 CREATE INDEX IF NOT EXISTS idx_digest_citations_digest_id ON digest_citations(digest_id);
 CREATE INDEX IF NOT EXISTS idx_digest_citations_topic_id ON digest_citations(topic_id);
 
+-- Phase B: Interactive Curation (Digest 2.0)
+CREATE TABLE IF NOT EXISTS digest_curation (
+  id INTEGER PRIMARY KEY,
+  digest_id INTEGER UNIQUE REFERENCES generated_digests(id) ON DELETE CASCADE,
+
+  -- Include/exclude selections (JSON arrays of topic IDs)
+  included_topics_json TEXT,  -- e.g. [1, 2, 4] (topic IDs to include)
+
+  -- Ratings per topic (JSON object: {topic_id: stars})
+  topic_ratings_json TEXT,  -- e.g. {"1": 3, "2": 2, "4": 1}
+
+  -- Display order (JSON array of topic IDs in desired order)
+  topic_order_json TEXT,  -- e.g. [2, 1, 4]
+
+  -- Special markers
+  main_story_topic_id INTEGER REFERENCES digest_topics(id),
+  lead_hook_topic_id INTEGER REFERENCES digest_topics(id),
+
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_digest_curation_digest_id ON digest_curation(digest_id);
+
 -- Custom Prompt Templates (user-modified prompts)
 CREATE TABLE IF NOT EXISTS prompt_templates (
   key TEXT PRIMARY KEY,
@@ -638,6 +662,27 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     topic_cols = {row[1] for row in cur.fetchall()}
     if "key_points_json" not in topic_cols:
         conn.execute("ALTER TABLE digest_topics ADD COLUMN key_points_json TEXT")
+        conn.commit()
+
+    # Phase B: Create digest_curation table if it doesn't exist
+    cur = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='digest_curation'"
+    )
+    if cur.fetchone() is None:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS digest_curation (
+                id INTEGER PRIMARY KEY,
+                digest_id INTEGER UNIQUE REFERENCES generated_digests(id) ON DELETE CASCADE,
+                included_topics_json TEXT,
+                topic_ratings_json TEXT,
+                topic_order_json TEXT,
+                main_story_topic_id INTEGER REFERENCES digest_topics(id),
+                lead_hook_topic_id INTEGER REFERENCES digest_topics(id),
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_digest_curation_digest_id ON digest_curation(digest_id)")
         conn.commit()
 
 
@@ -3252,6 +3297,112 @@ class DB:
             "source_count": len(sources),
             "sources": sources,
         }
+
+    # ──────────────────────────────────────────────────────────────────
+    # Phase B: Digest Curation
+    # ──────────────────────────────────────────────────────────────────
+
+    def get_digest_curation(self, digest_id: int) -> dict[str, Any] | None:
+        """Get curation state for a digest."""
+        cur = self.conn.execute(
+            """
+            SELECT id, digest_id, included_topics_json, topic_ratings_json,
+                   topic_order_json, main_story_topic_id, lead_hook_topic_id,
+                   created_at, updated_at
+            FROM digest_curation
+            WHERE digest_id = ?
+            """,
+            (digest_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+
+        return {
+            "id": row[0],
+            "digest_id": row[1],
+            "included_topics": json.loads(row[2]) if row[2] else None,
+            "topic_ratings": json.loads(row[3]) if row[3] else {},
+            "topic_order": json.loads(row[4]) if row[4] else None,
+            "main_story_topic_id": row[5],
+            "lead_hook_topic_id": row[6],
+            "created_at": row[7],
+            "updated_at": row[8],
+        }
+
+    def save_digest_curation(
+        self,
+        digest_id: int,
+        included_topics: list[int] | None = None,
+        topic_ratings: dict[str, int] | None = None,
+        topic_order: list[int] | None = None,
+        main_story_topic_id: int | None = None,
+        lead_hook_topic_id: int | None = None,
+    ) -> int:
+        """Save or update curation state for a digest (upsert)."""
+        # Check if curation exists
+        cur = self.conn.execute(
+            "SELECT id FROM digest_curation WHERE digest_id = ?",
+            (digest_id,),
+        )
+        existing = cur.fetchone()
+
+        if existing:
+            # Update existing
+            self.conn.execute(
+                """
+                UPDATE digest_curation
+                SET included_topics_json = ?,
+                    topic_ratings_json = ?,
+                    topic_order_json = ?,
+                    main_story_topic_id = ?,
+                    lead_hook_topic_id = ?,
+                    updated_at = datetime('now')
+                WHERE digest_id = ?
+                """,
+                (
+                    json.dumps(included_topics) if included_topics is not None else None,
+                    json.dumps(topic_ratings) if topic_ratings is not None else None,
+                    json.dumps(topic_order) if topic_order is not None else None,
+                    main_story_topic_id,
+                    lead_hook_topic_id,
+                    digest_id,
+                ),
+            )
+            self.conn.commit()
+            return existing[0]
+        else:
+            # Insert new
+            cur = self.conn.execute(
+                """
+                INSERT INTO digest_curation (
+                    digest_id, included_topics_json, topic_ratings_json,
+                    topic_order_json, main_story_topic_id, lead_hook_topic_id
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                RETURNING id
+                """,
+                (
+                    digest_id,
+                    json.dumps(included_topics) if included_topics is not None else None,
+                    json.dumps(topic_ratings) if topic_ratings is not None else None,
+                    json.dumps(topic_order) if topic_order is not None else None,
+                    main_story_topic_id,
+                    lead_hook_topic_id,
+                ),
+            )
+            curation_id = cur.fetchone()[0]
+            self.conn.commit()
+            return curation_id
+
+    def delete_digest_curation(self, digest_id: int) -> bool:
+        """Delete curation state for a digest."""
+        cur = self.conn.execute(
+            "DELETE FROM digest_curation WHERE digest_id = ?",
+            (digest_id,),
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
 
     def get_chunks_in_date_range(
         self,

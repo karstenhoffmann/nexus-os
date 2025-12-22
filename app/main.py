@@ -1848,3 +1848,70 @@ def api_digest_delete(digest_id: int):
         return {"error": "Digest nicht gefunden oder konnte nicht geloescht werden"}
 
     return {"deleted": True, "digest_id": digest_id}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Phase B: Digest Curation API
+# ──────────────────────────────────────────────────────────────────────────────
+
+@app.get("/api/digest/{digest_id}/curation")
+def api_get_digest_curation(digest_id: int):
+    """Get curation state for a digest.
+
+    Returns the curation state (included topics, ratings, order, markers) or null
+    if no curation has been saved yet.
+    """
+    db = get_db()
+
+    # Verify digest exists
+    digest = db.get_generated_digest(digest_id)
+    if not digest:
+        return {"error": "Digest not found", "curation": None}
+
+    curation = db.get_digest_curation(digest_id)
+    return {"curation": curation}
+
+
+@app.post("/api/digest/{digest_id}/curation")
+async def api_save_digest_curation(digest_id: int, request: Request):
+    """Save or update curation state for a digest.
+
+    Body JSON:
+        included_topics: list[int] | null - Topic IDs to include (null = all)
+        topic_ratings: dict[str, int] | null - Topic ID -> star rating (1-3)
+        topic_order: list[int] | null - Topic IDs in display order
+        main_story_topic_id: int | null - Topic marked as main story
+        lead_hook_topic_id: int | null - Topic marked as lead hook
+    """
+    db = get_db()
+
+    # Verify digest exists
+    digest = db.get_generated_digest(digest_id)
+    if not digest:
+        return {"error": "Digest not found"}
+
+    # Parse request body
+    body = await request.json()
+
+    curation_id = db.save_digest_curation(
+        digest_id=digest_id,
+        included_topics=body.get("included_topics"),
+        topic_ratings=body.get("topic_ratings"),
+        topic_order=body.get("topic_order"),
+        main_story_topic_id=body.get("main_story_topic_id"),
+        lead_hook_topic_id=body.get("lead_hook_topic_id"),
+    )
+
+    return {
+        "success": True,
+        "curation_id": curation_id,
+        "digest_id": digest_id,
+    }
+
+
+@app.delete("/api/digest/{digest_id}/curation")
+def api_delete_digest_curation(digest_id: int):
+    """Delete curation state for a digest (reset to default)."""
+    db = get_db()
+    deleted = db.delete_digest_curation(digest_id)
+    return {"deleted": deleted, "digest_id": digest_id}

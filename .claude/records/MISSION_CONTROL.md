@@ -4,7 +4,7 @@
 **Phase 1: Content MVP** (in progress)
 
 ## Active Task
-**Digest 2.0 Phase B: Interactive Curation** - Ready to Start
+**Digest 2.0 Phase C: Draft Bridge** - Ready to Start
 
 ---
 
@@ -26,7 +26,7 @@ Raw Content → [Lens] → Digest → [Curate] → Draft → [Format] → Linked
 
 **Implementation Phases (from whiteboard):**
 - [x] **Phase A: Source Transparency** - COMPLETE (Dec 22, 2025)
-- [ ] **Phase B: Interactive Curation** - Include/exclude, ratings, reorder, markers
+- [x] **Phase B: Interactive Curation** - COMPLETE (Dec 22, 2025)
 - [ ] **Phase C: Draft Bridge** - Curated digest → format selection → draft generation
 - [ ] **Phase D: Pipeline Visibility** - Real-time progress, cluster visualization
 - [ ] **Phase E: Lens Foundation** - Built-in presets, lens selection
@@ -50,6 +50,7 @@ Raw Content → [Lens] → Digest → [Curate] → Draft → [Format] → Linked
 - Will integrate with Digest 2.0 Draft Bridge
 
 ## Recent Completions
+- Dec 22, 2025: **Phase B: Interactive Curation COMPLETE** - `digest_curation` table, curation API endpoints, Curation Mode toggle with include/exclude checkboxes, ★★★ star ratings, reorder buttons, Main Story/Lead Hook markers, curation summary bar with "Draft erstellen" placeholder for Phase C.
 - Dec 22, 2025: **Digest UI Polish** - Source viewing via DaisyUI modal (full excerpts, not truncated), single "X sources" badge per topic (removed redundant chunks badge), fixed Full Text link URL (`/documents/` not `/library/`), text breaking fix with `break-words`.
 - Dec 22, 2025: **Phase A: Source Transparency COMPLETE** - Database fixes (N+1 query, saved_at index), COMPILE phase wires citations, API endpoint `/api/digest/{id}/topics/{tid}/sources`, frontend source badges with modal drill-down.
 - Dec 2025: **CLAUDE.md Context Optimization** - 77% reduction in auto-loaded context (436 lines).
