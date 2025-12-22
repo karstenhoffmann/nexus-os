@@ -230,11 +230,12 @@
                 </div>
 
                 <!-- Topics List (Curation Mode) -->
-                <div x-show="curationMode" class="space-y-2">
+                <div x-show="curationMode" class="space-y-2" x-ref="topicsList">
                   <template x-for="(topic, idx) in orderedTopics" :key="topic.id">
                     <div
-                      class="bg-base-200/50 p-3 rounded-lg transition-opacity"
-                      :class="{ 'opacity-40': !isTopicIncluded(topic.id) }"
+                      class="topic-card bg-base-200/50 rounded-lg overflow-hidden transition-all duration-300 ease-out p-3"
+                      :data-topic-id="topic.id"
+                      :class="!isTopicIncluded(topic.id) ? 'opacity-50' : 'opacity-100'"
                     >
                       <!-- Curation Controls Row -->
                       <div class="flex items-center gap-2 mb-2">
@@ -286,38 +287,49 @@
                         ></button>
                       </div>
 
-                      <!-- Summary -->
-                      <p class="text-xs text-base-content/70 ml-7" x-text="topic.summary"></p>
+                      <!-- Collapsible Content (hidden when excluded) -->
+                      <div
+                        x-show="isTopicIncluded(topic.id)"
+                        x-transition:enter="transition-all ease-out duration-300"
+                        x-transition:enter-start="opacity-0 -translate-y-2"
+                        x-transition:enter-end="opacity-100 translate-y-0"
+                        x-transition:leave="transition-all ease-in duration-200"
+                        x-transition:leave-start="opacity-100 translate-y-0"
+                        x-transition:leave-end="opacity-0 -translate-y-2"
+                      >
+                        <!-- Summary -->
+                        <p class="text-xs text-base-content/70 ml-7" x-text="topic.summary"></p>
 
-                      <!-- Special Markers -->
-                      <div class="flex gap-2 mt-2 ml-7">
-                        <button
-                          class="badge badge-sm cursor-pointer"
-                          :class="isMainStory(topic.id) ? 'badge-primary' : 'badge-ghost'"
-                          @click="toggleMainStory(topic.id)"
-                        >
-                          {{ icon("star") }} Main Story
-                        </button>
-                        <button
-                          class="badge badge-sm cursor-pointer"
-                          :class="isLeadHook(topic.id) ? 'badge-secondary' : 'badge-ghost'"
-                          @click="toggleLeadHook(topic.id)"
-                        >
-                          {{ icon("zap") }} Lead Hook
-                        </button>
+                        <!-- Special Markers -->
+                        <div class="flex gap-2 mt-2 ml-7">
+                          <button
+                            class="badge badge-sm cursor-pointer"
+                            :class="isMainStory(topic.id) ? 'badge-primary' : 'badge-ghost'"
+                            @click="toggleMainStory(topic.id)"
+                          >
+                            {{ icon("star") }} Main Story
+                          </button>
+                          <button
+                            class="badge badge-sm cursor-pointer"
+                            :class="isLeadHook(topic.id) ? 'badge-secondary' : 'badge-ghost'"
+                            @click="toggleLeadHook(topic.id)"
+                          >
+                            {{ icon("zap") }} Lead Hook
+                          </button>
+                        </div>
+
+                        <!-- Key points -->
+                        <template x-if="topic.key_points && topic.key_points.length > 0">
+                          <ul class="mt-2 ml-7 space-y-1">
+                            <template x-for="point in topic.key_points" :key="point">
+                              <li class="text-xs text-base-content/60 flex items-start gap-1">
+                                <span class="text-primary">•</span>
+                                <span x-text="point"></span>
+                              </li>
+                            </template>
+                          </ul>
+                        </template>
                       </div>
-
-                      <!-- Key points -->
-                      <template x-if="topic.key_points && topic.key_points.length > 0">
-                        <ul class="mt-2 ml-7 space-y-1">
-                          <template x-for="point in topic.key_points" :key="point">
-                            <li class="text-xs text-base-content/60 flex items-start gap-1">
-                              <span class="text-primary">•</span>
-                              <span x-text="point"></span>
-                            </li>
-                          </template>
-                        </ul>
-                      </template>
                     </div>
                   </template>
                 </div>
@@ -811,11 +823,58 @@ function digestApp() {
     },
 
     // Move topic up in order
+    // FLIP animation helper for smooth reordering
+    animateReorder() {
+      const container = this.$refs.topicsList;
+      if (!container) return;
+
+      const cards = container.querySelectorAll('.topic-card');
+      const positions = new Map();
+
+      // FIRST: Record current positions
+      cards.forEach(card => {
+        const id = card.dataset.topicId;
+        const rect = card.getBoundingClientRect();
+        positions.set(id, { top: rect.top, left: rect.left });
+      });
+
+      // Let Alpine update the DOM
+      this.$nextTick(() => {
+        const newCards = container.querySelectorAll('.topic-card');
+
+        newCards.forEach(card => {
+          const id = card.dataset.topicId;
+          const oldPos = positions.get(id);
+          if (!oldPos) return;
+
+          const newRect = card.getBoundingClientRect();
+          const deltaY = oldPos.top - newRect.top;
+
+          if (Math.abs(deltaY) > 1) {
+            // INVERT: Position card at old location
+            card.style.transform = `translateY(${deltaY}px)`;
+            card.style.transition = 'none';
+
+            // PLAY: Animate to new position
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                card.style.transition = 'transform 300ms ease-out';
+                card.style.transform = '';
+              });
+            });
+          }
+        });
+      });
+    },
+
     moveTopicUp(topicId) {
       if (!this.curation?.topic_order) return;
 
       const idx = this.curation.topic_order.indexOf(topicId);
       if (idx > 0) {
+        // Record positions and animate
+        this.animateReorder();
+
         // Swap with previous
         [this.curation.topic_order[idx - 1], this.curation.topic_order[idx]] =
           [this.curation.topic_order[idx], this.curation.topic_order[idx - 1]];
@@ -829,6 +888,9 @@ function digestApp() {
 
       const idx = this.curation.topic_order.indexOf(topicId);
       if (idx >= 0 && idx < this.curation.topic_order.length - 1) {
+        // Record positions and animate
+        this.animateReorder();
+
         // Swap with next
         [this.curation.topic_order[idx], this.curation.topic_order[idx + 1]] =
           [this.curation.topic_order[idx + 1], this.curation.topic_order[idx]];
