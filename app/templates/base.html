@@ -6,12 +6,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>nexus-os</title>
-  <!-- DaisyUI v5 + Tailwind (local, offline-first) -->
-  <link rel="stylesheet" href="/static/daisyui.css">
-  <link rel="stylesheet" href="/static/daisyui-themes.css">
+  <!-- Tailwind + DaisyUI (built via npm, offline-first) -->
   <link rel="stylesheet" href="/static/tailwind.css">
-  <!-- Custom overrides (loaded last) -->
-  <link rel="stylesheet" href="/static/app.css?v=4">
+  <!-- HTMX loading states only -->
+  <link rel="stylesheet" href="/static/app.css">
   <script defer src="/static/htmx.min.js"></script>
   <script defer src="/static/alpine.min.js"></script>
   <script>
@@ -67,8 +65,8 @@
     <div class="navbar-end gap-2">
       <!-- Theme toggle -->
       <button id="theme-toggle" class="btn btn-ghost btn-circle" onclick="toggleTheme()" title="Toggle Theme">
-        {{ icon("moon", "icon-moon") }}
-        {{ icon("sun", "icon-sun") }}
+        {{ icon("moon", "size-5 shrink-0 icon-moon") }}
+        {{ icon("sun", "size-5 shrink-0 icon-sun") }}
       </button>
       <!-- Mobile menu dropdown -->
       <div class="dropdown dropdown-end lg:hidden">

@@ -14,19 +14,19 @@
 
   <!-- Quick Stats Bar -->
   <div class="stats stats-vertical sm:stats-horizontal shadow bg-base-100 w-full mb-6">
-    <div class="stat py-3 px-4">
+    <div class="stat">
       <div class="stat-title text-xs">Dokumente</div>
       <div class="stat-value text-xl">{{ stats.documents }}</div>
     </div>
-    <div class="stat py-3 px-4">
+    <div class="stat">
       <div class="stat-title text-xs">Highlights</div>
       <div class="stat-value text-xl">{{ stats.highlights }}</div>
     </div>
-    <div class="stat py-3 px-4">
+    <div class="stat">
       <div class="stat-title text-xs">Entwuerfe</div>
       <div class="stat-value text-xl">{{ stats.drafts }}</div>
     </div>
-    <div class="stat py-3 px-4">
+    <div class="stat">
       <div class="stat-title text-xs">Embeddings</div>
       <div class="stat-value text-xl" :class="{ 'text-success': pending === 0, 'text-warning': pending > 0 }" x-text="progress + '%'"></div>
       <div class="stat-desc" x-text="pending === 0 ? 'komplett' : pending.toLocaleString() + ' ausstehend'"></div>
@@ -46,7 +46,7 @@
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Environment Section -->
         <div>
-          <h3 class="font-semibold text-sm text-base-content/70 uppercase tracking-wide mb-3">{{ icon("server") }} Umgebung</h3>
+          <h3 class="flex items-center gap-2 font-semibold text-sm text-base-content/70 uppercase tracking-wide mb-3">{{ icon("server", "size-4 shrink-0") }} Umgebung</h3>
           <div class="divide-y divide-base-200 bg-base-200/30 rounded-lg px-4">
             <div class="flex justify-between py-3 text-sm">
               <span class="text-base-content/60">Modus</span>
@@ -64,7 +64,7 @@
         </div>
         <!-- Embeddings Section -->
         <div>
-          <h3 class="font-semibold text-sm text-base-content/70 uppercase tracking-wide mb-3">{{ icon("cpu") }} Semantische Suche</h3>
+          <h3 class="flex items-center gap-2 font-semibold text-sm text-base-content/70 uppercase tracking-wide mb-3">{{ icon("cpu", "size-4 shrink-0") }} Semantische Suche</h3>
           <div class="bg-base-200/30 rounded-lg p-4">
             <div class="mb-3">
               <div class="flex justify-between items-center mb-1">
@@ -95,8 +95,8 @@
             <div x-show="pending === 0 && stats.total_chunks > 0" class="flex items-center gap-2 text-success text-sm">
               {{ icon("check-circle") }} Alle Chunks haben Embeddings
             </div>
-            <div x-show="lastResult" class="alert alert-success mt-3 py-2 text-sm" x-text="lastResult"></div>
-            <div x-show="error" class="alert alert-error mt-3 py-2 text-sm" x-text="error"></div>
+            <div x-show="lastResult" class="alert alert-success mt-3 text-sm" x-text="lastResult"></div>
+            <div x-show="error" class="alert alert-error mt-3 text-sm" x-text="error"></div>
           </div>
         </div>
       </div>
@@ -141,13 +141,13 @@
       Einstellungen
     </label>
     <div class="tab-content bg-base-100 border-base-300 p-6">
-      <h3 class="font-semibold text-sm text-base-content/70 uppercase tracking-wide mb-3">{{ icon("palette") }} Design</h3>
+      <h3 class="flex items-center gap-2 font-semibold text-sm text-base-content/70 uppercase tracking-wide mb-3">{{ icon("palette", "size-4 shrink-0") }} Design</h3>
       <p class="text-sm text-base-content/60 mb-4">Erscheinungsbild anpassen. Dark Mode wird vom System uebernommen.</p>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-base-200/30 rounded-lg p-4">
         <div class="form-control">
           <label class="label py-1"><span class="label-text text-xs">Primaerfarbe</span></label>
           <div class="flex items-center gap-2">
-            <input type="color" x-model="primary" @change="saveTheme()" class="w-8 h-8 rounded cursor-pointer border-0">
+            <input type="color" x-model="primary" @change="saveTheme()" class="w-8 h-8 rounded cursor-pointer">
             <span x-text="primary" class="font-mono text-xs text-base-content/50"></span>
           </div>
         </div>

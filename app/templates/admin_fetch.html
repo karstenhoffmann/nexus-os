@@ -54,7 +54,7 @@
   <!-- Running Job Status -->
   {% if running_job %}
   <div role="alert" class="alert alert-info">
-    {{ icon("loader", "animate-spin") }}
+    {{ icon("loader", "size-5 shrink-0 animate-spin") }}
     <div class="flex-1">
       <h3 class="font-bold">Job läuft</h3>
       <div class="text-sm">ID: {{ running_job.id[:8] }} · {{ running_job.items_processed }}/{{ running_job.items_total or '?' }}</div>

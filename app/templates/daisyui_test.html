@@ -1,0 +1,543 @@
+{% extends "base.html" %}
+{% from "macros/icons.html" import icon %}
+{% block content %}
+
+<h1 class="text-2xl font-bold mb-6">DaisyUI v5 Component Test Page</h1>
+<p class="text-base-content/60 mb-8">Testing all components used in Nexus OS to verify they work without custom CSS fixes.</p>
+
+<!-- ========================================
+     1. BUTTONS
+     ======================================== -->
+<section class="mb-12">
+  <h2 class="text-xl font-semibold mb-4 border-b border-base-300 pb-2">1. Buttons</h2>
+
+  <h3 class="text-sm font-medium text-base-content/60 uppercase tracking-wide mb-3">Standard Sizes</h3>
+  <div class="flex flex-wrap gap-2 mb-6">
+    <button class="btn btn-xs">Tiny</button>
+    <button class="btn btn-sm">Small</button>
+    <button class="btn">Default</button>
+    <button class="btn btn-lg">Large</button>
+  </div>
+
+  <h3 class="text-sm font-medium text-base-content/60 uppercase tracking-wide mb-3">Colors</h3>
+  <div class="flex flex-wrap gap-2 mb-6">
+    <button class="btn">Default</button>
+    <button class="btn btn-primary">Primary</button>
+    <button class="btn btn-secondary">Secondary</button>
+    <button class="btn btn-accent">Accent</button>
+    <button class="btn btn-neutral">Neutral</button>
+    <button class="btn btn-info">Info</button>
+    <button class="btn btn-success">Success</button>
+    <button class="btn btn-warning">Warning</button>
+    <button class="btn btn-error">Error</button>
+  </div>
+
+  <h3 class="text-sm font-medium text-base-content/60 uppercase tracking-wide mb-3">Variants</h3>
+  <div class="flex flex-wrap gap-2 mb-6">
+    <button class="btn btn-outline">Outline</button>
+    <button class="btn btn-outline btn-primary">Outline Primary</button>
+    <button class="btn btn-ghost">Ghost</button>
+    <button class="btn btn-link">Link</button>
+    <button class="btn btn-soft btn-primary">Soft Primary</button>
+  </div>
+
+  <h3 class="text-sm font-medium text-base-content/60 uppercase tracking-wide mb-3">States</h3>
+  <div class="flex flex-wrap gap-2 mb-6">
+    <button class="btn btn-primary" disabled>Disabled</button>
+    <button class="btn btn-primary btn-circle">{{ icon("plus") }}</button>
+    <button class="btn btn-primary btn-square">{{ icon("x") }}</button>
+    <button class="btn btn-primary"><span class="loading loading-spinner loading-sm"></span> Loading</button>
+  </div>
+</section>
+
+<!-- ========================================
+     2. BADGES
+     ======================================== -->
+<section class="mb-12">
+  <h2 class="text-xl font-semibold mb-4 border-b border-base-300 pb-2">2. Badges</h2>
+
+  <h3 class="text-sm font-medium text-base-content/60 uppercase tracking-wide mb-3">Standard</h3>
+  <div class="flex flex-wrap gap-2 mb-6">
+    <span class="badge">Default</span>
+    <span class="badge badge-primary">Primary</span>
+    <span class="badge badge-secondary">Secondary</span>
+    <span class="badge badge-accent">Accent</span>
+    <span class="badge badge-neutral">Neutral</span>
+    <span class="badge badge-info">Info</span>
+    <span class="badge badge-success">Success</span>
+    <span class="badge badge-warning">Warning</span>
+    <span class="badge badge-error">Error</span>
+  </div>
+
+  <h3 class="text-sm font-medium text-base-content/60 uppercase tracking-wide mb-3">Outline (CRITICAL TEST)</h3>
+  <div class="flex flex-wrap gap-2 mb-6">
+    <span class="badge badge-outline">Outline</span>
+    <span class="badge badge-outline badge-primary">Outline Primary</span>
+    <span class="badge badge-outline badge-secondary">Outline Secondary</span>
+    <span class="badge badge-outline badge-accent">Outline Accent</span>
+    <span class="badge badge-outline badge-info">Outline Info</span>
+    <span class="badge badge-outline badge-success">Outline Success</span>
+    <span class="badge badge-outline badge-warning">Outline Warning</span>
+    <span class="badge badge-outline badge-error">Outline Error</span>
+  </div>
+
+  <h3 class="text-sm font-medium text-base-content/60 uppercase tracking-wide mb-3">Ghost & Soft</h3>
+  <div class="flex flex-wrap gap-2 mb-6">
+    <span class="badge badge-ghost">Ghost</span>
+    <span class="badge badge-soft badge-primary">Soft Primary</span>
+    <span class="badge badge-soft badge-info">Soft Info</span>
+  </div>
+
+  <h3 class="text-sm font-medium text-base-content/60 uppercase tracking-wide mb-3">Sizes</h3>
+  <div class="flex flex-wrap items-center gap-2 mb-6">
+    <span class="badge badge-xs badge-primary">Tiny</span>
+    <span class="badge badge-sm badge-primary">Small</span>
+    <span class="badge badge-md badge-primary">Medium</span>
+    <span class="badge badge-lg badge-primary">Large</span>
+  </div>
+</section>
+
+<!-- ========================================
+     3. INPUTS
+     ======================================== -->
+<section class="mb-12">
+  <h2 class="text-xl font-semibold mb-4 border-b border-base-300 pb-2">3. Inputs</h2>
+
+  <h3 class="text-sm font-medium text-base-content/60 uppercase tracking-wide mb-3">Standard Input</h3>
+  <div class="flex flex-col gap-4 max-w-md mb-6">
+    <input type="text" class="input" placeholder="Default input">
+    <input type="text" class="input input-bordered" placeholder="Bordered input">
+    <input type="text" class="input input-primary" placeholder="Primary input">
+    <input type="text" class="input input-bordered input-primary" placeholder="Bordered Primary">
+  </div>
+
+  <h3 class="text-sm font-medium text-base-content/60 uppercase tracking-wide mb-3">Input with Label (DaisyUI v5 Pattern)</h3>
+  <div class="flex flex-col gap-4 max-w-md mb-6">
+    <label class="input">
+      <span>Email</span>
+      <input type="email" placeholder="you@example.com">
+    </label>
+    <label class="input input-bordered">
+      <span>Search</span>
+      <input type="text" placeholder="Search...">
+    </label>
+  </div>
+
+  <h3 class="text-sm font-medium text-base-content/60 uppercase tracking-wide mb-3">Sizes</h3>
+  <div class="flex flex-col gap-4 max-w-md mb-6">
+    <input type="text" class="input input-bordered input-xs" placeholder="Tiny">
+    <input type="text" class="input input-bordered input-sm" placeholder="Small">
+    <input type="text" class="input input-bordered" placeholder="Default">
+    <input type="text" class="input input-bordered input-lg" placeholder="Large">
+  </div>
+</section>
+
+<!-- ========================================
+     4. SELECT
+     ======================================== -->
+<section class="mb-12">
+  <h2 class="text-xl font-semibold mb-4 border-b border-base-300 pb-2">4. Select</h2>
+
+  <div class="flex flex-col gap-4 max-w-md mb-6">
+    <select class="select">
+      <option>Default select</option>
+      <option>Option 1</option>
+      <option>Option 2</option>
+    </select>
+    <select class="select select-bordered">
+      <option>Bordered select</option>
+      <option>Option 1</option>
+      <option>Option 2</option>
+    </select>
+    <select class="select select-bordered select-primary">
+      <option>Primary bordered</option>
+      <option>Option 1</option>
+    </select>
+    <select class="select select-bordered select-sm">
+      <option>Small bordered</option>
+      <option>Option 1</option>
+    </select>
+  </div>
+</section>
+
+<!-- ========================================
+     5. TOGGLE & CHECKBOX
+     ======================================== -->
+<section class="mb-12">
+  <h2 class="text-xl font-semibold mb-4 border-b border-base-300 pb-2">5. Toggle & Checkbox</h2>
+
+  <h3 class="text-sm font-medium text-base-content/60 uppercase tracking-wide mb-3">Toggles</h3>
+  <div class="flex flex-wrap gap-4 mb-6">
+    <input type="checkbox" class="toggle">
+    <input type="checkbox" class="toggle toggle-primary" checked>
+    <input type="checkbox" class="toggle toggle-secondary">
+    <input type="checkbox" class="toggle toggle-warning" checked>
+    <input type="checkbox" class="toggle toggle-sm toggle-primary" checked>
+  </div>
+
+  <h3 class="text-sm font-medium text-base-content/60 uppercase tracking-wide mb-3">Checkboxes</h3>
+  <div class="flex flex-wrap gap-4 mb-6">
+    <input type="checkbox" class="checkbox">
+    <input type="checkbox" class="checkbox checkbox-primary" checked>
+    <input type="checkbox" class="checkbox checkbox-secondary">
+    <input type="checkbox" class="checkbox checkbox-sm checkbox-primary" checked>
+  </div>
+</section>
+
+<!-- ========================================
+     6. CARDS
+     ======================================== -->
+<section class="mb-12">
+  <h2 class="text-xl font-semibold mb-4 border-b border-base-300 pb-2">6. Cards</h2>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="card bg-base-100 shadow-sm">
+      <div class="card-body">
+        <h2 class="card-title">Card with shadow-sm</h2>
+        <p>This is the default card style used throughout the app.</p>
+        <div class="card-actions justify-end">
+          <button class="btn btn-primary btn-sm">Action</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card bg-base-100 shadow-md">
+      <div class="card-body">
+        <h2 class="card-title">Card with shadow-md</h2>
+        <p>Medium shadow variant.</p>
+        <div class="card-actions justify-end">
+          <span class="badge badge-outline">Tag</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-bordered bg-base-100">
+      <div class="card-body">
+        <h2 class="card-title">Card Bordered</h2>
+        <p>Using card-bordered instead of shadow.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================
+     7. STATS
+     ======================================== -->
+<section class="mb-12">
+  <h2 class="text-xl font-semibold mb-4 border-b border-base-300 pb-2">7. Stats</h2>
+
+  <div class="stats stats-vertical sm:stats-horizontal shadow bg-base-100 w-full mb-6">
+    <div class="stat">
+      <div class="stat-title">Documents</div>
+      <div class="stat-value">1,234</div>
+      <div class="stat-desc">From Readwise</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">Highlights</div>
+      <div class="stat-value text-warning">567</div>
+      <div class="stat-desc">Marked passages</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">Embeddings</div>
+      <div class="stat-value text-success">100%</div>
+      <div class="stat-desc">Complete</div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================
+     8. TABLE
+     ======================================== -->
+<section class="mb-12">
+  <h2 class="text-xl font-semibold mb-4 border-b border-base-300 pb-2">8. Table</h2>
+
+  <div class="overflow-x-auto">
+    <table class="table table-zebra">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Category</th>
+          <th>Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Document One</td>
+          <td><span class="badge badge-outline badge-info badge-sm">article</span></td>
+          <td>2025-01-15</td>
+          <td><button class="btn btn-ghost btn-xs">View</button></td>
+        </tr>
+        <tr>
+          <td>Document Two</td>
+          <td><span class="badge badge-outline badge-info badge-sm">book</span></td>
+          <td>2025-01-14</td>
+          <td><button class="btn btn-ghost btn-xs">View</button></td>
+        </tr>
+        <tr>
+          <td>Document Three</td>
+          <td><span class="badge badge-outline badge-info badge-sm">podcast</span></td>
+          <td>2025-01-13</td>
+          <td><button class="btn btn-ghost btn-xs">View</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ========================================
+     9. ALERTS
+     ======================================== -->
+<section class="mb-12">
+  <h2 class="text-xl font-semibold mb-4 border-b border-base-300 pb-2">9. Alerts</h2>
+
+  <div class="flex flex-col gap-4">
+    <div class="alert">
+      <span>Default alert message.</span>
+    </div>
+    <div class="alert alert-info">
+      {{ icon("info") }}
+      <span>Info alert message.</span>
+    </div>
+    <div class="alert alert-success">
+      {{ icon("check-circle") }}
+      <span>Success alert message.</span>
+    </div>
+    <div class="alert alert-warning">
+      {{ icon("alert-triangle") }}
+      <span>Warning alert message.</span>
+    </div>
+    <div class="alert alert-error">
+      {{ icon("alert-circle") }}
+      <span>Error alert message.</span>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================
+     10. JOIN (Button Groups)
+     ======================================== -->
+<section class="mb-12">
+  <h2 class="text-xl font-semibold mb-4 border-b border-base-300 pb-2">10. Join (Button Groups)</h2>
+
+  <div class="flex flex-wrap gap-4">
+    <div class="join">
+      <button class="btn join-item">Left</button>
+      <button class="btn join-item btn-active">Middle</button>
+      <button class="btn join-item">Right</button>
+    </div>
+
+    <div class="join">
+      <button class="btn btn-sm join-item">Semantic</button>
+      <button class="btn btn-sm join-item btn-active">Keyword</button>
+    </div>
+
+    <div class="join">
+      <input type="text" class="input input-bordered join-item" placeholder="Search...">
+      <button class="btn btn-primary join-item">Go</button>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================
+     11. TABS
+     ======================================== -->
+<section class="mb-12">
+  <h2 class="text-xl font-semibold mb-4 border-b border-base-300 pb-2">11. Tabs</h2>
+
+  <h3 class="text-sm font-medium text-base-content/60 uppercase tracking-wide mb-3">Tabs Lift (Used in Admin)</h3>
+  <div class="tabs tabs-lift w-full">
+    <label class="tab">
+      <input type="radio" name="demo_tabs" checked>
+      {{ icon("activity") }}
+      Status
+    </label>
+    <div class="tab-content bg-base-100 border-base-300 p-6">
+      <p>Status tab content goes here.</p>
+    </div>
+
+    <label class="tab">
+      <input type="radio" name="demo_tabs">
+      {{ icon("tool") }}
+      Tools
+    </label>
+    <div class="tab-content bg-base-100 border-base-300 p-6">
+      <p>Tools tab content goes here.</p>
+    </div>
+
+    <label class="tab">
+      <input type="radio" name="demo_tabs">
+      {{ icon("settings") }}
+      Settings
+    </label>
+    <div class="tab-content bg-base-100 border-base-300 p-6">
+      <p>Settings tab content goes here.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================
+     12. COLLAPSE
+     ======================================== -->
+<section class="mb-12">
+  <h2 class="text-xl font-semibold mb-4 border-b border-base-300 pb-2">12. Collapse</h2>
+
+  <div class="collapse collapse-arrow bg-base-100 shadow-md">
+    <input type="checkbox">
+    <div class="collapse-title font-medium">
+      {{ icon("terminal") }} Click to expand
+      <span class="badge badge-ghost badge-sm ml-2">5 items</span>
+    </div>
+    <div class="collapse-content">
+      <p>This is the collapsed content that appears when expanded.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================
+     13. STEPS
+     ======================================== -->
+<section class="mb-12">
+  <h2 class="text-xl font-semibold mb-4 border-b border-base-300 pb-2">13. Steps</h2>
+
+  <ul class="steps steps-vertical lg:steps-horizontal w-full">
+    <li class="step step-success" data-content="1">
+      <div class="text-left lg:text-center">
+        <div class="font-medium text-sm">Import</div>
+        <div class="text-xs text-base-content/60">1,234 docs</div>
+      </div>
+    </li>
+    <li class="step step-success" data-content="2">
+      <div class="text-left lg:text-center">
+        <div class="font-medium text-sm">Chunks</div>
+        <div class="text-xs text-base-content/60">5,678 created</div>
+      </div>
+    </li>
+    <li class="step step-primary" data-content="3">
+      <div class="text-left lg:text-center">
+        <div class="font-medium text-sm">Embeddings</div>
+        <div class="text-xs text-base-content/60">In progress</div>
+      </div>
+    </li>
+    <li class="step" data-content="4">
+      <div class="text-left lg:text-center">
+        <div class="font-medium text-sm">Index</div>
+        <div class="text-xs text-base-content/60">Pending</div>
+      </div>
+    </li>
+  </ul>
+</section>
+
+<!-- ========================================
+     14. PROGRESS
+     ======================================== -->
+<section class="mb-12">
+  <h2 class="text-xl font-semibold mb-4 border-b border-base-300 pb-2">14. Progress</h2>
+
+  <div class="flex flex-col gap-4 max-w-md">
+    <progress class="progress" value="40" max="100"></progress>
+    <progress class="progress progress-primary" value="60" max="100"></progress>
+    <progress class="progress progress-secondary" value="80" max="100"></progress>
+    <progress class="progress progress-success" value="100" max="100"></progress>
+  </div>
+</section>
+
+<!-- ========================================
+     15. LOADING
+     ======================================== -->
+<section class="mb-12">
+  <h2 class="text-xl font-semibold mb-4 border-b border-base-300 pb-2">15. Loading Indicators</h2>
+
+  <div class="flex flex-wrap gap-4 items-center">
+    <span class="loading loading-spinner loading-xs"></span>
+    <span class="loading loading-spinner loading-sm"></span>
+    <span class="loading loading-spinner loading-md"></span>
+    <span class="loading loading-spinner loading-lg"></span>
+    <span class="loading loading-spinner loading-sm text-primary"></span>
+    <span class="loading loading-dots loading-sm"></span>
+    <span class="loading loading-ring loading-sm"></span>
+  </div>
+</section>
+
+<!-- ========================================
+     16. SKELETON
+     ======================================== -->
+<section class="mb-12">
+  <h2 class="text-xl font-semibold mb-4 border-b border-base-300 pb-2">16. Skeleton</h2>
+
+  <div class="card bg-base-100 shadow-md max-w-md">
+    <div class="card-body">
+      <div class="skeleton h-4 w-full mb-2"></div>
+      <div class="skeleton h-4 w-3/4 mb-2"></div>
+      <div class="skeleton h-4 w-1/2"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================
+     17. FILTER (Checkbox-based)
+     ======================================== -->
+<section class="mb-12">
+  <h2 class="text-xl font-semibold mb-4 border-b border-base-300 pb-2">17. Filter (Checkbox Buttons)</h2>
+
+  <div class="flex flex-wrap gap-1">
+    <input type="checkbox" class="btn btn-sm" aria-label="article (42)" checked>
+    <input type="checkbox" class="btn btn-sm" aria-label="book (15)">
+    <input type="checkbox" class="btn btn-sm" aria-label="podcast (8)">
+    <input type="checkbox" class="btn btn-sm" aria-label="tweet (127)">
+    <input type="reset" class="btn btn-sm btn-square" value="x">
+  </div>
+</section>
+
+<!-- ========================================
+     18. FORM CONTROLS
+     ======================================== -->
+<section class="mb-12">
+  <h2 class="text-xl font-semibold mb-4 border-b border-base-300 pb-2">18. Form Controls (Label Pattern)</h2>
+
+  <div class="max-w-md space-y-4">
+    <div class="form-control">
+      <label class="label">
+        <span class="label-text">Email</span>
+      </label>
+      <input type="email" class="input input-bordered" placeholder="you@example.com">
+    </div>
+
+    <div class="form-control">
+      <label class="label">
+        <span class="label-text">Password</span>
+        <span class="label-text-alt">Forgot?</span>
+      </label>
+      <input type="password" class="input input-bordered">
+    </div>
+
+    <label class="label cursor-pointer justify-start gap-3">
+      <input type="checkbox" class="checkbox checkbox-primary checkbox-sm">
+      <span class="label-text">Remember me</span>
+    </label>
+  </div>
+</section>
+
+<!-- ========================================
+     SUMMARY
+     ======================================== -->
+<section class="mb-12 p-6 bg-base-200 rounded-lg">
+  <h2 class="text-xl font-semibold mb-4">Test Summary</h2>
+  <p class="text-base-content/70">
+    If all components above render correctly with proper colors, borders, shadows, and spacing,
+    then DaisyUI is working as expected. Any component that looks broken indicates an issue with
+    our CSS setup that needs investigation.
+  </p>
+  <div class="mt-4">
+    <h3 class="font-medium mb-2">Key Things to Check:</h3>
+    <ul class="list-disc list-inside text-sm text-base-content/70 space-y-1">
+      <li><strong>Badge Outline:</strong> Should have visible colored borders</li>
+      <li><strong>Stats:</strong> Should have proper padding and layout</li>
+      <li><strong>Tabs Lift:</strong> Should have connected tabs with content below</li>
+      <li><strong>Cards:</strong> Should have proper shadows</li>
+      <li><strong>Inputs:</strong> Should have visible borders and focus states</li>
+    </ul>
+  </div>
+</section>
+
+{% endblock %}

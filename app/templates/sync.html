@@ -48,7 +48,7 @@
 
   <!-- Quick Stats Bar -->
   <div class="stats stats-vertical sm:stats-horizontal shadow bg-base-100 w-full mb-6">
-    <div class="stat py-3 px-4">
+    <div class="stat">
       <div class="stat-title text-xs">Dokumente</div>
       <div class="stat-value text-xl" x-text="stats.docs_total.toLocaleString()">{{ stats.docs_total }}</div>
       <div class="stat-desc flex items-center gap-1.5">
@@ -56,7 +56,7 @@
         <span x-text="stats.docs_with_fulltext.toLocaleString() + ' mit Inhalt'"></span>
       </div>
     </div>
-    <div class="stat py-3 px-4">
+    <div class="stat">
       <div class="stat-title text-xs">Chunks</div>
       <div class="stat-value text-xl" x-text="stats.chunks_total.toLocaleString()">{{ stats.chunks_total }}</div>
       <div class="stat-desc flex items-center gap-1.5">
@@ -64,7 +64,7 @@
         <span x-text="stats.docs_without_chunks === 0 ? 'komplett' : stats.docs_without_chunks + ' Dok. ausstehend'"></span>
       </div>
     </div>
-    <div class="stat py-3 px-4">
+    <div class="stat">
       <div class="stat-title text-xs">Embeddings</div>
       <div class="stat-value text-xl" x-text="(stats.chunks_total - stats.chunks_without_embeddings).toLocaleString()">{{ stats.chunks_total - stats.chunks_without_embeddings }}</div>
       <div class="stat-desc flex items-center gap-1.5">

@@ -213,13 +213,6 @@ CREATE INDEX IF NOT EXISTS idx_usage_timestamp ON api_usage(timestamp);
 CREATE INDEX IF NOT EXISTS idx_usage_provider ON api_usage(provider);
 CREATE INDEX IF NOT EXISTS idx_usage_operation ON api_usage(operation);
 
--- FTS fuer Chunks (Hybrid-Suche)
-CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
-  chunk_text,
-  content='document_chunks',
-  content_rowid='id'
-);
-
 -- Fulltext Fetch Jobs
 CREATE TABLE IF NOT EXISTS fetch_jobs (
   id TEXT PRIMARY KEY,
@@ -625,6 +618,26 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_digest_citations_digest_id ON digest_citations(digest_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_digest_citations_topic_id ON digest_citations(topic_id)")
+        conn.commit()
+
+    # Phase A-0: Database Scalability Prerequisites (Digest 2.0)
+
+    # Add saved_at index for date-range query performance
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_documents_saved_at ON documents(saved_at DESC)"
+    )
+    conn.commit()
+
+    # Add reader_url column for "Open in Reader" action
+    if "reader_url" not in columns:
+        conn.execute("ALTER TABLE documents ADD COLUMN reader_url TEXT")
+        conn.commit()
+
+    # Add key_points_json column to digest_topics for source transparency
+    cur = conn.execute("PRAGMA table_info(digest_topics)")
+    topic_cols = {row[1] for row in cur.fetchall()}
+    if "key_points_json" not in topic_cols:
+        conn.execute("ALTER TABLE digest_topics ADD COLUMN key_points_json TEXT")
         conn.commit()
 
 
@@ -1056,33 +1069,46 @@ class DB:
         except Exception:
             return []
 
-        # Step 2: Group by document_id - keep best (lowest distance) chunk per document
+        # Step 2: Batch-fetch all embedding metadata in a single query (N+1 fix)
+        # This replaces 250 individual queries with 1 batched query
+        if not knn_results:
+            return []
+
+        embedding_ids = [r[0] for r in knn_results]
+        distance_by_id = {r[0]: r[1] for r in knn_results}
+
+        placeholders = ",".join("?" * len(embedding_ids))
+        cur = self.conn.execute(
+            f"""
+            SELECT e.id as embedding_id, e.chunk_id, c.chunk_text, c.char_start, c.char_end,
+                   c.chunk_index, c.document_id,
+                   d.title, d.author, d.url_original,
+                   COALESCE(d.saved_at, (SELECT MIN(highlighted_at) FROM highlights h WHERE h.document_id = d.id)) as effective_date,
+                   d.category, d.word_count,
+                   (SELECT COUNT(*) FROM highlights h WHERE h.document_id = d.id) as highlight_count
+            FROM embeddings e
+            JOIN document_chunks c ON c.id = e.chunk_id
+            JOIN documents d ON d.id = c.document_id
+            WHERE e.id IN ({placeholders})
+            """,
+            embedding_ids,
+        )
+        # Build lookup by embedding_id
+        rows_by_embedding = {row[0]: row for row in cur.fetchall()}
+
+        # Step 3: Group by document_id - keep best (lowest distance) chunk per document
+        # Iterate in KNN order (sorted by distance) to ensure first match = best distance
         seen_docs: dict[int, dict[str, Any]] = {}
 
         for embedding_id, distance in knn_results:
-            cur = self.conn.execute(
-                """
-                SELECT e.chunk_id, c.chunk_text, c.char_start, c.char_end,
-                       c.chunk_index, c.document_id,
-                       d.title, d.author, d.url_original,
-                       COALESCE(d.saved_at, (SELECT MIN(highlighted_at) FROM highlights h WHERE h.document_id = d.id)) as effective_date,
-                       d.category, d.word_count,
-                       (SELECT COUNT(*) FROM highlights h WHERE h.document_id = d.id) as highlight_count
-                FROM embeddings e
-                JOIN document_chunks c ON c.id = e.chunk_id
-                JOIN documents d ON d.id = c.document_id
-                WHERE e.id = ?
-                """,
-                (embedding_id,),
-            )
-            row = cur.fetchone()
+            row = rows_by_embedding.get(embedding_id)
             if not row:
                 continue
 
-            doc_id = row[5]
+            doc_id = row[6]  # document_id is at index 6
 
             # Apply category filter
-            if categories and row[10] not in categories:
+            if categories and row[11] not in categories:
                 continue
 
             # Skip if we already have this document (first match = best distance)
@@ -1090,7 +1116,7 @@ class DB:
                 # Optionally collect additional matching chunks for context
                 if len(seen_docs[doc_id].get("matching_chunks", [])) < 3:
                     seen_docs[doc_id]["matching_chunks"].append({
-                        "chunk_text": row[1][:200],
+                        "chunk_text": row[2][:200],  # chunk_text at index 2
                         "distance": distance,
                     })
                 continue
@@ -1098,19 +1124,19 @@ class DB:
             result = {
                 "id": doc_id,
                 "distance": distance,
-                "chunk_id": row[0],
-                "chunk_text": row[1],
-                "char_start": row[2],
-                "char_end": row[3],
-                "chunk_index": row[4],
-                "title": row[6],
-                "author": row[7],
-                "url": row[8],
-                "saved_at": row[9],  # effective_date
-                "category": row[10] or "article",
-                "word_count": row[11],
-                "highlight_count": row[12] or 0,
-                "matching_chunks": [],  # For additional context
+                "chunk_id": row[1],       # e.chunk_id
+                "chunk_text": row[2],     # c.chunk_text
+                "char_start": row[3],     # c.char_start
+                "char_end": row[4],       # c.char_end
+                "chunk_index": row[5],    # c.chunk_index
+                "title": row[7],          # d.title
+                "author": row[8],         # d.author
+                "url": row[9],            # d.url_original
+                "saved_at": row[10],      # effective_date
+                "category": row[11] or "article",  # d.category
+                "word_count": row[12],    # d.word_count
+                "highlight_count": row[13] or 0,  # highlight_count
+                "matching_chunks": [],    # For additional context
             }
 
             seen_docs[doc_id] = result
@@ -2904,7 +2930,11 @@ class DB:
         return digest_id
 
     def get_generated_digest(self, digest_id: int) -> dict[str, Any] | None:
-        """Get a generated digest by ID (excludes soft-deleted)."""
+        """Get a generated digest by ID (excludes soft-deleted).
+
+        Prefers normalized tables (digest_topics) over JSON blob.
+        Falls back to topics_json for backward compatibility with old digests.
+        """
         cur = self.conn.execute(
             """
             SELECT id, name, title, time_range_days, date_from, date_to, strategy, model_id,
@@ -2918,9 +2948,23 @@ class DB:
         row = cur.fetchone()
         if not row:
             return None
-        # Parse JSON fields for template rendering
-        topics = json.loads(row[9]) if row[9] else []
+
+        # Try to get topics from normalized table first (Phase A)
+        topics = self.get_digest_topics(digest_id)
+        if topics:
+            # Enrich topics with source_count from citations
+            for topic in topics:
+                cur = self.conn.execute(
+                    "SELECT COUNT(*) FROM digest_citations WHERE topic_id = ?",
+                    (topic["id"],)
+                )
+                topic["source_count"] = cur.fetchone()[0]
+        else:
+            # Fall back to JSON blob for old digests
+            topics = json.loads(row[9]) if row[9] else []
+
         highlights = json.loads(row[10]) if row[10] else []
+
         return {
             "id": row[0],
             "name": row[1],
@@ -2931,8 +2975,8 @@ class DB:
             "strategy": row[6],
             "model_id": row[7],
             "summary_text": row[8],
-            "topics_json": row[9],  # Keep raw for API
-            "topics": topics,  # Parsed for templates
+            "topics_json": row[9],  # Keep raw for API (deprecated)
+            "topics": topics,  # Parsed for templates (now from normalized tables)
             "highlights_json": row[10],  # Keep raw for API
             "highlights": highlights,  # Parsed for templates
             "docs_analyzed": row[11],
@@ -3034,15 +3078,16 @@ class DB:
         topic_name: str,
         summary: str,
         chunk_count: int | None = None,
+        key_points_json: str | None = None,
     ) -> int:
         """Save a topic for a generated digest. Returns topic id."""
         cur = self.conn.execute(
             """
-            INSERT INTO digest_topics (digest_id, topic_index, topic_name, summary, chunk_count)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO digest_topics (digest_id, topic_index, topic_name, summary, chunk_count, key_points_json)
+            VALUES (?, ?, ?, ?, ?, ?)
             RETURNING id
             """,
-            (digest_id, topic_index, topic_name, summary, chunk_count),
+            (digest_id, topic_index, topic_name, summary, chunk_count, key_points_json),
         )
         topic_id = cur.fetchone()[0]
         self.conn.commit()
@@ -3052,14 +3097,21 @@ class DB:
         """Get all topics for a digest."""
         cur = self.conn.execute(
             """
-            SELECT id, topic_index, topic_name, summary, chunk_count
+            SELECT id, topic_index, topic_name, summary, chunk_count, key_points_json
             FROM digest_topics WHERE digest_id = ?
             ORDER BY topic_index
             """,
             (digest_id,),
         )
         return [
-            {"id": r[0], "topic_index": r[1], "topic_name": r[2], "summary": r[3], "chunk_count": r[4]}
+            {
+                "id": r[0],
+                "topic_index": r[1],
+                "topic_name": r[2],
+                "summary": r[3],
+                "chunk_count": r[4],
+                "key_points": json.loads(r[5]) if r[5] else [],
+            }
             for r in cur.fetchall()
         ]
 
@@ -3123,6 +3175,83 @@ class DB:
             }
             for r in cur.fetchall()
         ]
+
+    def get_topic_sources(
+        self,
+        digest_id: int,
+        topic_id: int,
+    ) -> dict[str, Any] | None:
+        """Get sources for a specific topic with full document context.
+
+        Returns topic info plus list of sources with document metadata.
+        Used for source drill-down UI (Phase A).
+        """
+        # Get topic info
+        cur = self.conn.execute(
+            """
+            SELECT id, topic_index, topic_name, summary, chunk_count, key_points_json
+            FROM digest_topics
+            WHERE digest_id = ? AND id = ?
+            """,
+            (digest_id, topic_id),
+        )
+        topic_row = cur.fetchone()
+        if not topic_row:
+            return None
+
+        # Get citations with document context
+        cur = self.conn.execute(
+            """
+            SELECT
+                c.id as citation_id,
+                c.chunk_id,
+                c.document_id,
+                c.citation_type,
+                c.excerpt,
+                ch.chunk_index,
+                ch.chunk_text,
+                d.title as doc_title,
+                d.author as doc_author,
+                d.url_original,
+                d.saved_at,
+                d.category
+            FROM digest_citations c
+            LEFT JOIN document_chunks ch ON ch.id = c.chunk_id
+            LEFT JOIN documents d ON d.id = c.document_id
+            WHERE c.digest_id = ? AND c.topic_id = ?
+            ORDER BY d.saved_at DESC, ch.chunk_index
+            """,
+            (digest_id, topic_id),
+        )
+
+        sources = []
+        for row in cur.fetchall():
+            sources.append({
+                "citation_id": row[0],
+                "chunk_id": row[1],
+                "document_id": row[2],
+                "citation_type": row[3],
+                "excerpt": row[4] or (row[6][:500] if row[6] else None),  # Fallback to chunk_text
+                "chunk_index": row[5],
+                "document": {
+                    "title": row[7],
+                    "author": row[8],
+                    "url_original": row[9],
+                    "saved_at": row[10],
+                    "category": row[11],
+                },
+            })
+
+        return {
+            "topic_id": topic_row[0],
+            "topic_index": topic_row[1],
+            "topic_name": topic_row[2],
+            "summary": topic_row[3],
+            "chunk_count": topic_row[4],
+            "key_points": json.loads(topic_row[5]) if topic_row[5] else [],
+            "source_count": len(sources),
+            "sources": sources,
+        }
 
     def get_chunks_in_date_range(
         self,

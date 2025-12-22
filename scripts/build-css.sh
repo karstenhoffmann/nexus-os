@@ -1,19 +1,17 @@
 #!/usr/bin/env bash
-# Build Tailwind CSS from templates (offline-first, no Node.js required)
+# Build Tailwind CSS + DaisyUI (proper npm integration)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# Download Tailwind CLI if not present
-if [ ! -f "./tailwindcss" ]; then
-    echo "Downloading Tailwind CLI (standalone, no Node.js)..."
-    curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-macos-arm64
-    chmod +x tailwindcss-macos-arm64
-    mv tailwindcss-macos-arm64 tailwindcss
+# Install deps if needed
+if [ ! -d "node_modules" ]; then
+    echo "Installing dependencies..."
+    npm install
 fi
 
 # Build CSS
-echo "Building Tailwind CSS..."
-./tailwindcss -i app/static/tailwind-input.css -o app/static/tailwind.css --minify
+echo "Building Tailwind + DaisyUI..."
+npm run build:css
 
 echo "Done! Output: app/static/tailwind.css"
 ls -lh app/static/tailwind.css

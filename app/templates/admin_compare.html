@@ -24,7 +24,7 @@
           >
           <button class="btn btn-primary join-item px-6" type="submit" :disabled="loading || !query.trim()">
             <span x-show="!loading" class="inline-flex items-center gap-2 whitespace-nowrap">
-              {{ icon("search", "w-5 h-5") }}
+              {{ icon("search", "size-5 shrink-0") }}
               <span class="hidden sm:inline">Vergleichen</span>
             </span>
             <span x-show="loading" class="inline-flex items-center gap-2">
@@ -64,23 +64,23 @@
         Ergebnisse für "<span class="text-primary" x-text="lastQuery"></span>"
       </h2>
       <button @click="results = []; lastQuery = ''" class="btn btn-ghost btn-sm">
-        {{ icon("x", "w-4 h-4") }} Zurücksetzen
+        {{ icon("x", "size-4 shrink-0") }} Zurücksetzen
       </button>
     </div>
 
     <!-- Quick Stats - Key Insights First -->
     <div class="stats stats-horizontal bg-base-100 shadow w-full" x-show="results.length === 2">
-      <div class="stat py-3 px-4">
+      <div class="stat">
         <div class="stat-title text-xs">Schneller</div>
         <div class="stat-value text-lg text-success" x-text="results[0]?.latency_ms < results[1]?.latency_ms ? results[0]?.provider : results[1]?.provider"></div>
         <div class="stat-desc" x-text="Math.abs(results[0]?.latency_ms - results[1]?.latency_ms) + 'ms Unterschied'"></div>
       </div>
-      <div class="stat py-3 px-4">
+      <div class="stat">
         <div class="stat-title text-xs">Übereinstimmung</div>
         <div class="stat-value text-lg" x-text="calculateOverlap() + '/5'"></div>
         <div class="stat-desc">Top-Ergebnisse gleich</div>
       </div>
-      <div class="stat py-3 px-4">
+      <div class="stat">
         <div class="stat-title text-xs">Günstiger</div>
         <div class="stat-value text-lg text-success" x-text="results[0]?.cost_usd <= results[1]?.cost_usd ? results[0]?.provider : results[1]?.provider"></div>
         <div class="stat-desc" x-text="results[0]?.cost_usd === 0 && results[1]?.cost_usd === 0 ? 'Beide kostenlos' : (results[0]?.cost_usd === 0 || results[1]?.cost_usd === 0 ? 'Lokal = gratis' : 'Preisvergleich')"></div>
@@ -186,7 +186,7 @@
     <div class="collapse collapse-arrow bg-base-100 shadow-sm">
       <input type="checkbox" />
       <div class="collapse-title text-sm font-medium text-base-content/70">
-        {{ icon("info", "w-4 h-4 inline mr-1") }} Hinweise zur Interpretation
+        {{ icon("info", "size-4 shrink-0 inline mr-1") }} Hinweise zur Interpretation
       </div>
       <div class="collapse-content">
         <ul class="text-sm space-y-2 text-base-content/70 pt-2">

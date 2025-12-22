@@ -137,8 +137,17 @@ async def run_digest_pipeline(
             phase=DigestPhase.COMPILE,
             data={"message": "Speichere Digest in Datenbank..."},
         )
+        # Build chunk_id → metadata mapping for source transparency (Phase A)
+        chunk_metadata = {
+            c["id"]: {
+                "document_id": c["document_id"],
+                "excerpt": c.get("chunk_text", "")[:500],  # First 500 chars as excerpt
+            }
+            for c in chunks
+        }
         digest_id = await _compile_phase(
-            job, db, clustering_result, title, overall_summary, highlights, store
+            job, db, clustering_result, title, overall_summary, highlights, store,
+            chunk_metadata=chunk_metadata,
         )
         yield DigestEvent(
             type=DigestEventType.PHASE_COMPLETE,
@@ -340,12 +349,29 @@ async def _compile_phase(
     overall_summary: str,
     highlights: list[str],
     store: Any,
+    *,
+    chunk_metadata: dict[int, dict] | None = None,
 ) -> int:
-    """Store the generated digest in the database."""
+    """Store the generated digest in the database.
+
+    Args:
+        job: DigestJob with configuration
+        db: DB instance
+        clustering_result: Clusters from CLUSTER phase
+        title: Generated title
+        overall_summary: Generated summary
+        highlights: Key highlights list
+        store: Digest job store
+        chunk_metadata: Optional mapping of chunk_id → {document_id, excerpt}
+                       for source transparency (Phase A)
+
+    Returns:
+        digest_id of the saved digest
+    """
     job.phase = DigestPhase.COMPILE
     store.update(job)
 
-    # Prepare topics JSON
+    # Prepare topics JSON (kept for backward compatibility)
     topics_json = json.dumps(
         [c.to_dict() for c in clustering_result.clusters],
         ensure_ascii=False,
@@ -369,7 +395,7 @@ async def _compile_phase(
         strategy=job.strategy,
         model_id=job.model,
         summary_text=overall_summary,
-        topics_json=topics_json,
+        topics_json=topics_json,  # Kept for backward compat (deprecated)
         highlights_json=highlights_json,
         docs_analyzed=job.docs_found,
         chunks_analyzed=job.chunks_found,
@@ -378,9 +404,41 @@ async def _compile_phase(
         cost_usd=job.cost_usd,
     )
 
+    # Phase A: Populate normalized tables for source transparency
+    total_citations = 0
+    if chunk_metadata:
+        for cluster in clustering_result.clusters:
+            # Extract key_points from cluster if available
+            key_points_json = None
+            if hasattr(cluster, 'key_points') and cluster.key_points:
+                key_points_json = json.dumps(cluster.key_points, ensure_ascii=False)
+
+            # Save topic to digest_topics table
+            topic_id = db.save_digest_topic(
+                digest_id=digest_id,
+                topic_index=cluster.topic_index,
+                topic_name=cluster.topic_name,
+                summary=cluster.summary,
+                chunk_count=cluster.chunk_count,
+                key_points_json=key_points_json,
+            )
+
+            # Save citation for each chunk in this topic
+            for chunk_id in cluster.chunk_ids:
+                meta = chunk_metadata.get(chunk_id, {})
+                db.save_digest_citation(
+                    digest_id=digest_id,
+                    topic_id=topic_id,
+                    chunk_id=chunk_id,
+                    document_id=meta.get("document_id"),
+                    citation_type="topic_source",
+                    excerpt=meta.get("excerpt"),
+                )
+                total_citations += 1
+
     logger.info(
         f"Saved digest {digest_id}: '{title or name}', "
-        f"{job.docs_found} docs, {job.chunks_found} chunks, "
+        f"{len(clustering_result.clusters)} topics, {total_citations} citations, "
         f"cost: ${job.cost_usd:.4f}"
     )
 

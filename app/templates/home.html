@@ -11,43 +11,32 @@
     <div class="bg-base-100 rounded-xl shadow-lg p-1">
       <!-- Desktop: Joined search bar -->
       <div class="join w-full hidden md:flex">
-        <div class="join-item flex items-center px-4">
-          {{ icon("search", "w-5 h-5 text-base-content/40") }}
-        </div>
-        <input
-          type="text"
-          name="q"
-          class="input join-item flex-1 bg-transparent border-0 focus:outline-none"
-          placeholder="Suche in deiner Library..."
-          autofocus
-        >
-        <select name="mode" class="select select-bordered join-item w-32 bg-transparent">
+        <label class="input input-bordered join-item flex-1">
+          {{ icon("search", "size-5 opacity-50") }}
+          <input type="text" name="q" class="grow" placeholder="Suche in deiner Library..." autofocus>
+        </label>
+        <select name="mode" class="select select-bordered join-item">
           <option value="semantic">Semantic</option>
           <option value="fts">Keyword</option>
         </select>
-        <button type="submit" class="btn btn-primary join-item rounded-r-xl" aria-label="Suchen">
-          {{ icon("arrow-right", "w-5 h-5") }}
+        <button type="submit" class="btn btn-primary join-item" aria-label="Suchen">
+          {{ icon("arrow-right", "size-5 shrink-0") }}
         </button>
       </div>
 
       <!-- Mobile: Stacked layout inside surface -->
       <div class="flex flex-col gap-2 p-2 md:hidden">
-        <div class="flex items-center gap-2">
-          {{ icon("search", "w-5 h-5 text-base-content/40 ml-2") }}
-          <input
-            type="text"
-            name="q"
-            class="input flex-1 bg-transparent border-0 focus:outline-none"
-            placeholder="Suche..."
-          >
-        </div>
+        <label class="input input-bordered flex-1">
+          {{ icon("search", "size-5 opacity-50") }}
+          <input type="text" name="q" class="grow" placeholder="Suche...">
+        </label>
         <div class="flex gap-2">
-          <select name="mode" class="select select-bordered flex-1 bg-transparent">
+          <select name="mode" class="select select-bordered flex-1">
             <option value="semantic">Semantic</option>
             <option value="fts">Keyword</option>
           </select>
           <button type="submit" class="btn btn-primary" aria-label="Suchen">
-            {{ icon("arrow-right", "w-5 h-5") }}
+            {{ icon("arrow-right", "size-5 shrink-0") }}
           </button>
         </div>
       </div>
@@ -56,7 +45,7 @@
 
   <!-- Hint text -->
   <p class="flex items-center justify-center gap-2 mt-4 text-sm text-base-content/60">
-    {{ icon("zap", "w-4 h-4 text-primary") }}
+    {{ icon("zap", "size-4 shrink-0 text-primary") }}
     <span>Semantische Suche findet Bedeutung, nicht nur Woerter</span>
   </p>
 </section>
@@ -103,6 +92,4 @@
   </div>
 </div>
 
-<h2>Offline Hinweis</h2>
-<p>Ohne Internet funktionieren Browsing und Suche ueber lokale Daten. Sync und LLM Features spaeter.</p>
 {% endblock %}

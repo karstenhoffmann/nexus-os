@@ -1,0 +1,13 @@
+{
+  "name": "nexus-os-css",
+  "private": true,
+  "description": "CSS build tooling for Nexus OS (dev dependencies only)",
+  "scripts": {
+    "build:css": "npx @tailwindcss/cli -i app/static/tailwind-input.css -o app/static/tailwind.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "^4.0.0",
+    "@tailwindcss/cli": "^4.0.0",
+    "daisyui": "^5.5.13"
+  }
+}

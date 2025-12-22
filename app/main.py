@@ -92,6 +92,12 @@ def home(request: Request):
     return render("home.html", request=request, settings=s)
 
 
+@app.get("/daisyui-test", response_class=HTMLResponse)
+def daisyui_test(request: Request):
+    """DaisyUI component test page for visual verification."""
+    return render("daisyui_test.html", request=request)
+
+
 @app.get("/library", response_class=HTMLResponse)
 async def library(
     request: Request,
@@ -1783,6 +1789,27 @@ def api_digest_get(digest_id: int):
         return {"error": "Digest nicht gefunden"}
 
     return digest
+
+
+@app.get("/api/digest/{digest_id}/topics/{topic_id}/sources")
+def api_digest_topic_sources(digest_id: int, topic_id: int):
+    """Get sources (citations with document context) for a digest topic.
+
+    Returns the topic info plus list of source chunks with full document metadata.
+    Used by frontend for "View Sources" drill-down (Phase A).
+
+    Args:
+        digest_id: Database ID of the digest
+        topic_id: Database ID of the topic
+
+    Returns:
+        Dict with topic info and list of sources with document context
+    """
+    db = get_db()
+    result = db.get_topic_sources(digest_id, topic_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Topic nicht gefunden")
+    return result
 
 
 @app.post("/api/digest/{digest_id}/favorite")

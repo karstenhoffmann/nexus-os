@@ -67,15 +67,9 @@
 
       <!-- Row 2: Search Input -->
       <form @submit.prevent="search()" class="flex gap-2">
-        <label class="input input-bordered flex items-center gap-3 flex-1 focus-within:input-primary focus-within:border-primary transition-all">
-          <span class="text-base-content/40">{{ icon("search") }}</span>
-          <input
-            type="text"
-            class="grow bg-transparent outline-none"
-            x-model="q"
-            placeholder="Suche nach Themen, Autoren, Inhalten..."
-            @keyup.enter="search()"
-          >
+        <label class="input input-bordered flex-1">
+          {{ icon("search", "size-5 opacity-50") }}
+          <input type="text" class="grow" x-model="q" placeholder="Suche nach Themen, Autoren, Inhalten..." @keyup.enter="search()">
         </label>
         <button class="btn btn-primary" type="submit" :disabled="loading">
           <span x-show="!loading">Suchen</span>

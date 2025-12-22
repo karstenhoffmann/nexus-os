@@ -3,8 +3,9 @@ _local/
 .env
 .claude/settings.local.json
 
-# Tailwind CLI binary (download with ./scripts/build-css.sh)
-tailwindcss
+# Node.js (CSS build tooling only)
+node_modules/
+package-lock.json
 
 # python
 __pycache__/

@@ -1,91 +1,8 @@
 /* ===========================================
-   Design Tokens - CSS Variables
-   For custom theming via Admin panel
+   Nexus OS - Custom Styles (HTMX Extension)
    =========================================== */
 
-:root {
-  color-scheme: light dark;
-
-  /* Primary Color (can be overridden via Admin) */
-  --primary: #3b82f6;
-  --primary-hover: #2563eb;
-  --primary-light: rgba(59, 130, 246, 0.1);
-
-  /* Status Colors */
-  --success: #10b981;
-  --success-bg: rgba(16, 185, 129, 0.1);
-  --error: #ef4444;
-  --error-bg: rgba(239, 68, 68, 0.1);
-  --warning: #f59e0b;
-  --warning-bg: rgba(245, 158, 11, 0.1);
-
-  /* Neutral Colors (for hero search and HTMX states) */
-  --bg-card: #ffffff;
-  --bg-secondary: #ececf1;
-  --border: rgba(0, 0, 0, 0.1);
-  --border-strong: rgba(0, 0, 0, 0.15);
-  --text: #202123;
-  --text-muted: #8e8ea0;
-  --text-secondary: #6e6e80;
-
-  /* Shadows */
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.1);
-
-  /* Spacing */
-  --space-xs: 0.25rem;
-  --space-sm: 0.5rem;
-  --space-md: 1rem;
-  --space-lg: 1.5rem;
-  --space-xl: 2rem;
-  --space-2xl: 3rem;
-
-  /* Border Radius */
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-
-  /* Typography */
-  --font-size-sm: 0.875rem;
-  --font-size-base: 1rem;
-  --font-size-lg: 1.125rem;
-
-  /* Card */
-  --card-padding: 1.25rem;
-}
-
-/* Dark Mode Overrides for custom components */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
-    --bg-card: #242424;
-    --bg-secondary: #2d2d2d;
-    --border: rgba(255, 255, 255, 0.1);
-    --border-strong: rgba(255, 255, 255, 0.15);
-    --text: #ececf1;
-    --text-muted: #8e8ea0;
-    --text-secondary: #acacbe;
-    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3);
-    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.4);
-  }
-}
-
-/* DaisyUI dark theme override */
-[data-theme="dark"] {
-  --bg-card: #242424;
-  --bg-secondary: #2d2d2d;
-  --border: rgba(255, 255, 255, 0.1);
-  --border-strong: rgba(255, 255, 255, 0.15);
-  --text: #ececf1;
-  --text-muted: #8e8ea0;
-  --text-secondary: #acacbe;
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.4);
-}
-
-/* ===========================================
-   HTMX Loading & Error States
-   =========================================== */
-
+/* HTMX Loading States */
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -99,7 +16,7 @@
 .htmx-request.htmx-indicator {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-xs);
+  gap: 0.25rem;
 }
 
 /* Button Loading State */
@@ -118,21 +35,15 @@
   border-top-color: currentColor;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
-  right: var(--space-sm);
+  right: 0.5rem;
 }
 
-/* Container Loading State */
-.htmx-request:not(.btn) {
-  position: relative;
-  min-height: 60px;
-}
-
-/* Overlay during Loading */
+/* Container Loading Overlay */
 .htmx-swapping:not(.btn):not(.badge):not(span)::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--bg-card);
+  background: var(--color-base-100);
   opacity: 0.7;
   z-index: 1;
   border-radius: inherit;
@@ -146,52 +57,9 @@
   width: 24px;
   height: 24px;
   margin: -12px 0 0 -12px;
-  border: 3px solid var(--bg-secondary);
-  border-top-color: var(--primary);
+  border: 3px solid var(--color-base-200);
+  border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   z-index: 2;
-}
-
-/* ===========================================
-   DaisyUI Badge Outline Fix (CSS Layer Fallback)
-   =========================================== */
-
-/* Badge outline requires explicit border for browsers that don't support nested CSS */
-.badge.badge-outline {
-  border-width: 1px;
-  border-style: solid;
-  background-color: transparent;
-  padding-left: 0.625rem;
-  padding-right: 0.625rem;
-}
-
-.badge.badge-outline.badge-info {
-  border-color: var(--color-info, oklch(0.74 0.16 232.661));
-  color: var(--color-info, oklch(0.74 0.16 232.661));
-}
-
-.badge.badge-outline.badge-primary {
-  border-color: var(--color-primary, oklch(0.45 0.24 277.023));
-  color: var(--color-primary, oklch(0.45 0.24 277.023));
-}
-
-.badge.badge-outline.badge-secondary {
-  border-color: var(--color-secondary, oklch(0.65 0.241 354.308));
-  color: var(--color-secondary, oklch(0.65 0.241 354.308));
-}
-
-.badge.badge-outline.badge-success {
-  border-color: var(--color-success, oklch(0.76 0.177 163.223));
-  color: var(--color-success, oklch(0.76 0.177 163.223));
-}
-
-.badge.badge-outline.badge-warning {
-  border-color: var(--color-warning, oklch(0.82 0.189 84.429));
-  color: var(--color-warning, oklch(0.82 0.189 84.429));
-}
-
-.badge.badge-outline.badge-error {
-  border-color: var(--color-error, oklch(0.71 0.194 13.428));
-  color: var(--color-error, oklch(0.71 0.194 13.428));
 }

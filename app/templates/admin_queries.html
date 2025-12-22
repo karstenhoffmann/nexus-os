@@ -12,7 +12,7 @@
     <div class="card-body">
       <h2 class="card-title">
         <span class="inline-flex items-center gap-2 whitespace-nowrap">
-          {{ icon("plus-circle", "w-5 h-5 text-primary") }}
+          {{ icon("plus-circle", "size-5 shrink-0 text-primary") }}
           Neue Query
         </span>
       </h2>
@@ -31,7 +31,7 @@
           </select>
           <button type="submit" class="btn btn-primary">
             <span class="inline-flex items-center gap-1 whitespace-nowrap">
-              {{ icon("plus", "w-4 h-4") }} Erstellen
+              {{ icon("plus", "size-4 shrink-0") }} Erstellen
             </span>
           </button>
         </div>
@@ -44,7 +44,7 @@
     <div class="card-body">
       <h2 class="card-title">
         <span class="inline-flex items-center gap-2 whitespace-nowrap">
-          {{ icon("bookmark", "w-5 h-5 text-primary") }}
+          {{ icon("bookmark", "size-5 shrink-0 text-primary") }}
           Neueste Highlights
         </span>
       </h2>
@@ -81,7 +81,7 @@
     <div class="card-body">
       <h2 class="card-title">
         <span class="inline-flex items-center gap-2 whitespace-nowrap">
-          {{ icon("search", "w-5 h-5 text-primary") }}
+          {{ icon("search", "size-5 shrink-0 text-primary") }}
           Gespeicherte Queries
         </span>
       </h2>
@@ -113,15 +113,15 @@
             <div class="flex gap-2 mb-4 pt-2" x-data="{ editing: false }">
               <button class="btn btn-ghost btn-sm" @click.stop="editing = !editing">
                 <span class="inline-flex items-center gap-1 whitespace-nowrap">
-                  <span x-show="!editing">{{ icon("edit-2", "w-4 h-4") }} Bearbeiten</span>
-                  <span x-show="editing">{{ icon("x", "w-4 h-4") }} Abbrechen</span>
+                  <span x-show="!editing">{{ icon("edit-2", "size-4 shrink-0") }} Bearbeiten</span>
+                  <span x-show="editing">{{ icon("x", "size-4 shrink-0") }} Abbrechen</span>
                 </span>
               </button>
               <form method="post" action="/digest/queries/{{ d.id }}/delete" class="inline">
                 <button type="submit" class="btn btn-ghost btn-sm text-error hover:bg-error/10"
                         onclick="return confirm('Wirklich loeschen?')">
                   <span class="inline-flex items-center gap-1 whitespace-nowrap">
-                    {{ icon("trash-2", "w-4 h-4") }} Loeschen
+                    {{ icon("trash-2", "size-4 shrink-0") }} Loeschen
                   </span>
                 </button>
               </form>
@@ -140,7 +140,7 @@
                   </select>
                   <button type="submit" class="btn btn-primary btn-sm">
                     <span class="inline-flex items-center gap-1 whitespace-nowrap">
-                      {{ icon("check", "w-4 h-4") }} Speichern
+                      {{ icon("check", "size-4 shrink-0") }} Speichern
                     </span>
                   </button>
                 </form>

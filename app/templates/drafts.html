@@ -15,17 +15,17 @@
 
 <!-- Quick Stats Bar -->
 <div class="stats stats-vertical sm:stats-horizontal shadow bg-base-100 w-full mb-6">
-  <div class="stat py-3 px-4">
+  <div class="stat">
     <div class="stat-title text-xs">Gesamt</div>
     <div class="stat-value text-xl">{{ drafts|length }}</div>
     <div class="stat-desc">Drafts</div>
   </div>
-  <div class="stat py-3 px-4">
+  <div class="stat">
     <div class="stat-title text-xs">In Arbeit</div>
     <div class="stat-value text-xl text-warning">{{ drafts|selectattr('status', 'equalto', 'working')|list|length }}</div>
     <div class="stat-desc">working</div>
   </div>
-  <div class="stat py-3 px-4">
+  <div class="stat">
     <div class="stat-title text-xs">Veroeffentlicht</div>
     <div class="stat-value text-xl text-success">{{ drafts|selectattr('status', 'equalto', 'published')|list|length }}</div>
     <div class="stat-desc">published</div>

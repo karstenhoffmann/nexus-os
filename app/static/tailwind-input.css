@@ -1,5 +1,8 @@
-/* Tailwind CSS v4 input file */
+/* Tailwind CSS v4 + DaisyUI v5 */
 @import "tailwindcss";
+@plugin "daisyui" {
+  themes: emerald --default, dark;
+}
 
 /* Scan all Jinja templates for utility classes */
 @source "../templates/**/*.html";
